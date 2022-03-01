@@ -1,0 +1,11 @@
+{
+  "version": 2,
+  "dgSpecHash": "J4eshvHp9AWVGBHk5TLyeV0mlAfLs4ahaMK4avohhhv2OGoq35FbuB6F8qllZktnCKRkCRxpuM/pKLqsyL41iQ==",
+  "success": true,
+  "projectFilePath": "D:\\SourceTree\\imperium\\Imperium\\Imperium\\Imperium.csproj",
+  "expectedPackageFiles": [
+    "C:\\Users\\Victor\\.nuget\\packages\\microsoft.win32.systemevents\\6.0.0\\microsoft.win32.systemevents.6.0.0.nupkg.sha512",
+    "C:\\Users\\Victor\\.nuget\\packages\\system.drawing.common\\6.0.0\\system.drawing.common.6.0.0.nupkg.sha512"
+  ],
+  "logs": []
+}

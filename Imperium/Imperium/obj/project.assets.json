@@ -128,11 +128,11 @@
   "project": {
     "version": "1.0.0",
     "restore": {
-      "projectUniqueName": "D:\\SourceTree\\imperium\\Imperium\\Imperium\\Imperium.csproj",
+      "projectUniqueName": "D:\\SourceTree\\rust-imperium-github\\Imperium\\Imperium\\Imperium.csproj",
       "projectName": "Imperium",
-      "projectPath": "D:\\SourceTree\\imperium\\Imperium\\Imperium\\Imperium.csproj",
+      "projectPath": "D:\\SourceTree\\rust-imperium-github\\Imperium\\Imperium\\Imperium.csproj",
       "packagesPath": "C:\\Users\\Victor\\.nuget\\packages\\",
-      "outputPath": "D:\\SourceTree\\imperium\\Imperium\\Imperium\\obj\\",
+      "outputPath": "D:\\SourceTree\\rust-imperium-github\\Imperium\\Imperium\\obj\\",
       "projectStyle": "PackageReference",
       "configFilePaths": [
         "C:\\Users\\Victor\\AppData\\Roaming\\NuGet\\NuGet.Config",

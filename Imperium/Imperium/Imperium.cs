@@ -21,8 +21,8 @@
  */
 
 /* TO DO
- * Faction entity monitor should ensure armory lockers exists
- * RecruitManager class
+ * Land levels of economy, architecture and military that affects passive resource income, raid resistance bonus and better recruits
+ * 
  */
 
 #region > Singleton
@@ -96,6 +96,7 @@ namespace Oxide.Plugins
             Puts("Decay reduction is " + (Options.Decay.Enabled ? "enabled" : "disabled"));
             Puts("Claim upkeep is " + (Options.Upkeep.Enabled ? "enabled" : "disabled"));
             Puts("Zones are " + (Options.Zones.Enabled ? "enabled" : "disabled"));
+            Puts("Recruiting is " + (Options.Recruiting.Enabled ? "enabled" : "disabled"));
 
             // If the map has already been initialized, we can set up now; otherwise,
             // we need to wait until the savefile has been loaded.
@@ -2829,7 +2830,7 @@ namespace Oxide.Plugins
 }
 #endregion
 
-#region > Oxide Hooks
+#region > UMod Hooks
 namespace Oxide.Plugins
 {
     using Network;
@@ -4178,6 +4179,10 @@ namespace Oxide.Plugins
             public BuildingPrivlidge ClaimCupboard { get; set; }
             public Locker ArmoryLocker { get; set; }
 
+            public int EconomyLevel { get; set; }
+            public int DefenseLevel { get; set; }
+            public int ArmoryLevel { get; set; }
+
             public bool IsClaimed
             {
                 get { return FactionId != null; }
@@ -4390,7 +4395,10 @@ namespace Oxide.Plugins
                     FactionId = FactionId,
                     ClaimantId = ClaimantId,
                     CupboardId = ClaimCupboard?.net?.ID,
-                    ArmoryId = ArmoryLocker?.net?.ID
+                    ArmoryId = ArmoryLocker?.net?.ID,
+                    EconomyLevel = EconomyLevel,
+                    DefenseLevel = DefenseLevel,
+                    ArmoryLevel = ArmoryLevel
                 };
             }
         }
@@ -4420,6 +4428,12 @@ namespace Oxide.Plugins
             [JsonProperty("cupboardId")] public uint? CupboardId;
 
             [JsonProperty("armoryId")] public uint? ArmoryId;
+
+            [JsonProperty("economyLevel")] public int EconomyLevel;
+
+            [JsonProperty("defenseLevel")] public int DefenseLevel;
+
+            [JsonProperty("armoryLevel")] public int ArmoryLevel;
         }
     }
 }
@@ -4554,8 +4568,6 @@ namespace Oxide.Plugins
 
                 Events.OnAreaChanged(area);
             }
-
-
 
             public void SetHeadquarters(Area area, Faction faction)
             {
@@ -6276,9 +6288,11 @@ namespace Oxide.Plugins
 #region > Recruit Management
 namespace Oxide.Plugins
 {
+    using Rust;
+    using UnityEngine;
     public partial class Imperium
     {
-        public class Recruit
+        public class Recruit : MonoBehaviour
         {
             //Bot monobehaviour
         }
@@ -6290,7 +6304,7 @@ namespace Oxide.Plugins
     {
         public class RecruitInfo
         {
-            //Bot serialized info
+            //Existing bots serialized info
         }
     }
 }

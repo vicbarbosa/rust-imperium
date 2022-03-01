@@ -2393,6 +2393,11 @@ namespace Oxide.Plugins
                 user.SendChatMessage(Messages.AreaNotOwnedByYourFaction);
                 return;
             }
+            if (area.Level >= Instance.Options.Upgrading.MaxUpgradeLevel)
+            {
+                user.SendChatMessage(Messages.AreaIsMaximumLevel);
+                return;
+            }
             var sb = new StringBuilder();
             int costLevels = Instance.Options.Upgrading.Costs.Count - 1;
             sb.AppendLine("Land upgrade costs for " + area.Name + " is");

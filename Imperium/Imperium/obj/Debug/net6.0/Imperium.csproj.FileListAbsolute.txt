@@ -1,0 +1,5 @@
+D:\SourceTree\rust-imperium-github\Imperium\Imperium\obj\Debug\net6.0\Imperium.csproj.AssemblyReference.cache
+D:\SourceTree\rust-imperium-github\Imperium\Imperium\obj\Debug\net6.0\Imperium.GeneratedMSBuildEditorConfig.editorconfig
+D:\SourceTree\rust-imperium-github\Imperium\Imperium\obj\Debug\net6.0\Imperium.AssemblyInfoInputs.cache
+D:\SourceTree\rust-imperium-github\Imperium\Imperium\obj\Debug\net6.0\Imperium.AssemblyInfo.cs
+D:\SourceTree\rust-imperium-github\Imperium\Imperium\obj\Debug\net6.0\Imperium.csproj.CoreCompileInputs.cache

@@ -2347,7 +2347,6 @@ namespace Oxide.Plugins
             if (user == null) return;
             if (!Instance.Options.Upgrading.Enabled)
             {
-                // ! define upgrading disabled message
                 user.SendChatMessage(Messages.UpgradingDisabled);
                 return;
             }
@@ -4526,6 +4525,13 @@ namespace Oxide.Plugins
                 var bonuses = Instance.Options.War.DefensiveBonuses;
                 var depth = Instance.Areas.GetDepthInsideFriendlyTerritory(this);
                 int index = Mathf.Clamp(depth, 0, bonuses.Count - 1);
+                float bonus = bonuses[index];
+                if(Instance.Options.Upgrading.Enabled && Instance.Options.Upgrading.MaxDefenseBonus > 0)
+                {
+                    var bonusRatio = (Level / Instance.Options.Upgrading.MaxUpgradeLevel);
+                    var maxBonus = Instance.Options.Upgrading.MaxDefenseBonus;
+                    bonus = Mathf.Clamp(bonus + (maxBonus * bonusRatio), 0, 1);
+                }
                 return bonuses[index];
             }
 
@@ -7507,13 +7513,11 @@ namespace Oxide.Plugins
         class UpgradingOptions
         {
             [JsonProperty("enabled")] public bool Enabled;
-
-
             [JsonProperty("maxUpgradeLevel")] public int MaxUpgradeLevel;
             [JsonProperty("maxEconomyBonus")] public float MaxEconomyBonus;
             [JsonProperty("maxDefenseBonus")] public float MaxDefenseBonus;
-            [JsonProperty("maxRecruitingBonus")] public float MaxRecruitBonus;
-
+            [JsonProperty("maxDecayExtraReduction")] public float MaxDecayExtraReduction;
+            [JsonProperty("maxRecruitBotBuffs")] public float MaxRecruitBotsBuffs;
             [JsonProperty("costs")] public List<int> Costs = new List<int>();
 
             public static UpgradingOptions Default = new UpgradingOptions
@@ -7522,7 +7526,8 @@ namespace Oxide.Plugins
                 MaxUpgradeLevel = 10,
                 MaxEconomyBonus = 0.5f,
                 MaxDefenseBonus = 0.5f,
-                MaxRecruitBonus = 0.2f,
+                MaxDecayExtraReduction = 0.5f,
+                MaxRecruitBotsBuffs = 0.2f,
                 Costs = new List<int> { 0, 100, 200, 300, 400, 500 }
             };
         }

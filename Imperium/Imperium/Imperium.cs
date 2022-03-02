@@ -4166,6 +4166,7 @@ namespace Oxide.Plugins
 #region > Tax
 namespace Oxide.Plugins
 {
+    using UnityEngine;
     public partial class Imperium
     {
         static class Taxes
@@ -4195,10 +4196,21 @@ namespace Oxide.Plugins
                 if (itemDef == null)
                     return;
 
-                int bonus = (int)(item.amount * Instance.Options.Taxes.ClaimedLandGatherBonus);
+                float landBonus = Instance.Options.Taxes.ClaimedLandGatherBonus;
+                float upgradeBonus = 0f;
+                int bonus = (int)(item.amount * landBonus);
+
+                if (Instance.Options.Upgrading.Enabled && Instance.Options.Upgrading.MaxEconomyBonus > 0)
+                {
+                    var bonusRatio = area.Level / Instance.Options.Upgrading.MaxUpgradeLevel;
+                    var maxBonus = Instance.Options.Upgrading.MaxEconomyBonus;
+                    upgradeBonus = Mathf.Clamp(landBonus + (bonusRatio * maxBonus), 0f, 1f);
+                    upgradeBonus = Mathf.Floor(landBonus * 100f) / 100f;
+                }
+                
                 var tax = (int)(item.amount * faction.TaxRate);
 
-                faction.TaxChest.inventory.AddItem(itemDef, tax + bonus);
+                faction.TaxChest.inventory.AddItem(itemDef, (int)((tax + bonus) * (1 + upgradeBonus)));
                 item.amount -= tax;
             }
 

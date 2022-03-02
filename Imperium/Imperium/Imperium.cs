@@ -7896,7 +7896,9 @@ namespace Oxide.Plugins
                     {"powerplant", 175},
                     {"satellite_dish", 130},
                     {"trainyard", 180},
-                    {"water_treatment_plant", 180}
+                    {"water_treatment_plant", 180 },
+                    {"oilrig_1",200},
+                    {"oilrig_2",200}
                 }
             };
         }

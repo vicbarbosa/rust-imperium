@@ -4544,7 +4544,7 @@ namespace Oxide.Plugins
                     bonus = Mathf.Clamp(bonus + GetLevelDefensiveBonus(), 0, 1);
                     bonus = Mathf.Floor((bonus * 100) / 100);
                 }
-                return bonuses[index];
+                return bonus;
             }
 
             public float GetTaxRate()

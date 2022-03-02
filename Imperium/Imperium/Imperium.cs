@@ -3321,6 +3321,12 @@ namespace Oxide.Plugins
                 if (area.Type == AreaType.Claimed || area.Type == AreaType.Headquarters)
                     reduction = Instance.Options.Decay.ClaimedLandDecayReduction;
 
+                if(Instance.Options.Upgrading.Enabled && Instance.Options.Upgrading.MaxDecayExtraReduction > 0)
+                {
+                    var bonusRatio = area.Level / Instance.Options.Upgrading.MaxUpgradeLevel;
+                    reduction += bonusRatio;
+                }
+
                 if (reduction >= 1)
                     return false;
 
@@ -4200,10 +4206,10 @@ namespace Oxide.Plugins
                 float upgradeBonus = 0f;
                 int bonus = (int)(item.amount * landBonus);
 
-                if (Instance.Options.Upgrading.Enabled && Instance.Options.Upgrading.MaxEconomyBonus > 0)
+                if (Instance.Options.Upgrading.Enabled && Instance.Options.Upgrading.MaxTaxChestBonus > 0)
                 {
                     var bonusRatio = area.Level / Instance.Options.Upgrading.MaxUpgradeLevel;
-                    var maxBonus = Instance.Options.Upgrading.MaxEconomyBonus;
+                    var maxBonus = Instance.Options.Upgrading.MaxTaxChestBonus;
                     upgradeBonus = Mathf.Clamp(landBonus + (bonusRatio * maxBonus), 0f, 1f);
                     upgradeBonus = Mathf.Floor(landBonus * 100f) / 100f;
                 }
@@ -4538,10 +4544,10 @@ namespace Oxide.Plugins
                 var depth = Instance.Areas.GetDepthInsideFriendlyTerritory(this);
                 int index = Mathf.Clamp(depth, 0, bonuses.Count - 1);
                 float bonus = bonuses[index];
-                if(Instance.Options.Upgrading.Enabled && Instance.Options.Upgrading.MaxDefenseBonus > 0)
+                if(Instance.Options.Upgrading.Enabled && Instance.Options.Upgrading.MaxRaidDefenseBonus > 0)
                 {
                     var bonusRatio = (Level / Instance.Options.Upgrading.MaxUpgradeLevel);
-                    var maxBonus = Instance.Options.Upgrading.MaxDefenseBonus;
+                    var maxBonus = Instance.Options.Upgrading.MaxRaidDefenseBonus;
                     bonus = Mathf.Clamp(bonus + (maxBonus * bonusRatio), 0, 1);
                     bonus = Mathf.Floor((bonus * 100) / 100);
                 }
@@ -7527,8 +7533,9 @@ namespace Oxide.Plugins
         {
             [JsonProperty("enabled")] public bool Enabled;
             [JsonProperty("maxUpgradeLevel")] public int MaxUpgradeLevel;
-            [JsonProperty("maxEconomyBonus")] public float MaxEconomyBonus;
-            [JsonProperty("maxDefenseBonus")] public float MaxDefenseBonus;
+            [JsonProperty("maxProduceBonus")] public float MaxProduceBonus;
+            [JsonProperty("maxTaxChestBonus")] public float MaxTaxChestBonus;
+            [JsonProperty("maxRaidDefenseBonus")] public float MaxRaidDefenseBonus;
             [JsonProperty("maxDecayExtraReduction")] public float MaxDecayExtraReduction;
             [JsonProperty("maxRecruitBotBuffs")] public float MaxRecruitBotsBuffs;
             [JsonProperty("costs")] public List<int> Costs = new List<int>();
@@ -7537,8 +7544,9 @@ namespace Oxide.Plugins
             {
                 Enabled = true,
                 MaxUpgradeLevel = 10,
-                MaxEconomyBonus = 0.5f,
-                MaxDefenseBonus = 0.5f,
+                MaxProduceBonus = 0.5f,
+                MaxTaxChestBonus = 1f,
+                MaxRaidDefenseBonus = 0.5f,
                 MaxDecayExtraReduction = 0.5f,
                 MaxRecruitBotsBuffs = 0.2f,
                 Costs = new List<int> { 0, 100, 200, 300, 400, 500 }

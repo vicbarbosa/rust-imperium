@@ -4768,6 +4768,7 @@ namespace Oxide.Plugins
                 area.FactionId = faction.Id;
                 area.ClaimantId = claimant.Id;
                 area.ClaimCupboard = cupboard;
+                Util.RunEffect(claimant.transform.position, "assets/bundled/prefabs/fx/item_unlock.prefab");
 
                 Events.OnAreaChanged(area);
             }

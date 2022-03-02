@@ -4531,6 +4531,7 @@ namespace Oxide.Plugins
                     var bonusRatio = (Level / Instance.Options.Upgrading.MaxUpgradeLevel);
                     var maxBonus = Instance.Options.Upgrading.MaxDefenseBonus;
                     bonus = Mathf.Clamp(bonus + (maxBonus * bonusRatio), 0, 1);
+                    bonus = Mathf.Floor((bonus * 100) / 100);
                 }
                 return bonuses[index];
             }

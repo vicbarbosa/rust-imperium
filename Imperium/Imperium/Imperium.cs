@@ -3322,10 +3322,7 @@ namespace Oxide.Plugins
                     reduction = Instance.Options.Decay.ClaimedLandDecayReduction;
 
                 if(Instance.Options.Upgrading.Enabled && Instance.Options.Upgrading.MaxDecayExtraReduction > 0)
-                {
-                    var bonusRatio = area.Level / Instance.Options.Upgrading.MaxUpgradeLevel;
-                    reduction += bonusRatio;
-                }
+                    reduction += area.GetLevelDecayReduction();
 
                 if (reduction >= 1)
                     return false;
@@ -4208,9 +4205,7 @@ namespace Oxide.Plugins
 
                 if (Instance.Options.Upgrading.Enabled && Instance.Options.Upgrading.MaxTaxChestBonus > 0)
                 {
-                    var bonusRatio = area.Level / Instance.Options.Upgrading.MaxUpgradeLevel;
-                    var maxBonus = Instance.Options.Upgrading.MaxTaxChestBonus;
-                    upgradeBonus = Mathf.Clamp(landBonus + (bonusRatio * maxBonus), 0f, 1f);
+                    upgradeBonus = area.GetLevelTaxBonus();
                     upgradeBonus = Mathf.Floor(landBonus * 100f) / 100f;
                 }
                 
@@ -4546,9 +4541,7 @@ namespace Oxide.Plugins
                 float bonus = bonuses[index];
                 if(Instance.Options.Upgrading.Enabled && Instance.Options.Upgrading.MaxRaidDefenseBonus > 0)
                 {
-                    var bonusRatio = (Level / Instance.Options.Upgrading.MaxUpgradeLevel);
-                    var maxBonus = Instance.Options.Upgrading.MaxRaidDefenseBonus;
-                    bonus = Mathf.Clamp(bonus + (maxBonus * bonusRatio), 0, 1);
+                    bonus = Mathf.Clamp(bonus + GetLevelDefensiveBonus(), 0, 1);
                     bonus = Mathf.Floor((bonus * 100) / 100);
                 }
                 return bonuses[index];
@@ -4573,6 +4566,32 @@ namespace Oxide.Plugins
                     return new War[0];
 
                 return Instance.Wars.GetAllActiveWarsByFaction(FactionId);
+            }
+
+            float GetRatio(int level, int maxLevel, float maxBonus)
+            {
+                return (level / maxLevel) * maxBonus;
+            }
+            public float GetLevelDefensiveBonus()
+            {
+                return GetRatio(Level, 
+                    Instance.Options.Upgrading.MaxUpgradeLevel, 
+                    Instance.Options.Upgrading.MaxRaidDefenseBonus);
+
+            }
+            public float GetLevelDecayReduction()
+            {
+                return GetRatio(Level,
+                    Instance.Options.Upgrading.MaxUpgradeLevel,
+                    Instance.Options.Upgrading.MaxDecayExtraReduction);
+
+            }
+
+            public float GetLevelTaxBonus()
+            {
+                return GetRatio(Level,
+                    Instance.Options.Upgrading.MaxUpgradeLevel,
+                    Instance.Options.Upgrading.MaxTaxChestBonus);
             }
 
             public AreaInfo Serialize()
@@ -7546,8 +7565,8 @@ namespace Oxide.Plugins
                 MaxUpgradeLevel = 10,
                 MaxProduceBonus = 0.5f,
                 MaxTaxChestBonus = 1f,
-                MaxRaidDefenseBonus = 0.5f,
-                MaxDecayExtraReduction = 0.5f,
+                MaxRaidDefenseBonus = 0.2f,
+                MaxDecayExtraReduction = 1f,
                 MaxRecruitBotsBuffs = 0.2f,
                 Costs = new List<int> { 0, 100, 200, 300, 400, 500 }
             };

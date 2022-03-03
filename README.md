@@ -21,7 +21,7 @@ Imperium is extremely configurable, leading to a wide range of game modes. Here 
 **Commons**
 * `/help` Show Imperium plugin help
 * `/map` Show Imperium map
-* `/pvp` Toggle pvp on and off (Can hurt only other players with pvp on
+* `/pvp` Toggle pvp on and off (Can hurt only other players with pvp mode on)
 
 **Creating and managing factions**
 * `/faction create FACTION_NAME` Create faction with name

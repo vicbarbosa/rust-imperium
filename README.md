@@ -36,8 +36,11 @@ Imperium is extremely configurable, leading to a wide range of game modes. Here 
 * `/faction help` Show help about the faction command
 
 **Claiming and managing land**
+For server admins
 * `/claim assign FACTION_NAME` Start interaction to assign claim to specified faction **(Admin only!)**
 * `/claim delete XY` Delete any claim on the specified land **(Admin only!)**
+
+For players
 * `/claim` or `/claim add` Start interaction to claim the land you are on
 * `/claim remove` Start interaction to remove claim on the land you are on
 * `/claim hq` Start interaction to set land as headquarters

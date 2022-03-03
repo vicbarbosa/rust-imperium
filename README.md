@@ -23,39 +23,39 @@ Imperium is extremely configurable, leading to a wide range of game modes. Here 
 *`/pvp` Toggle pvp on and off (Can hurt only other players with pvp on
 
 **Creating and managing factions**
-*`/faction create FACTION_NAME` Create faction with name
-*`/faction invite PLAYER` Invite a player to your faction
-*`/faction join NAME` Join a faction if has been invited
-*`/faction show` Show information about your faction
-*`/faction leave` Leave current faction
-*`/faction promote PLAYER` Promote a faction member to manager role
-*`/faction demote PLAYER` Demote a faction manager to member role
-*`/faction kick PLAYER` Remove a member from your faction
-*`/faction disband forever` Permanently disband your faction
-*`/faction help` Show help about the faction command
+* `/faction create FACTION_NAME` Create faction with name
+* `/faction invite PLAYER` Invite a player to your faction
+* `/faction join NAME` Join a faction if has been invited
+* `/faction show` Show information about your faction
+* `/faction leave` Leave current faction
+* `/faction promote PLAYER` Promote a faction member to manager role
+* `/faction demote PLAYER` Demote a faction manager to member role
+* `/faction kick PLAYER` Remove a member from your faction
+* `/faction disband forever` Permanently disband your faction
+* `/faction help` Show help about the faction command
 
 **Claiming and managing land**
-*`/claim assign FACTION_NAME` Start interaction to assign claim to specified faction **(Admin only!)**
-*`/claim delete XY` Delete any claim on the specified land **(Admin only!)**
-*`/claim` or `/claim add` Start interaction to claim the land you are on
-*`/claim remove` Start interaction to remove claim on the land you are on
-*`/claim hq` Start interaction to set land as headquarters
-*`/claim cost XY` Show cost to claim the specified land
-*`/claim give FACTION_NAME` Give land to another faction
-*`/claim list` Show a list of claimed land
-*`/claim rename XY` Rename the specified land
-*`/claim upkeep` Show the land scrap upkeep (if claim upkeep is enabled in the configs)
-*`/claim help` Show help about the claim command
+* `/claim assign FACTION_NAME` Start interaction to assign claim to specified faction **(Admin only!)**
+* `/claim delete XY` Delete any claim on the specified land **(Admin only!)**
+* `/claim` or `/claim add` Start interaction to claim the land you are on
+* `/claim remove` Start interaction to remove claim on the land you are on
+* `/claim hq` Start interaction to set land as headquarters
+* `/claim cost XY` Show cost to claim the specified land
+* `/claim give FACTION_NAME` Give land to another faction
+* `/claim list` Show a list of claimed land
+* `/claim rename XY` Rename the specified land
+* `/claim upkeep` Show the land scrap upkeep (if claim upkeep is enabled in the configs)
+* `/claim help` Show help about the claim command
 
 **Managing taxes**
-`/tax chest` Start interaction to set faction's tax chest
-`/tax rate XX` Set faction tax rate percentage
-`/tax help` Show help about the tax command
+* `/tax chest` Start interaction to set faction's tax chest
+* `/tax rate XX` Set faction tax rate percentage
+* `/tax help` Show help about the tax command
 
 **Declaring war against other factions**
-`/war declare FACTION_NAME` Declare war against the specified faction
-`/war end FACTION_NAME` Ask (or accept) to end the war with the specified faction
-`/war help` Show help about the war command
+* `/war declare FACTION_NAME` Declare war against the specified faction
+* `/war end FACTION_NAME` Ask (or accept) to end the war with the specified faction
+* `/war help` Show help about the war command
 
 ## Credits
 - **chucklenugget**, the original author of this plugin 

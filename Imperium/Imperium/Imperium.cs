@@ -2253,7 +2253,7 @@ namespace Oxide.Plugins
 
             if (args.Length == 0)
             {
-                OnRecruitHelpCommand(user);
+                OnRecruitHereCommand(user);
                 return;
             }
 
@@ -2265,7 +2265,7 @@ namespace Oxide.Plugins
                     OnRecruitLockerCommand(user);
                     break;
                 case "here":
-                    //OnRecruitHereCommand(user, restArguments);
+                    OnRecruitHereCommand(user);
                     break;
                 case "help":
                 default:
@@ -2309,8 +2309,24 @@ namespace Oxide.Plugins
                 user.SendChatMessage(Messages.NotLeaderOfFaction);
                 return;
             }
-            user.SendChatMessage(Messages.SelectArmoryLocker);
-            user.BeginInteraction(new SelectingArmoryLockerInteraction(faction));
+            var npc = (global::HumanNPC)GameManager.server.CreateEntity("assets/rust.ai/agents/npcplayer/humannpc/scientist/scientistnpc_roam.prefab", user.transform.position, UnityEngine.Quaternion.identity, false);
+            if(npc)
+            {
+                npc.gameObject.AwakeFromInstantiate();
+                npc.Spawn();
+                Recruit recruit = npc.gameObject.AddComponent<Recruit>();
+                var nav = npc.GetComponent<BaseNavigator>();
+                if (nav == null)
+                    return;
+                nav.DefaultArea = "Walkable";
+                npc.NavAgent.areaMask = 1;
+                npc.NavAgent.agentTypeID = -1372625422;
+                npc.NavAgent.autoTraverseOffMeshLink = true;
+                npc.NavAgent.autoRepath = true;
+                npc.NavAgent.enabled = true;
+                nav.CanUseCustomNav = true;
+            }
+
         }
     }
 }
@@ -3204,6 +3220,32 @@ namespace Oxide.Plugins
             return null;
         }
 
+        object OnNpcTargetSense(BaseEntity npc, BaseEntity targetEntity, AIBrainSenses brainSenses)
+        {
+            var recruit = npc.GetComponent<Recruit>();
+            if(recruit != null)
+            {
+                Puts("is recruit and OnNpcTargetSense return false!");
+                var targetRecruit = targetEntity.GetComponent<Recruit>();
+                if (targetRecruit != null)
+                    Puts("### target is also Recruit!!!");
+                
+                return false;
+            }
+            return null;
+        }
+
+        object OnNpcTarget(BaseEntity npc, BaseEntity entity)
+        {
+            var recruit = npc.GetComponent<Recruit>();
+            if (recruit != null)
+            {
+                Puts("is recruit and OnNpcTarget return false!");
+                return false;
+            }
+            return null;
+        }
+
         void OnUserEnteredArea(User user, Area area)
         {
 
@@ -3292,6 +3334,8 @@ namespace Oxide.Plugins
         {
             Hud.RefreshForAllPlayers();
         }
+
+        
     }
 }
 #endregion
@@ -6498,6 +6542,7 @@ namespace Oxide.Plugins
     {
         public class Recruit : MonoBehaviour
         {
+            AIBrainSenses brain;
             //Bot monobehaviour
         }
     }

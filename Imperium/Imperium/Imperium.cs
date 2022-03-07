@@ -98,7 +98,13 @@ namespace Oxide.Plugins
             Puts("Decay reduction is " + (Options.Decay.Enabled ? "enabled" : "disabled"));
             Puts("Claim upkeep is " + (Options.Upkeep.Enabled ? "enabled" : "disabled"));
             Puts("Zones are " + (Options.Zones.Enabled ? "enabled" : "disabled"));
-            Puts("Recruiting is " + (Options.Recruiting.Enabled ? "enabled" : "disabled"));
+            if(Options.Recruiting.Enabled)
+            {
+                Puts("Recruiting is not available in this Imperium version yet! Disabling it");
+                Options.Recruiting.Enabled = false;
+            }
+            
+            //Puts("Recruiting is " + (Options.Recruiting.Enabled ? "enabled" : "disabled"));
 
             // If the map has already been initialized, we can set up now; otherwise,
             // we need to wait until the savefile has been loaded.
@@ -1409,26 +1415,29 @@ namespace Oxide.Plugins
 
             if (args.Length != 1)
             {
-                user.SendChatMessage(Messages.Usage, "/faction badlands true|false");
+                user.SendChatMessage(Messages.Usage, "/faction badlands confirm");
                 return;
             }
 
-            string value = Util.RemoveSpecialCharacters(args[0].Replace(" ", ""));
-
-            if (value == "true")
+            int secondsRemaining = (int)(faction.BadlandsCommandSetTime - DateTime.Now).TotalSeconds;
+            if (secondsRemaining < Instance.Options.Factions.CommandCooldownSeconds)
+            {
+                user.SendChatMessage(Messages.CommandIsOnCooldown, secondsRemaining);
+                return;
+            }
+            
+            if (faction.IsBadlands)
             {
                 user.SendChatMessage(Messages.FactionIsBadlands);
-                user.Faction.IsBadlands = true;
-            }
-            else if (value == "false")
-            {
-                user.SendChatMessage(Messages.FactionIsNotBadlands);
-                user.Faction.IsBadlands = false;
+                faction.IsBadlands = false;
+                faction.BadlandsCommandSetTime = DateTime.Now;
+
             }
             else
             {
-                user.SendChatMessage(Messages.Usage, "/faction badlands true|false");
-                return;
+                user.SendChatMessage(Messages.FactionIsNotBadlands);
+                faction.IsBadlands = true;
+                faction.BadlandsCommandSetTime = DateTime.Now;
             }
         }
     }
@@ -5029,6 +5038,7 @@ namespace Oxide.Plugins
             public DateTime NextUpkeepPaymentTime { get; set; }
             public bool IsUpkeepPastDue { get; set; }
             public bool IsBadlands { get; set; }
+            public DateTime BadlandsCommandSetTime { get; set; }
 
             public bool CanCollectTaxes
             {
@@ -5052,6 +5062,7 @@ namespace Oxide.Plugins
                 TaxRate = Instance.Options.Taxes.DefaultTaxRate;
                 NextUpkeepPaymentTime = DateTime.UtcNow.AddHours(Instance.Options.Upkeep.CollectionPeriodHours);
                 IsBadlands = false;
+                BadlandsCommandSetTime = DateTime.UnixEpoch;
             }
 
             public Faction(FactionInfo info)
@@ -5076,6 +5087,7 @@ namespace Oxide.Plugins
                 NextUpkeepPaymentTime = info.NextUpkeepPaymentTime;
                 IsUpkeepPastDue = info.IsUpkeepPastDue;
                 IsBadlands = info.IsBadlands;
+                BadlandsCommandSetTime = info.FactionBadlandsSetTime;
 
                 Instance.Log($"[LOAD] Faction {Id}: {MemberIds.Count} members, tax chest = {Util.Format(TaxChest)}");
             }
@@ -5259,8 +5271,8 @@ namespace Oxide.Plugins
                     TaxRate = TaxRate,
                     TaxChestId = TaxChest?.net?.ID,
                     NextUpkeepPaymentTime = NextUpkeepPaymentTime,
-                    IsBadlands = IsBadlands
-
+                    IsBadlands = IsBadlands,
+                    FactionBadlandsSetTime = BadlandsCommandSetTime
                 };
             }
         }
@@ -5307,6 +5319,7 @@ namespace Oxide.Plugins
 {
     using System;
     using Newtonsoft.Json;
+    using Newtonsoft.Json.Converters;
 
     public partial class Imperium : RustPlugin
     {
@@ -5332,6 +5345,9 @@ namespace Oxide.Plugins
             [JsonProperty("isUpkeepPastDue")] public bool IsUpkeepPastDue;
 
             [JsonProperty("isBadlands")] public bool IsBadlands;
+
+            [JsonProperty("factionBadlandsSetTime"), JsonConverter(typeof(IsoDateTimeConverter))]
+            public DateTime FactionBadlandsSetTime;
         }
     }
 }
@@ -7558,13 +7574,18 @@ namespace Oxide.Plugins
 
             [JsonProperty("allowFactionBadlands")] public bool AllowFactionBadlands;
 
+            [JsonProperty("factionBadlandsCommandCooldownSeconds")] public int CommandCooldownSeconds;
+
             public static FactionOptions Default = new FactionOptions
             {
                 MinFactionNameLength = 1,
                 MaxFactionNameLength = 8,
                 MaxMembers = null,
-                AllowFactionBadlands = false
+                AllowFactionBadlands = false,
+                CommandCooldownSeconds = 300
             };
+
+            
         }
     }
 }
@@ -7822,7 +7843,7 @@ namespace Oxide.Plugins
 
             public static RecruitingOptions Default = new RecruitingOptions
             {
-                Enabled = true
+                Enabled = false
             };
         }
     }

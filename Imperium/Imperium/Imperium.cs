@@ -1419,7 +1419,7 @@ namespace Oxide.Plugins
                 return;
             }
 
-            int secondsRemaining = (int)(faction.BadlandsCommandSetTime - DateTime.Now).TotalSeconds;
+            int secondsRemaining = (int)(faction.BadlandsCommandUsedTime - DateTime.Now).TotalSeconds;
             if (secondsRemaining < Instance.Options.Factions.CommandCooldownSeconds)
             {
                 user.SendChatMessage(Messages.CommandIsOnCooldown, secondsRemaining);
@@ -1430,14 +1430,14 @@ namespace Oxide.Plugins
             {
                 user.SendChatMessage(Messages.FactionIsBadlands);
                 faction.IsBadlands = false;
-                faction.BadlandsCommandSetTime = DateTime.Now;
+                faction.BadlandsCommandUsedTime = DateTime.Now;
 
             }
             else
             {
                 user.SendChatMessage(Messages.FactionIsNotBadlands);
                 faction.IsBadlands = true;
-                faction.BadlandsCommandSetTime = DateTime.Now;
+                faction.BadlandsCommandUsedTime = DateTime.Now;
             }
         }
     }
@@ -5038,7 +5038,7 @@ namespace Oxide.Plugins
             public DateTime NextUpkeepPaymentTime { get; set; }
             public bool IsUpkeepPastDue { get; set; }
             public bool IsBadlands { get; set; }
-            public DateTime BadlandsCommandSetTime { get; set; }
+            public DateTime BadlandsCommandUsedTime { get; set; }
 
             public bool CanCollectTaxes
             {
@@ -5062,7 +5062,7 @@ namespace Oxide.Plugins
                 TaxRate = Instance.Options.Taxes.DefaultTaxRate;
                 NextUpkeepPaymentTime = DateTime.UtcNow.AddHours(Instance.Options.Upkeep.CollectionPeriodHours);
                 IsBadlands = false;
-                BadlandsCommandSetTime = DateTime.UnixEpoch;
+                BadlandsCommandUsedTime = DateTime.UnixEpoch;
             }
 
             public Faction(FactionInfo info)
@@ -5087,7 +5087,7 @@ namespace Oxide.Plugins
                 NextUpkeepPaymentTime = info.NextUpkeepPaymentTime;
                 IsUpkeepPastDue = info.IsUpkeepPastDue;
                 IsBadlands = info.IsBadlands;
-                BadlandsCommandSetTime = info.FactionBadlandsSetTime;
+                BadlandsCommandUsedTime = info.BadlandsCommandUsedTime;
 
                 Instance.Log($"[LOAD] Faction {Id}: {MemberIds.Count} members, tax chest = {Util.Format(TaxChest)}");
             }
@@ -5272,7 +5272,7 @@ namespace Oxide.Plugins
                     TaxChestId = TaxChest?.net?.ID,
                     NextUpkeepPaymentTime = NextUpkeepPaymentTime,
                     IsBadlands = IsBadlands,
-                    FactionBadlandsSetTime = BadlandsCommandSetTime
+                    BadlandsCommandUsedTime = BadlandsCommandUsedTime
                 };
             }
         }
@@ -5346,8 +5346,8 @@ namespace Oxide.Plugins
 
             [JsonProperty("isBadlands")] public bool IsBadlands;
 
-            [JsonProperty("factionBadlandsSetTime"), JsonConverter(typeof(IsoDateTimeConverter))]
-            public DateTime FactionBadlandsSetTime;
+            [JsonProperty("badlandsCommandUsedTime"), JsonConverter(typeof(IsoDateTimeConverter))]
+            public DateTime BadlandsCommandUsedTime;
         }
     }
 }

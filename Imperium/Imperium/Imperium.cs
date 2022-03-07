@@ -21,8 +21,12 @@
  */
 
 /* TO DO
- * Land levels of economy, architecture and military that affects passive resource income, raid resistance bonus and better recruits
  * 
+ * 
+ */
+
+/* DONE
+ * Land levels that affects passive resource income, raid resistance bonus and better recruits
  */
 
 #region > Singleton
@@ -41,8 +45,6 @@ namespace Oxide.Plugins
     [Info("Imperium", "chucklenugget/Orange/evict", "1.11.0")]
     public partial class Imperium : RustPlugin
     {
-        [PluginReference]
-        private RustPlugin Kits, BotRespawn;
 
         static Imperium Instance;
 
@@ -2230,7 +2232,9 @@ namespace Oxide.Plugins
     }
 }
 #endregion
+
 #region /recruit
+/*
 namespace Oxide.Plugins
 {
     using System.Linq;
@@ -2275,6 +2279,7 @@ namespace Oxide.Plugins
         }
     }
 }
+*/
 
 namespace Oxide.Plugins
 {
@@ -3220,42 +3225,7 @@ namespace Oxide.Plugins
             return null;
         }
 
-        object OnNpcTargetSense(BaseEntity npc, BaseEntity targetEntity, AIBrainSenses brainSenses)
-        {
-            var recruit = npc.GetComponent<Recruit>();
-            if(recruit != null)
-            {
-                HumanNPC humanNpc = npc as HumanNPC;
-                Puts(humanNpc.Brain.CurrentState.ToString());
-                Puts(humanNpc.Brain.Navigator.ToString());
-                if (humanNpc != null)
-                {
-                    if(humanNpc.Brain.CurrentState != recruit.roamState)
-                    {
-                        humanNpc.Brain.SwitchToState(recruit.roamState,0);
-                    }
-                    
-                }
-                Puts("is recruit and OnNpcTargetSense return false!");
-                var targetRecruit = targetEntity.GetComponent<Recruit>();
-                if (targetRecruit != null)
-                    Puts("### target is also Recruit!!!");
-                
-                return false;
-            }
-            return false;
-        }
-
-        object OnNpcTarget(BaseEntity npc, BaseEntity entity)
-        {
-            var recruit = npc.GetComponent<Recruit>();
-            if (recruit != null)
-            {
-                Puts("is recruit and OnNpcTarget return false!");
-                return false;
-            }
-            return false;
-        }
+       
 
         void OnUserEnteredArea(User user, Area area)
         {

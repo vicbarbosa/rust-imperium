@@ -21,7 +21,36 @@
  */
 
 /* TO DO
+ * THE FIXES UPDATE:
+ * Integrate with ImageLibrary for Custom icons
+ * Provide default icons pack for convenience to users
+ * Debug and fix area geneartion with strange offset. Should match actual map grid
  * 
+ * THE WAR UPDATE:
+ * War option to prevent war being initiated from/against noob factions
+ * War option to require war acceptance from defenders (Must say /war accept FACTION_NAME
+ * War option to require war acknowlegment from defenders (Must have online members)
+ * War option to require admin approval (Must say /war approve ATTACKER DEFENDER)
+ * War option to pay scrap to declare war (Configurable cost)
+ * War option to other factions request to pick a side in the same war (/war alliance offer FACTION_NAME and /war alliance accept FACTION_NAME)
+ * War option to activate Preparation Phase (Configurable time, a war phase to delay pvp and raiding
+ * War option to activate Pvp Phase (Configurable time, a war phase to allow pvp and delay raiding)
+ * War option to activate Raiding Phase (Configurable time, allowed pvp and raiding between enemy factions)
+ * War event mode rules (points, win conditions, automated logic to end wars)
+ * 
+ * THE ECONOMY UPDATE:
+ * Land produce mechanic to generate different types of resources depending on each land topology map
+ * 
+ * THE SOCIETY UPDATE:
+ * Faction points
+ * Faction perks
+ * Faction missions
+ * 
+ * THE ARMY UPDATE:
+ * Allow factions to recruit bots to fight for them
+ * 
+ * THE LORE UPDATE:
+ * Auto-generate small stories that can be read in chat based on factions interactions
  * 
  */
 
@@ -7083,7 +7112,7 @@ namespace Oxide.Plugins
                 return false;
             }
 
-            public static void RunEffect(Vector3 position, string prefab, BasePlayer player = null) // Made by Orange
+            public static void RunEffect(Vector3 position, string prefab, BasePlayer player = null)
             {
                 var effect = new Effect();
                 effect.Init(Effect.Type.Generic, position, Vector3.zero);
@@ -7097,6 +7126,11 @@ namespace Oxide.Plugins
                 {
                     EffectNetwork.Send(effect);
                 }
+            }
+
+            public static int GetSecondsBetween(DateTime start, DateTime end)
+            {
+                return (int)(start - end).TotalSeconds;
             }
         }
     }

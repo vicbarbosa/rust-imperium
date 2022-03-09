@@ -66,3 +66,4 @@ For players
 - **chucklenugget**, the original author of this plugin 
 - **Orange**, the previous maintainer
 - Huge thanks to the authors of Zone Manager, Lusty Map and Dynamic PVP, which inspired and guided my work on Imperium. Also a huge thanks to Disconnect and Gamegeared, the admins of The Lost Isles and Rust Factions, who contributed countless ideas to Imperium and were patient as I shook out the bugs.
+- Special thanks to 2022 testers Danilão and AguaRaiss

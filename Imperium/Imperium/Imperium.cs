@@ -22,8 +22,6 @@
 
 /* TO DO
  * THE FIXES UPDATE:
- * Integrate with ImageLibrary for Custom icons
- * Provide default icons pack for convenience to users
  * Debug and fix area geneartion with strange offset. Should match actual map grid
  * 
  * THE WAR UPDATE:
@@ -56,6 +54,8 @@
 
 /* DONE
  * Land levels that affects passive resource income, raid resistance bonus and better recruits
+ * Provide default icon pack
+ * Load icons from own server directory instead of external website
  */
 
 
@@ -112,7 +112,6 @@ namespace Oxide.Plugins
         {
             InitLang();
             Permission.RegisterAll(this);
-
             try
             {
                 Options = Config.ReadObject<ImperiumOptions>();
@@ -6563,7 +6562,6 @@ namespace Oxide.Plugins
 }
 #endregion
 
-//wip
 #region > Recruit
 namespace Oxide.Plugins
 {

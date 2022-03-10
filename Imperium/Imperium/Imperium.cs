@@ -72,7 +72,7 @@ namespace Oxide.Plugins
     using System.Linq;
 
 
-    [Info("Imperium", "chucklenugget/Orange/evict", "1.11.0")]
+    [Info("Imperium", "chucklenugget/Orange/evict", "1.16.0")]
     public partial class Imperium : RustPlugin
     {
 
@@ -81,7 +81,6 @@ namespace Oxide.Plugins
         bool Ready;
 
         public static string dataDirectory = $"file://{Interface.Oxide.DataDirectory}{Path.DirectorySeparatorChar}ImperiumImages{Path.DirectorySeparatorChar}";
-        //public static string dataDirectory = "http://rustimperium.net/";
         DynamicConfigFile AreasFile;
         DynamicConfigFile FactionsFile;
         DynamicConfigFile PinsFile;

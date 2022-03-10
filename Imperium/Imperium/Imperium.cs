@@ -5072,6 +5072,8 @@ namespace Oxide.Plugins
             public bool IsBadlands { get; set; }
             public DateTime? BadlandsCommandUsedTime { get; set; }
 
+            public WarParticipation WarFactionState { get; set; }
+
             public bool CanCollectTaxes
             {
                 get { return TaxChest != null; }
@@ -5381,6 +5383,8 @@ namespace Oxide.Plugins
             [JsonProperty("badlandsCommandUsedTime"), JsonConverter(typeof(IsoDateTimeConverter))]
             public DateTime? BadlandsCommandUsedTime;
         }
+
+
     }
 }
 
@@ -6025,15 +6029,18 @@ namespace Oxide.Plugins
 namespace Oxide.Plugins
 {
     using System;
-
+    using System.Collections.Generic;
     public partial class Imperium
     {
         class War
         {
+           
             public string AttackerId { get; set; }
             public string DefenderId { get; set; }
             public string DeclarerId { get; set; }
             public string CassusBelli { get; set; }
+            public List<WarFactionState> Attackers { get; set; }
+            public List<WarFactionState> Defenders { get; set; }
 
             public DateTime? AttackerPeaceOfferingTime { get; set; }
             public DateTime? DefenderPeaceOfferingTime { get; set; }
@@ -6074,6 +6081,18 @@ namespace Oxide.Plugins
                 CassusBelli = info.CassusBelli;
                 StartTime = info.StartTime;
                 EndTime = info.EndTime;
+                Attackers = GetWarFactionList(info.attackers);
+                Defenders = GetWarFactionList(info.defenders);
+            }
+
+            public List<WarFactionState> GetWarFactionList(List<WarFactionStateInfo> info)
+            {
+                List<WarFactionState> result = new List<WarFactionState>();
+                foreach(WarFactionStateInfo warFactionInfo in info)
+                {
+                    result.Add(new WarFactionState(warFactionInfo));
+                }
+                return result;
             }
 
             public void OfferPeace(Faction faction)
@@ -6117,6 +6136,31 @@ namespace Oxide.Plugins
     }
 }
 
+
+namespace Oxide.Plugins
+{
+    using System;
+
+    public partial class Imperium
+    {
+        class WarFactionState
+        {
+            public string factionId;
+            public WarParticipation state;
+            public int withdrawScrapOffer;
+            public bool isWarLeader;
+
+            public WarFactionState(WarFactionStateInfo info)
+            {
+                factionId = info.FactionId;
+                state = info.WarParticipation;
+                withdrawScrapOffer = info.WithdrawScrapOffer;
+                isWarLeader = info.IsWarLeader;
+            }
+        }
+    }
+}
+
 namespace Oxide.Plugins
 {
     public partial class Imperium : RustPlugin
@@ -6133,8 +6177,44 @@ namespace Oxide.Plugins
 namespace Oxide.Plugins
 {
     using System;
+
+    public partial class Imperium
+    {
+        enum WarParticipation
+        {
+            Neutral,
+            PendingApproval,
+            PendingApprovalRejected,
+            Participating,
+            Eliminated,
+            PendingWithdraw,
+            Withdraw
+        }
+    }
+}
+
+namespace Oxide.Plugins
+{
+    using System;
+
+    public partial class Imperium
+    {
+        enum WarPhase
+        {
+            Preparation,
+            Combat,
+            Raiding
+        }
+    }
+}
+
+namespace Oxide.Plugins
+{
+    using System;
+    using System.Collections.Generic;
     using Newtonsoft.Json;
     using Newtonsoft.Json.Converters;
+    using Newtonsoft.Json.Linq;
 
     public partial class Imperium : RustPlugin
     {
@@ -6145,6 +6225,12 @@ namespace Oxide.Plugins
             [JsonProperty("defenderId")] public string DefenderId;
 
             [JsonProperty("declarerId")] public string DeclarerId;
+
+            [JsonProperty("attackers"), JsonConverter(typeof(List<WarFactionStateInfo>))]
+            public List<WarFactionStateInfo> attackers;
+
+            [JsonProperty("defenders"), JsonConverter(typeof(List<WarFactionStateInfo>))]
+            public List<WarFactionStateInfo> defenders;
 
             [JsonProperty("cassusBelli")] public string CassusBelli;
 
@@ -6162,6 +6248,22 @@ namespace Oxide.Plugins
 
             [JsonProperty("endReason"), JsonConverter(typeof(StringEnumConverter))]
             public WarEndReason? EndReason;
+        }
+
+        [Serializable]
+        class WarFactionStateInfo
+        {
+            [JsonProperty("factionId")]
+            public string FactionId;
+
+            [JsonProperty("warParticipation"), JsonConverter(typeof(StringEnumConverter))]
+            public WarParticipation WarParticipation;
+
+            [JsonProperty("withdrawScrapOffer")]
+            public int WithdrawScrapOffer;
+
+            [JsonProperty("IsWarLeader")]
+            public bool IsWarLeader;
         }
     }
 }
@@ -6948,6 +7050,48 @@ namespace Oxide.Plugins
         }
     }
 }
+
+namespace Oxide.Plugins
+{
+    using System;
+    using System.Collections.Generic;
+    using Newtonsoft.Json;
+    using Newtonsoft.Json.Linq;
+
+    public partial class Imperium : RustPlugin
+    {
+        class WarFactionStateListConverter : JsonConverter
+        {
+            public override void WriteJson(JsonWriter writer, object value, JsonSerializer serializer)
+            {
+                var list = (List<WarFactionState>)value;
+                writer.WriteStartArray();
+                foreach(WarFactionState factionState in list)
+                {
+                    serializer.Serialize(writer, factionState);
+                }
+                writer.WriteEndArray();
+            }
+
+            public override object ReadJson(JsonReader reader, Type objectType, object existingValue,
+                JsonSerializer serializer)
+            {
+                JToken token = JToken.Load(reader);
+                if (token.Type == JTokenType.Object)
+                {
+                    JToken results = token["results"];
+                }
+            }
+
+            public override bool CanConvert(Type objectType)
+            {
+                return objectType == typeof(List<WarFactionState>);
+            }
+        }
+    }
+}
+
+
 
 namespace Oxide.Plugins
 {

@@ -3292,7 +3292,7 @@ namespace Oxide.Plugins
 
         void OnUserEnteredArea(User user, Area area)
         {
-
+            Puts("entered " + area.Id);
             Area previousArea = user.CurrentArea;
 
             user.CurrentArea = area;
@@ -3321,6 +3321,12 @@ namespace Oxide.Plugins
                 // The player has crossed a border between the territory of two factions.
                 user.SendChatMessage(Messages.EnteredClaimedArea, area.FactionId);
             }
+        }
+
+        void OnUserLeftArea(User user, Area area)
+        {
+            Puts("left " + area.Id);
+
         }
 
         void OnUserEnteredZone(User user, Zone zone)
@@ -5015,13 +5021,12 @@ namespace Oxide.Plugins
                         {
                             position.y = position.y + 480f;
                         }
-                        Vector3 size = new Vector3(MapGrid.CellSize, 500, MapGrid.CellSize);
+                        Vector3 size = new Vector3(MapGrid.CellSize/2, 500, MapGrid.CellSize/2);
 
                         AreaInfo info = null;
                         lookup.TryGetValue(areaId, out info);
 
                         var area = new GameObject().AddComponent<Area>();
-                        area.Init(areaId, row, col, position, size, info);
                         var marker = GameManager.server.CreateEntity(
                             "assets/prefabs/tools/map/genericradiusmarker.prefab", position)
                             as MapMarkerGenericRadius;
@@ -5035,6 +5040,8 @@ namespace Oxide.Plugins
                             marker.Spawn();
                             marker.SendUpdate();
                         }
+                        area.Init(areaId, row, col, position, size, info);
+                        
 
 
                         Areas[areaId] = area;
@@ -6931,7 +6938,7 @@ namespace Oxide.Plugins
                         var areaId = ColumnIds[col] + RowIds[row];
                         AreaIds[row, col] = areaId;
                         Instance.Puts(areaId);
-                        Positions[row, col] = new Vector3(x + (CellSize / 2), 0, z + (CellSize / 2));
+                        Positions[row, col] = new Vector3(x + (CellSize / 2), 0, z);
                         x += CellSize;
                     }
 

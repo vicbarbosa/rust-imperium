@@ -128,12 +128,24 @@ namespace Oxide.Plugins
             Puts("Decay reduction is " + (Options.Decay.Enabled ? "enabled" : "disabled"));
             Puts("Claim upkeep is " + (Options.Upkeep.Enabled ? "enabled" : "disabled"));
             Puts("Zones are " + (Options.Zones.Enabled ? "enabled" : "disabled"));
-            if(Options.Recruiting.Enabled)
+            if (Options.Upgrading.Enabled)
             {
-                Puts("Recruiting is not available in this Imperium version yet! Disabling it");
+                PrintWarning("Land upgrading is not available in this Imperium version yet! Disabling it");
+                Options.Upgrading.Enabled = false;
+            }
+            if (Options.Factions.AllowFactionBadlands)
+            {
+                PrintWarning("Faction badlands is not available in this Imperium version yet! Disabling it");
+                Options.Factions.AllowFactionBadlands = false;
+            }
+            if (Options.Recruiting.Enabled)
+            {
+                PrintWarning("Recruiting is not available in this Imperium version yet! Disabling it");
                 Options.Recruiting.Enabled = false;
             }
-            
+
+
+
             //Puts("Recruiting is " + (Options.Recruiting.Enabled ? "enabled" : "disabled"));
 
             // If the map has already been initialized, we can set up now; otherwise,
@@ -1449,25 +1461,30 @@ namespace Oxide.Plugins
                 user.SendChatMessage(Messages.Usage, "/faction badlands confirm");
                 return;
             }
-            int secondsRemaining = Instance.Options.Factions.CommandCooldownSeconds;
+            int elapsedSeconds = Instance.Options.Factions.CommandCooldownSeconds;
+            int secondsRemaining = 1;
             if (faction.BadlandsCommandUsedTime != null)
-                secondsRemaining = (int)(faction.BadlandsCommandUsedTime - DateTime.Now).Value.TotalSeconds;
-            if (secondsRemaining < Instance.Options.Factions.CommandCooldownSeconds)
             {
+                elapsedSeconds = (int)(DateTime.Now - faction.BadlandsCommandUsedTime).Value.TotalSeconds;
+            }
+                
+            if (elapsedSeconds < Instance.Options.Factions.CommandCooldownSeconds)
+            {
+                secondsRemaining = Instance.Options.Factions.CommandCooldownSeconds - elapsedSeconds;
                 user.SendChatMessage(Messages.CommandIsOnCooldown, secondsRemaining);
                 return;
             }
             
             if (faction.IsBadlands)
             {
-                user.SendChatMessage(Messages.FactionIsBadlands);
+                user.SendChatMessage(Messages.FactionIsNotBadlands);
                 faction.IsBadlands = false;
                 faction.BadlandsCommandUsedTime = DateTime.Now;
 
             }
             else
             {
-                user.SendChatMessage(Messages.FactionIsNotBadlands);
+                user.SendChatMessage(Messages.FactionIsBadlands);
                 faction.IsBadlands = true;
                 faction.BadlandsCommandUsedTime = DateTime.Now;
             }
@@ -3066,6 +3083,11 @@ namespace Oxide.Plugins
                 Users.Remove(player);
         }
 
+        void OnPlayerSpawn(BasePlayer player)
+        {
+            Instance.Areas.UpdateAreaMarkers();
+        }
+
         void OnHammerHit(BasePlayer player, HitInfo hit)
         {
             User user = Users.Get(player);
@@ -4407,6 +4429,7 @@ namespace Oxide.Plugins
             public BuildingPrivlidge ClaimCupboard { get; set; }
             public Locker ArmoryLocker { get; set; }
             public int Level { get; set; }
+            public MapMarkerGenericRadius mapMarker;
             public bool IsClaimed
             {
                 get { return FactionId != null; }
@@ -4998,6 +5021,20 @@ namespace Oxide.Plugins
 
                         var area = new GameObject().AddComponent<Area>();
                         area.Init(areaId, row, col, position, size, info);
+                        var mapMarker = GameManager.server.CreateEntity(
+                            "assets/prefabs/tools/map/genericradiusmarker.prefab", position)
+                            as MapMarkerGenericRadius;
+                        if(mapMarker != null)
+                        {
+                            area.mapMarker = mapMarker;
+                            mapMarker.alpha = 0.6f;
+                            mapMarker.color1 = Color.red;
+                            mapMarker.color2 = Color.black;
+                            mapMarker.radius = 0.3f;
+                            mapMarker.Spawn();
+                            mapMarker.SendUpdate();
+                        }
+
 
                         Areas[areaId] = area;
                         Layout[row, col] = area;
@@ -5009,6 +5046,7 @@ namespace Oxide.Plugins
 
             public void Destroy()
             {
+                DestroyAreaMarkers();
                 Area[] areas = UnityEngine.Object.FindObjectsOfType<Area>();
 
                 if (areas != null)
@@ -5027,6 +5065,24 @@ namespace Oxide.Plugins
             public AreaInfo[] Serialize()
             {
                 return Areas.Values.Select(area => area.Serialize()).ToArray();
+            }
+
+            public void UpdateAreaMarkers()
+            {
+                Area[] AllAreas = GetAll();
+                foreach(Area area in AllAreas)
+                {
+                    area.mapMarker.SendUpdate();
+                }
+            }
+
+            public void DestroyAreaMarkers()
+            {
+                Area[] AllAreas = GetAll();
+                foreach (Area area in AllAreas)
+                {
+                    UnityEngine.Object.Destroy(area.mapMarker);
+                }
             }
         }
     }
@@ -6226,10 +6282,10 @@ namespace Oxide.Plugins
 
             [JsonProperty("declarerId")] public string DeclarerId;
 
-            [JsonProperty("attackers"), JsonConverter(typeof(List<WarFactionStateInfo>))]
+            //[JsonProperty("attackers"), JsonConverter(typeof(List<WarFactionStateInfo>))]
             public List<WarFactionStateInfo> attackers;
 
-            [JsonProperty("defenders"), JsonConverter(typeof(List<WarFactionStateInfo>))]
+            //[JsonProperty("defenders"), JsonConverter(typeof(List<WarFactionStateInfo>))]
             public List<WarFactionStateInfo> defenders;
 
             [JsonProperty("cassusBelli")] public string CassusBelli;
@@ -6768,6 +6824,15 @@ namespace Oxide.Plugins
             {
                 get { return (int)TerrainMeta.Size.x; }
             }
+            public int MapWidth
+            {
+                get { return (int)TerrainMeta.Size.z; }
+            }
+
+            public int MapHeight
+            {
+                get { return (int)TerrainMeta.Size.x; }
+            }
 
             public int CellSize
             {
@@ -6779,7 +6844,19 @@ namespace Oxide.Plugins
                 get { return (float)MapSize / CellSize; }
             }
 
+            public float CellSizeRatioWidth
+            {
+                get { return (float)MapWidth / CellSize; }
+            }
+
+            public float CellSizeRatioHeight
+            {
+                get { return (float)MapHeight / CellSize; }
+            }
+
             public int NumberOfCells { get; private set; }
+            public int NumberOfColumns { get; private set; }
+            public int NumberOfRows { get; private set; }
 
             string[] RowIds;
             string[] ColumnIds;
@@ -6788,11 +6865,12 @@ namespace Oxide.Plugins
 
             public MapGrid()
             {
-                NumberOfCells = (int)Math.Ceiling(MapSize / (float)CellSize);
-                RowIds = new string[NumberOfCells];
-                ColumnIds = new string[NumberOfCells];
-                AreaIds = new string[NumberOfCells, NumberOfCells];
-                Positions = new Vector3[NumberOfCells, NumberOfCells];
+                NumberOfRows = (int)Math.Ceiling(MapHeight / (float)CellSize);
+                NumberOfColumns = (int)Math.Ceiling(MapWidth / (float)CellSize);
+                RowIds = new string[NumberOfRows];
+                ColumnIds = new string[NumberOfColumns];
+                AreaIds = new string[NumberOfColumns, NumberOfRows];
+                Positions = new Vector3[NumberOfColumns, NumberOfRows];
                 Build();
             }
 
@@ -7076,11 +7154,7 @@ namespace Oxide.Plugins
             public override object ReadJson(JsonReader reader, Type objectType, object existingValue,
                 JsonSerializer serializer)
             {
-                JToken token = JToken.Load(reader);
-                if (token.Type == JTokenType.Object)
-                {
-                    JToken results = token["results"];
-                }
+                return null;
             }
 
             public override bool CanConvert(Type objectType)
@@ -7746,15 +7820,15 @@ namespace Oxide.Plugins
     {
         class FactionOptions
         {
-            [JsonProperty("minFactionNameLength")] public int MinFactionNameLength;
+            [JsonProperty("minFactionNameLength")] public int MinFactionNameLength = 1;
 
-            [JsonProperty("maxFactionNameLength")] public int MaxFactionNameLength;
+            [JsonProperty("maxFactionNameLength")] public int MaxFactionNameLength = 8;
 
             [JsonProperty("maxMembers")] public int? MaxMembers;
 
-            [JsonProperty("allowFactionBadlands")] public bool AllowFactionBadlands;
+            [JsonProperty("allowFactionBadlands")] public bool AllowFactionBadlands = false;
 
-            [JsonProperty("factionBadlandsCommandCooldownSeconds")] public int CommandCooldownSeconds;
+            [JsonProperty("factionBadlandsCommandCooldownSeconds")] public int CommandCooldownSeconds = 300;
 
             public static FactionOptions Default = new FactionOptions
             {
@@ -7778,13 +7852,13 @@ namespace Oxide.Plugins
     {
         class UpgradingOptions
         {
-            [JsonProperty("enabled")] public bool Enabled;
-            [JsonProperty("maxUpgradeLevel")] public int MaxUpgradeLevel;
-            [JsonProperty("maxProduceBonus")] public float MaxProduceBonus;
-            [JsonProperty("maxTaxChestBonus")] public float MaxTaxChestBonus;
-            [JsonProperty("maxRaidDefenseBonus")] public float MaxRaidDefenseBonus;
-            [JsonProperty("maxDecayExtraReduction")] public float MaxDecayExtraReduction;
-            [JsonProperty("maxRecruitBotBuffs")] public float MaxRecruitBotsBuffs;
+            [JsonProperty("enabled")] public bool Enabled = false;
+            [JsonProperty("maxUpgradeLevel")] public int MaxUpgradeLevel = 10;
+            [JsonProperty("maxProduceBonus")] public float MaxProduceBonus = 0.5f;
+            [JsonProperty("maxTaxChestBonus")] public float MaxTaxChestBonus = 1f;
+            [JsonProperty("maxRaidDefenseBonus")] public float MaxRaidDefenseBonus = 0.2f;
+            [JsonProperty("maxDecayExtraReduction")] public float MaxDecayExtraReduction = 1f;
+            [JsonProperty("maxRecruitBotBuffs")] public float MaxRecruitBotsBuffs = 0.2f;
             [JsonProperty("costs")] public List<int> Costs = new List<int>();
 
             public static UpgradingOptions Default = new UpgradingOptions
@@ -7850,31 +7924,31 @@ namespace Oxide.Plugins
     {
         class ImperiumOptions
         {
-            [JsonProperty("badlands")] public BadlandsOptions Badlands;
+            [JsonProperty("badlands")] public BadlandsOptions Badlands = new BadlandsOptions();
 
-            [JsonProperty("claims")] public ClaimOptions Claims;
+            [JsonProperty("claims")] public ClaimOptions Claims = new ClaimOptions();
 
-            [JsonProperty("decay")] public DecayOptions Decay;
+            [JsonProperty("decay")] public DecayOptions Decay = new DecayOptions();
 
-            [JsonProperty("factions")] public FactionOptions Factions;
+            [JsonProperty("factions")] public FactionOptions Factions = new FactionOptions();
 
-            [JsonProperty("map")] public MapOptions Map;
+            [JsonProperty("map")] public MapOptions Map = new MapOptions();
 
-            [JsonProperty("pvp")] public PvpOptions Pvp;
+            [JsonProperty("pvp")] public PvpOptions Pvp = new PvpOptions();
 
-            [JsonProperty("raiding")] public RaidingOptions Raiding;
+            [JsonProperty("raiding")] public RaidingOptions Raiding = new RaidingOptions();
 
-            [JsonProperty("taxes")] public TaxOptions Taxes;
+            [JsonProperty("taxes")] public TaxOptions Taxes = new TaxOptions();
 
-            [JsonProperty("upkeep")] public UpkeepOptions Upkeep;
+            [JsonProperty("upkeep")] public UpkeepOptions Upkeep = new UpkeepOptions();
 
-            [JsonProperty("war")] public WarOptions War;
+            [JsonProperty("war")] public WarOptions War = new WarOptions();
 
-            [JsonProperty("zones")] public ZoneOptions Zones;
+            [JsonProperty("zones")] public ZoneOptions Zones = new ZoneOptions();
 
-            [JsonProperty("recruiting")] public RecruitingOptions Recruiting;
+            [JsonProperty("recruiting")] public RecruitingOptions Recruiting = new RecruitingOptions();
 
-            [JsonProperty("upgrading")] public UpgradingOptions Upgrading;
+            [JsonProperty("upgrading")] public UpgradingOptions Upgrading = new UpgradingOptions();
 
             public static ImperiumOptions Default = new ImperiumOptions
             {
@@ -8357,12 +8431,8 @@ namespace Oxide.Plugins
 
             public void Init()
             {
-                if (!String.IsNullOrEmpty(Instance.Options.Map.ImageUrl))
-                    RegisterImage(Instance.Options.Map.ImageUrl);
-
-                if (!String.IsNullOrEmpty(Instance.Options.Map.ServerLogoUrl))
-                    RegisterImage(Instance.Options.Map.ServerLogoUrl);
-
+                RegisterImage(dataDirectory + "map-image.png");
+                RegisterImage(dataDirectory + "server-logo.png");
                 RegisterDefaultImages(typeof(Ui.HudIcon));
                 RegisterDefaultImages(typeof(Ui.MapIcon));
             }
@@ -9194,7 +9264,7 @@ namespace Oxide.Plugins
 
             void AddMapTerrainImage(CuiElementContainer container)
             {
-                CuiRawImageComponent image = Instance.Hud.CreateImageComponent(Instance.Options.Map.ImageUrl);
+                CuiRawImageComponent image = Instance.Hud.CreateImageComponent(dataDirectory + "map-image.png");
 
                 // If the image hasn't been loaded, just display a black box so we don't cause an RPC AddUI crash.
                 if (image == null)
@@ -9279,7 +9349,7 @@ namespace Oxide.Plugins
 
             void AddServerLogo(CuiElementContainer container)
             {
-                CuiRawImageComponent image = Instance.Hud.CreateImageComponent(Instance.Options.Map.ServerLogoUrl);
+                CuiRawImageComponent image = Instance.Hud.CreateImageComponent(dataDirectory + "server-logo.png");
 
                 // If the image hasn't been loaded, just display a black box so we don't cause an RPC AddUI crash.
                 if (image == null)

@@ -3091,7 +3091,7 @@ namespace Oxide.Plugins
         void OnHammerHit(BasePlayer player, HitInfo hit)
         {
             User user = Users.Get(player);
-
+            Areas.DestroyAreaMarkers();
             if (user != null && user.CurrentInteraction != null)
                 user.CompleteInteraction(hit);
         }
@@ -4481,6 +4481,7 @@ namespace Oxide.Plugins
                 gameObject.name = $"imperium_area_{id}";
                 transform.position = position;
                 transform.rotation = Quaternion.Euler(new Vector3(0, 0, 0));
+                
 
                 var collider = gameObject.AddComponent<BoxCollider>();
                 collider.size = Size;
@@ -4755,7 +4756,7 @@ namespace Oxide.Plugins
             {
                 MapGrid = new MapGrid();
                 Areas = new Dictionary<string, Area>();
-                Layout = new Area[MapGrid.NumberOfCells, MapGrid.NumberOfCells];
+                Layout = new Area[MapGrid.NumberOfColumns, MapGrid.NumberOfRows];
             }
 
             public Area Get(string areaId)
@@ -4827,12 +4828,12 @@ namespace Oxide.Plugins
             {
                 Vector3 position = entity.transform.position;
 
-                int row = (int)(MapGrid.MapSize / 2 - position.z) / MapGrid.CellSize;
-                int col = (int)(position.x + MapGrid.MapSize / 2) / MapGrid.CellSize;
+                int row = Mathf.FloorToInt((MapGrid.MapHeight / 2 - position.z) / MapGrid.CellSize);
+                int col = Mathf.FloorToInt((position.x + MapGrid.MapWidth / 2) / MapGrid.CellSize);
 
                 if (Instance.Options.Pvp.AllowedUnderground && position.y < -20f)
                     return null;
-                if (row < 0 || col < 0 || row >= MapGrid.NumberOfCells || col >= MapGrid.NumberOfCells)
+                if (row < 0 || col < 0 || row >= MapGrid.NumberOfRows || col >= MapGrid.NumberOfColumns)
                     return null;
 
                 return Layout[row, col];
@@ -4840,12 +4841,12 @@ namespace Oxide.Plugins
 
             public Area GetByWorldPosition(Vector3 position)
             {
-                int row = (int)(MapGrid.MapSize / 2 - position.z) / MapGrid.CellSize;
-                int col = (int)(position.x + MapGrid.MapSize / 2) / MapGrid.CellSize;
+                int row = Mathf.FloorToInt((MapGrid.MapHeight / 2 - position.z) / MapGrid.CellSize);
+                int col = Mathf.FloorToInt((position.x + MapGrid.MapWidth / 2) / MapGrid.CellSize);
 
                 if (Instance.Options.Pvp.AllowedUnderground && position.y < -20f)
                     return null;
-                if (row < 0 || col < 0 || row >= MapGrid.NumberOfCells || col >= MapGrid.NumberOfCells)
+                if (row < 0 || col < 0 || row >= MapGrid.NumberOfRows || col >= MapGrid.NumberOfColumns)
                     return null;
 
                 return Layout[row, col];
@@ -4934,7 +4935,7 @@ namespace Oxide.Plugins
                     count++;
 
                 // South
-                if (area.Row < MapGrid.NumberOfCells - 1 && Layout[area.Row + 1, area.Col].FactionId == owner.Id)
+                if (area.Row < MapGrid.NumberOfRows - 1 && Layout[area.Row + 1, area.Col].FactionId == owner.Id)
                     count++;
 
                 // West
@@ -4942,7 +4943,7 @@ namespace Oxide.Plugins
                     count++;
 
                 // East
-                if (area.Col < MapGrid.NumberOfCells - 1 && Layout[area.Row, area.Col + 1].FactionId == owner.Id)
+                if (area.Col < MapGrid.NumberOfColumns - 1 && Layout[area.Row, area.Col + 1].FactionId == owner.Id)
                     count++;
 
                 return count;
@@ -4965,7 +4966,7 @@ namespace Oxide.Plugins
                 }
 
                 // South
-                for (var row = area.Row; row < MapGrid.NumberOfCells; row++)
+                for (var row = area.Row; row < MapGrid.NumberOfRows; row++)
                 {
                     if (Layout[row, area.Col].FactionId != area.FactionId)
                         break;
@@ -4983,7 +4984,7 @@ namespace Oxide.Plugins
                 }
 
                 // East
-                for (var col = area.Col; col < MapGrid.NumberOfCells; col++)
+                for (var col = area.Col; col < MapGrid.NumberOfColumns; col++)
                 {
                     if (Layout[area.Row, col].FactionId != area.FactionId)
                         break;
@@ -5004,9 +5005,9 @@ namespace Oxide.Plugins
                 else
                     lookup = new Dictionary<string, AreaInfo>();
 
-                for (var row = 0; row < MapGrid.NumberOfCells; row++)
+                for (var row = 0; row < MapGrid.NumberOfRows; row++)
                 {
-                    for (var col = 0; col < MapGrid.NumberOfCells; col++)
+                    for (var col = 0; col < MapGrid.NumberOfColumns; col++)
                     {
                         string areaId = MapGrid.GetAreaId(row, col);
                         Vector3 position = MapGrid.GetPosition(row, col);
@@ -5021,18 +5022,18 @@ namespace Oxide.Plugins
 
                         var area = new GameObject().AddComponent<Area>();
                         area.Init(areaId, row, col, position, size, info);
-                        var mapMarker = GameManager.server.CreateEntity(
+                        var marker = GameManager.server.CreateEntity(
                             "assets/prefabs/tools/map/genericradiusmarker.prefab", position)
                             as MapMarkerGenericRadius;
-                        if(mapMarker != null)
+                        if (marker != null)
                         {
-                            area.mapMarker = mapMarker;
-                            mapMarker.alpha = 0.6f;
-                            mapMarker.color1 = Color.red;
-                            mapMarker.color2 = Color.black;
-                            mapMarker.radius = 0.3f;
-                            mapMarker.Spawn();
-                            mapMarker.SendUpdate();
+                            area.mapMarker = marker;
+                            marker.alpha = 0.3f;
+                            marker.color1 = Color.red;
+                            marker.color2 = Color.black;
+                            marker.radius = 0.4f;
+                            marker.Spawn();
+                            marker.SendUpdate();
                         }
 
 
@@ -5081,7 +5082,8 @@ namespace Oxide.Plugins
                 Area[] AllAreas = GetAll();
                 foreach (Area area in AllAreas)
                 {
-                    UnityEngine.Object.Destroy(area.mapMarker);
+                    area.mapMarker.Kill();
+                    area.mapMarker.SendUpdate();
                 }
             }
         }
@@ -6818,7 +6820,7 @@ namespace Oxide.Plugins
     {
         public class MapGrid
         {
-            const int GRID_CELL_SIZE = 150;
+            const float GRID_CELL_SIZE = 146.3f;
 
             public int MapSize
             {
@@ -6834,7 +6836,7 @@ namespace Oxide.Plugins
                 get { return (int)TerrainMeta.Size.x; }
             }
 
-            public int CellSize
+            public float CellSize
             {
                 get { return GRID_CELL_SIZE; }
             }
@@ -6865,12 +6867,16 @@ namespace Oxide.Plugins
 
             public MapGrid()
             {
-                NumberOfRows = (int)Math.Ceiling(MapHeight / (float)CellSize);
-                NumberOfColumns = (int)Math.Ceiling(MapWidth / (float)CellSize);
+                NumberOfRows = (int)Math.Ceiling(MapHeight / (float)CellSize)-1;
+                NumberOfColumns = (int)Math.Ceiling(MapWidth / (float)CellSize)-1;
                 RowIds = new string[NumberOfRows];
                 ColumnIds = new string[NumberOfColumns];
                 AreaIds = new string[NumberOfColumns, NumberOfRows];
                 Positions = new Vector3[NumberOfColumns, NumberOfRows];
+                Instance.Puts(MapHeight.ToString());
+                Instance.Puts(MapWidth.ToString());
+                Instance.Puts(NumberOfColumns.ToString());
+                Instance.Puts(NumberOfRows.ToString());
                 Build();
             }
 
@@ -6899,7 +6905,7 @@ namespace Oxide.Plugins
                 string prefix = "";
                 char letter = 'A';
 
-                for (int col = 0; col < NumberOfCells; col++)
+                for (int col = 0; col < NumberOfColumns; col++)
                 {
                     ColumnIds[col] = prefix + letter;
                     if (letter == 'Z')
@@ -6913,17 +6919,18 @@ namespace Oxide.Plugins
                     }
                 }
 
-                for (int row = 0; row < NumberOfCells; row++)
+                for (int row = 0; row < NumberOfRows; row++)
                     RowIds[row] = row.ToString();
 
-                int z = (MapSize / 2) - CellSize;
-                for (int row = 0; row < NumberOfCells; row++)
+                float z = Mathf.FloorToInt((MapHeight / 2) - CellSize);
+                for (int row = 0; row < NumberOfRows; row++)
                 {
-                    int x = -(MapSize / 2);
-                    for (int col = 0; col < NumberOfCells; col++)
+                    float x = -(MapWidth / 2);
+                    for (int col = 0; col < NumberOfColumns; col++)
                     {
                         var areaId = ColumnIds[col] + RowIds[row];
                         AreaIds[row, col] = areaId;
+                        Instance.Puts(areaId);
                         Positions[row, col] = new Vector3(x + (CellSize / 2), 0, z + (CellSize / 2));
                         x += CellSize;
                     }
@@ -6967,9 +6974,9 @@ namespace Oxide.Plugins
                     var colorPicker = new FactionColorPicker();
                     var textBrush = new SolidBrush(Color.FromArgb(255, 255, 255, 255));
 
-                    for (int row = 0; row < grid.NumberOfCells; row++)
+                    for (int row = 0; row < grid.NumberOfRows; row++)
                     {
-                        for (int col = 0; col < grid.NumberOfCells; col++)
+                        for (int col = 0; col < grid.NumberOfColumns; col++)
                         {
                             Area area = Instance.Areas.Get(row, col);
                             var x = (col * tileSize);
@@ -6998,19 +7005,19 @@ namespace Oxide.Plugins
                     var gridLabelOffset = 5;
                     var gridLinePen = new Pen(Color.FromArgb(192, 0, 0, 0), 2);
 
-                    for (int row = 0; row < grid.NumberOfCells; row++)
+                    for (int row = 0; row < grid.NumberOfRows; row++)
                     {
                         if (row > 0)
-                            graphics.DrawLine(gridLinePen, 0, (row * tileSize), (grid.NumberOfCells * tileSize),
+                            graphics.DrawLine(gridLinePen, 0, (row * tileSize), (grid.NumberOfRows * tileSize),
                                 (row * tileSize));
                         graphics.DrawString(grid.GetRowId(row), gridLabelFont, textBrush, gridLabelOffset,
                             (row * tileSize) + gridLabelOffset);
                     }
 
-                    for (int col = 1; col < grid.NumberOfCells; col++)
+                    for (int col = 1; col < grid.NumberOfColumns; col++)
                     {
                         graphics.DrawLine(gridLinePen, (col * tileSize), 0, (col * tileSize),
-                            (grid.NumberOfCells * tileSize));
+                            (grid.NumberOfColumns * tileSize));
                         graphics.DrawString(grid.GetColumnId(col), gridLabelFont, textBrush,
                             (col * tileSize) + gridLabelOffset, gridLabelOffset);
                     }
@@ -8587,8 +8594,8 @@ namespace Oxide.Plugins
                 return new MapMarker
                 {
                     IconUrl = Ui.MapIcon.Player,
-                    X = TranslatePosition(user.Player.transform.position.x),
-                    Z = TranslatePosition(user.Player.transform.position.z)
+                    X = TranslatePositionX(user.Player.transform.position.x),
+                    Z = TranslatePositionZ(user.Player.transform.position.z)
                 };
             }
 
@@ -8598,8 +8605,8 @@ namespace Oxide.Plugins
                 {
                     IconUrl = Ui.MapIcon.Headquarters,
                     Label = Util.RemoveSpecialCharacters(faction.Id),
-                    X = TranslatePosition(area.ClaimCupboard.transform.position.x),
-                    Z = TranslatePosition(area.ClaimCupboard.transform.position.z)
+                    X = TranslatePositionX(area.ClaimCupboard.transform.position.x),
+                    Z = TranslatePositionZ(area.ClaimCupboard.transform.position.z)
                 };
             }
 
@@ -8610,8 +8617,8 @@ namespace Oxide.Plugins
                 {
                     IconUrl = iconUrl,
                     Label = (iconUrl == Ui.MapIcon.Unknown) ? monument.displayPhrase.english : null,
-                    X = TranslatePosition(monument.transform.position.x),
-                    Z = TranslatePosition(monument.transform.position.z)
+                    X = TranslatePositionX(monument.transform.position.x),
+                    Z = TranslatePositionZ(monument.transform.position.z)
                 };
             }
 
@@ -8622,15 +8629,21 @@ namespace Oxide.Plugins
                 {
                     IconUrl = iconUrl,
                     Label = pin.Name,
-                    X = TranslatePosition(pin.Position.x),
-                    Z = TranslatePosition(pin.Position.z)
+                    X = TranslatePositionX(pin.Position.x),
+                    Z = TranslatePositionZ(pin.Position.z)
                 };
             }
 
-            static float TranslatePosition(float pos)
+            static float TranslatePositionX(float pos)
             {
-                var mapSize = TerrainMeta.Size.x;
-                return (pos + mapSize / 2f) / mapSize;
+                var mapHeight = TerrainMeta.Size.x;
+                return (pos + mapHeight / 2f) / mapHeight;
+            }
+
+            static float TranslatePositionZ(float pos)
+            {
+                var mapWidth = TerrainMeta.Size.z;
+                return (pos + mapWidth / 2f) / mapWidth;
             }
 
             static string GetIconForMonument(MonumentInfo monument)

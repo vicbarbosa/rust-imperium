@@ -3292,7 +3292,7 @@ namespace Oxide.Plugins
 
         void OnUserEnteredArea(User user, Area area)
         {
-            Puts("entered " + area.Id);
+            
             Area previousArea = user.CurrentArea;
 
             user.CurrentArea = area;
@@ -3300,7 +3300,7 @@ namespace Oxide.Plugins
 
             if (area == null || previousArea == null)
                 return;
-
+            Puts("entered " + area.Id);
             if (area.Type == AreaType.Badlands && previousArea.Type != AreaType.Badlands)
             {
                 // The player has entered the badlands.
@@ -4436,6 +4436,7 @@ namespace Oxide.Plugins
             public Locker ArmoryLocker { get; set; }
             public int Level { get; set; }
             public MapMarkerGenericRadius mapMarker;
+            public BaseEntity textMarker;
             public bool IsClaimed
             {
                 get { return FactionId != null; }
@@ -4834,7 +4835,7 @@ namespace Oxide.Plugins
             {
                 Vector3 position = entity.transform.position;
 
-                int row = Mathf.FloorToInt((MapGrid.MapHeight / 2 - position.z) / MapGrid.CellSize);
+                int row = Mathf.RoundToInt((MapGrid.MapHeight / 2 - position.z) / MapGrid.CellSize)-1;
                 int col = Mathf.FloorToInt((position.x + MapGrid.MapWidth / 2) / MapGrid.CellSize);
 
                 if (Instance.Options.Pvp.AllowedUnderground && position.y < -20f)
@@ -4847,7 +4848,7 @@ namespace Oxide.Plugins
 
             public Area GetByWorldPosition(Vector3 position)
             {
-                int row = Mathf.FloorToInt((MapGrid.MapHeight / 2 - position.z) / MapGrid.CellSize);
+                int row = Mathf.RoundToInt((MapGrid.MapHeight / 2 - position.z) / MapGrid.CellSize)-1;
                 int col = Mathf.FloorToInt((position.x + MapGrid.MapWidth / 2) / MapGrid.CellSize);
 
                 if (Instance.Options.Pvp.AllowedUnderground && position.y < -20f)
@@ -5033,12 +5034,29 @@ namespace Oxide.Plugins
                         if (marker != null)
                         {
                             area.mapMarker = marker;
-                            marker.alpha = 0.3f;
-                            marker.color1 = Color.red;
+                            marker.alpha = 0.4f;
+                            marker.color1 = Color.gray;
                             marker.color2 = Color.black;
-                            marker.radius = 0.4f;
+                            marker.radius = 0.6f;
                             marker.Spawn();
                             marker.SendUpdate();
+                        }
+                        var textmarker = GameManager.server.CreateEntity(
+                            "assets/bundled/prefabs/modding/volumes_and_triggers/monument_marker.prefab", position);
+                        if (textmarker != null)
+                        {
+                            area.textMarker = textmarker;
+                            MonumentMarker monumentMarker = textmarker.GetComponent<MonumentMarker>();
+                            if(monumentMarker != null)
+                            {
+                                monumentMarker.text.text = "test";
+                                textmarker.Spawn();
+                                textmarker.SendNetworkUpdate();
+                            }
+                            else
+                            {
+                                Instance.Puts("No monumentMarker");
+                            }
                         }
                         area.Init(areaId, row, col, position, size, info);
                         
@@ -5081,6 +5099,7 @@ namespace Oxide.Plugins
                 foreach(Area area in AllAreas)
                 {
                     area.mapMarker.SendUpdate();
+                    area.textMarker.SendNetworkUpdate();
                 }
             }
 
@@ -5091,6 +5110,8 @@ namespace Oxide.Plugins
                 {
                     area.mapMarker.Kill();
                     area.mapMarker.SendUpdate();
+                    area.textMarker.Kill();
+                    area.textMarker.SendNetworkUpdate();
                 }
             }
         }
@@ -5904,9 +5925,8 @@ namespace Oxide.Plugins
                 {
                     Events.OnUserLeftArea(this, currentArea);
                 }
-
-
                 Events.OnUserEnteredArea(this, correctArea);
+
             }
 
             void CheckZones()

@@ -3073,19 +3073,24 @@ namespace Oxide.Plugins
                 timer.In(2, () => OnPlayerConnected(player));
                 return;
             }
-
             Users.Add(player);
+        }
+
+        void OnPlayerSleepEnded(BasePlayer player)
+        {
+            User user = player.GetComponent<User>();
+            if(user != null && !user.UpdatedMarkers)
+            {
+                Areas.UpdateAreaMarkers();
+                user.UpdatedMarkers = true;
+            }
+            
         }
 
         void OnPlayerDisconnected(BasePlayer player)
         {
             if (player != null)
                 Users.Remove(player);
-        }
-
-        void OnPlayerSpawn(BasePlayer player)
-        {
-            Instance.Areas.UpdateAreaMarkers();
         }
 
         void OnHammerHit(BasePlayer player, HitInfo hit)
@@ -3300,7 +3305,6 @@ namespace Oxide.Plugins
 
             if (area == null || previousArea == null)
                 return;
-            Puts("entered " + area.Id);
             if (area.Type == AreaType.Badlands && previousArea.Type != AreaType.Badlands)
             {
                 // The player has entered the badlands.
@@ -5041,23 +5045,7 @@ namespace Oxide.Plugins
                             marker.Spawn();
                             marker.SendUpdate();
                         }
-                        var textmarker = GameManager.server.CreateEntity(
-                            "assets/bundled/prefabs/modding/volumes_and_triggers/monument_marker.prefab", position);
-                        if (textmarker != null)
-                        {
-                            area.textMarker = textmarker;
-                            MonumentMarker monumentMarker = textmarker.GetComponent<MonumentMarker>();
-                            if(monumentMarker != null)
-                            {
-                                monumentMarker.text.text = "test";
-                                textmarker.Spawn();
-                                textmarker.SendNetworkUpdate();
-                            }
-                            else
-                            {
-                                Instance.Puts("No monumentMarker");
-                            }
-                        }
+                        
                         area.Init(areaId, row, col, position, size, info);
                         
 
@@ -5099,7 +5087,6 @@ namespace Oxide.Plugins
                 foreach(Area area in AllAreas)
                 {
                     area.mapMarker.SendUpdate();
-                    area.textMarker.SendNetworkUpdate();
                 }
             }
 
@@ -5109,9 +5096,6 @@ namespace Oxide.Plugins
                 foreach (Area area in AllAreas)
                 {
                     area.mapMarker.Kill();
-                    area.mapMarker.SendUpdate();
-                    area.textMarker.Kill();
-                    area.textMarker.SendNetworkUpdate();
                 }
             }
         }
@@ -5803,6 +5787,8 @@ namespace Oxide.Plugins
             public DateTime MapCommandCooldownExpiration { get; set; }
             public DateTime PvpCommandCooldownExpiration { get; set; }
             public bool IsInPvpMode { get; set; }
+
+            public bool UpdatedMarkers = false;
 
             public string Id
             {

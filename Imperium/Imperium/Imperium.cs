@@ -99,6 +99,9 @@ namespace Oxide.Plugins
         ZoneManager Zones;
         RecruitManager Recruits;
 
+        MapMarkerGenericRadius debugStartMarker;
+        MapMarkerGenericRadius debugEndMarker;
+
         void Init()
         {
             AreasFile = GetDataFile("areas");
@@ -4518,6 +4521,8 @@ namespace Oxide.Plugins
 
                 if (IsInvoking("CheckClaimCupboard"))
                     CancelInvoke("CheckClaimCupboard");
+                if (IsInvoking("CheckArmoryLocker"))
+                    CancelInvoke("CheckArmoryLocker");
             }
 
             void TryLoadInfo(AreaInfo info)
@@ -5032,6 +5037,7 @@ namespace Oxide.Plugins
                         lookup.TryGetValue(areaId, out info);
 
                         var area = new GameObject().AddComponent<Area>();
+                        var markerRadius = ((4000 / MapGrid.MapSize) * 0.5f) * 0.9f;
                         var marker = GameManager.server.CreateEntity(
                             "assets/prefabs/tools/map/genericradiusmarker.prefab", position)
                             as MapMarkerGenericRadius;
@@ -5041,11 +5047,44 @@ namespace Oxide.Plugins
                             marker.alpha = 0.4f;
                             marker.color1 = Color.gray;
                             marker.color2 = Color.black;
-                            marker.radius = 0.6f;
+                            marker.radius = markerRadius;
                             marker.Spawn();
                             marker.SendUpdate();
                         }
-                        
+
+                        if(row == 0 && col == 0)
+                        {
+                            var startmarker = GameManager.server.CreateEntity(
+                            "assets/prefabs/tools/map/genericradiusmarker.prefab", new Vector3(-TerrainMeta.Size.x / 2, 0f, -TerrainMeta.Size.z / 2))
+                            as MapMarkerGenericRadius;
+                            if (marker != null)
+                            {
+                                Instance.debugStartMarker = startmarker;
+                                startmarker.alpha = 0.6f;
+                                startmarker.color1 = Color.red;
+                                startmarker.color2 = Color.black;
+                                startmarker.radius = 0.3f;
+                                startmarker.Spawn();
+                                startmarker.SendUpdate();
+                            }
+                        }
+                        if (row == MapGrid.NumberOfRows-1 && col == MapGrid.NumberOfColumns -1)
+                        {
+                            var endmarker = GameManager.server.CreateEntity(
+                            "assets/prefabs/tools/map/genericradiusmarker.prefab", new Vector3(TerrainMeta.Size.x/2, 0f , TerrainMeta.Size.z/2))
+                            as MapMarkerGenericRadius;
+                            if (marker != null)
+                            {
+                                Instance.debugEndMarker = endmarker;
+                                endmarker.alpha = 0.6f;
+                                endmarker.color1 = Color.red;
+                                endmarker.color2 = Color.black;
+                                endmarker.radius = 0.3f;
+                                endmarker.Spawn();
+                                endmarker.SendUpdate();
+                            }
+                        }
+
                         area.Init(areaId, row, col, position, size, info);
                         
 
@@ -5083,6 +5122,8 @@ namespace Oxide.Plugins
 
             public void UpdateAreaMarkers()
             {
+                Instance.debugStartMarker.SendUpdate();
+                Instance.debugEndMarker.SendUpdate();
                 Area[] AllAreas = GetAll();
                 foreach(Area area in AllAreas)
                 {
@@ -5092,6 +5133,8 @@ namespace Oxide.Plugins
 
             public void DestroyAreaMarkers()
             {
+                Instance.debugStartMarker.Kill();
+                Instance.debugEndMarker.Kill();
                 Area[] AllAreas = GetAll();
                 foreach (Area area in AllAreas)
                 {
@@ -6833,20 +6876,24 @@ namespace Oxide.Plugins
     {
         public class MapGrid
         {
-            const float GRID_CELL_SIZE = 146.3f;
+            public float GRID_CELL_SIZE = 146.3f;
 
-            public int MapSize
+            public float MapSize
             {
-                get { return (int)TerrainMeta.Size.x; }
+                get; set;
             }
-            public int MapWidth
+            public float MapWidth
             {
-                get { return (int)TerrainMeta.Size.z; }
+                get; set;
             }
 
-            public int MapHeight
+            public float MapHeight
             {
-                get { return (int)TerrainMeta.Size.x; }
+                get; set;
+            }
+            public float MapOffset
+            {
+                get; set;
             }
 
             public float CellSize
@@ -6880,8 +6927,14 @@ namespace Oxide.Plugins
 
             public MapGrid()
             {
-                NumberOfRows = (int)Math.Ceiling(MapHeight / (float)CellSize)-1;
-                NumberOfColumns = (int)Math.Ceiling(MapWidth / (float)CellSize)-1;
+                MapOffset = TerrainMeta.Size.x % CellSize;
+                MapSize = Mathf.Floor(TerrainMeta.Size.x / CellSize) * CellSize;
+                MapWidth = Mathf.Floor(TerrainMeta.Size.x / CellSize) * CellSize;
+                MapHeight = Mathf.Floor(TerrainMeta.Size.z / CellSize) * CellSize;
+                
+                NumberOfRows = (int)Math.Ceiling(MapHeight / (float)CellSize);
+                NumberOfColumns = (int)Math.Ceiling(MapWidth / (float)CellSize);
+                //GRID_CELL_SIZE = MapWidth / NumberOfColumns;
                 RowIds = new string[NumberOfRows];
                 ColumnIds = new string[NumberOfColumns];
                 AreaIds = new string[NumberOfColumns, NumberOfRows];
@@ -6935,20 +6988,21 @@ namespace Oxide.Plugins
                 for (int row = 0; row < NumberOfRows; row++)
                     RowIds[row] = row.ToString();
 
-                float z = Mathf.FloorToInt((MapHeight / 2) - CellSize);
+                float z = -(MapHeight / 2) + CellSize/2 - (MapOffset/2);
                 for (int row = 0; row < NumberOfRows; row++)
                 {
-                    float x = -(MapWidth / 2);
+                    float x = -(MapWidth / 2) + CellSize/2 - (MapOffset/2);
                     for (int col = 0; col < NumberOfColumns; col++)
                     {
                         var areaId = ColumnIds[col] + RowIds[row];
                         AreaIds[row, col] = areaId;
                         Instance.Puts(areaId);
-                        Positions[row, col] = new Vector3(x + (CellSize / 2), 0, z);
+                        Positions[row, col] = new Vector3(x , 0, z);
+                        Instance.Puts(x.ToString() + "   " + z.ToString());
                         x += CellSize;
                     }
 
-                    z -= CellSize;
+                    z += CellSize;
                 }
             }
         }

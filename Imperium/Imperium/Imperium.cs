@@ -6950,8 +6950,8 @@ namespace Oxide.Plugins
                 MapHeight = Mathf.Floor(TerrainMeta.Size.z / CellSize) * CellSize;
                 
 
-                NumberOfRows = (int)Math.Ceiling(MapHeight / (float)CellSize);
-                NumberOfColumns = (int)Math.Ceiling(MapWidth / (float)CellSize);
+                NumberOfRows = (int)Math.Floor(MapHeight / (float)CellSize);
+                NumberOfColumns = (int)Math.Floor(MapWidth / (float)CellSize);
 
                 MapWidth = NumberOfColumns * CellSize;
                 MapHeight = NumberOfRows * CellSize;

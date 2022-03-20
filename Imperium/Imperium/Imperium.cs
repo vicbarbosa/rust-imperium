@@ -3333,7 +3333,6 @@ namespace Oxide.Plugins
 
         void OnUserLeftArea(User user, Area area)
         {
-            Puts("left " + area.Id);
 
         }
 
@@ -5138,7 +5137,11 @@ namespace Oxide.Plugins
                 Area[] AllAreas = GetAll();
                 foreach(Area area in AllAreas)
                 {
-                    area.mapMarker.SendUpdate();
+                    if(area.Type == AreaType.Claimed)
+                    {
+                        area.mapMarker.SendUpdate();
+                    }
+                    
                 }
             }
 
@@ -6962,10 +6965,6 @@ namespace Oxide.Plugins
                 ColumnIds = new string[NumberOfColumns];
                 AreaIds = new string[NumberOfColumns, NumberOfRows];
                 Positions = new Vector3[NumberOfColumns, NumberOfRows];
-                Instance.Puts(MapHeight.ToString());
-                Instance.Puts(MapWidth.ToString());
-                Instance.Puts(NumberOfColumns.ToString());
-                Instance.Puts(NumberOfRows.ToString());
                 Build();
             }
 
@@ -7019,9 +7018,7 @@ namespace Oxide.Plugins
                     {
                         var areaId = ColumnIds[col] + RowIds[row];
                         AreaIds[row, col] = areaId;
-                        Instance.Puts(areaId);
                         Positions[row, col] = new Vector3(x , 0, z);
-                        Instance.Puts(x.ToString() + "   " + z.ToString());
                         x += CellSize;
                     }
 

@@ -99,10 +99,6 @@ namespace Oxide.Plugins
         ZoneManager Zones;
         RecruitManager Recruits;
 
-        MapMarkerGenericRadius debugStartMarker;
-        MapMarkerGenericRadius debugCenterMarker;
-        MapMarkerGenericRadius debugEndMarker;
-
         void Init()
         {
             AreasFile = GetDataFile("areas");
@@ -5018,16 +5014,7 @@ namespace Oxide.Plugins
                     lookup = areaInfos.ToDictionary(a => a.Id);
                 else
                     lookup = new Dictionary<string, AreaInfo>();
-                var centerMarker = GameManager.server.CreateEntity(
-                            "assets/prefabs/tools/map/genericradiusmarker.prefab", new Vector3((-MapGrid.MapOffsetX / 2), 0f, -MapGrid.MapOffsetZ / 2))
-                            as MapMarkerGenericRadius;
-                Instance.debugCenterMarker = centerMarker;
-                centerMarker.alpha = 0.6f;
-                centerMarker.color1 = Color.red;
-                centerMarker.color2 = Color.black;
-                centerMarker.radius = 0.3f;
-                centerMarker.Spawn();
-                centerMarker.SendUpdate();
+                
                 for (var row = 0; row < MapGrid.NumberOfRows; row++)
                 {
                     for (var col = 0; col < MapGrid.NumberOfColumns; col++)
@@ -5058,46 +5045,7 @@ namespace Oxide.Plugins
                             marker.Spawn();
                             marker.SendUpdate();
                         }
-
-                        
-
-                        if (row == 0 && col == 0)
-                        {
-                            var startmarker = GameManager.server.CreateEntity(
-                            "assets/prefabs/tools/map/genericradiusmarker.prefab", new Vector3(-TerrainMeta.Size.x / 2, 0f, -TerrainMeta.Size.z / 2))
-                            as MapMarkerGenericRadius;
-                            if (marker != null)
-                            {
-                                Instance.debugStartMarker = startmarker;
-                                startmarker.alpha = 0.6f;
-                                startmarker.color1 = Color.red;
-                                startmarker.color2 = Color.black;
-                                startmarker.radius = 0.3f;
-                                startmarker.Spawn();
-                                startmarker.SendUpdate();
-                            }
-                        }
-                        if (row == MapGrid.NumberOfRows-1 && col == MapGrid.NumberOfColumns -1)
-                        {
-                            var endmarker = GameManager.server.CreateEntity(
-                            "assets/prefabs/tools/map/genericradiusmarker.prefab", new Vector3(TerrainMeta.Size.x/2, 0f , TerrainMeta.Size.z/2))
-                            as MapMarkerGenericRadius;
-                            if (marker != null)
-                            {
-                                Instance.debugEndMarker = endmarker;
-                                endmarker.alpha = 0.6f;
-                                endmarker.color1 = Color.red;
-                                endmarker.color2 = Color.black;
-                                endmarker.radius = 0.3f;
-                                endmarker.Spawn();
-                                endmarker.SendUpdate();
-                            }
-                        }
-
                         area.Init(areaId, row, col, position, size, info);
-                        
-
-
                         Areas[areaId] = area;
                         Layout[row, col] = area;
                     }
@@ -5131,9 +5079,7 @@ namespace Oxide.Plugins
 
             public void UpdateAreaMarkers()
             {
-                Instance.debugStartMarker.SendUpdate();
-                Instance.debugCenterMarker.SendUpdate();
-                Instance.debugEndMarker.SendUpdate();
+                
                 Area[] AllAreas = GetAll();
                 foreach(Area area in AllAreas)
                 {
@@ -5147,9 +5093,6 @@ namespace Oxide.Plugins
 
             public void DestroyAreaMarkers()
             {
-                Instance.debugStartMarker.Kill();
-                Instance.debugCenterMarker.Kill();
-                Instance.debugEndMarker.Kill();
                 Area[] AllAreas = GetAll();
                 foreach (Area area in AllAreas)
                 {

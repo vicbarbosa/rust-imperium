@@ -3096,7 +3096,6 @@ namespace Oxide.Plugins
         void OnHammerHit(BasePlayer player, HitInfo hit)
         {
             User user = Users.Get(player);
-            Areas.DestroyAreaMarkers();
             if (user != null && user.CurrentInteraction != null)
                 user.CompleteInteraction(hit);
         }
@@ -3293,8 +3292,6 @@ namespace Oxide.Plugins
             return null;
         }
 
-       
-
         void OnUserEnteredArea(User user, Area area)
         {
             
@@ -3377,6 +3374,7 @@ namespace Oxide.Plugins
 
         void OnAreaChanged(Area area)
         {
+            Areas.UpdateAreaMarkers();
             Wars.EndAllWarsForEliminatedFactions();
             Pins.RemoveAllPinsInUnclaimedAreas();
             Hud.GenerateMapOverlayImage();
@@ -4469,7 +4467,7 @@ namespace Oxide.Plugins
             }
             public int UpgradeCost
             {
-                get { 
+                get {
                     var costs = Instance.Options.Upgrading.Costs;
                     return costs[Mathf.Clamp(Level, 0, costs.Count - 1)
                     ];
@@ -4482,21 +4480,21 @@ namespace Oxide.Plugins
                 Col = col;
                 Position = position;
                 Size = size;
-                
+
 
                 if (info != null)
                     TryLoadInfo(info);
-
                 gameObject.layer = (int)Layer.Reserved1;
                 gameObject.name = $"imperium_area_{id}";
                 transform.position = position;
                 transform.rotation = Quaternion.Euler(new Vector3(0, 0, 0));
-                
+
 
                 var collider = gameObject.AddComponent<BoxCollider>();
                 collider.size = Size;
                 collider.isTrigger = true;
                 collider.enabled = true;
+                
 
                 gameObject.SetActive(true);
                 enabled = true;
@@ -4572,6 +4570,8 @@ namespace Oxide.Plugins
                         $"[LOAD] Area {Id}: Claimed by {FactionId}, type = {Type}, cupboard = {Util.Format(ClaimCupboard)}");
             }
 
+            
+
             void CheckClaimCupboard()
             {
                 if (ClaimCupboard == null || !ClaimCupboard.IsDestroyed)
@@ -4620,6 +4620,60 @@ namespace Oxide.Plugins
                     Events.OnUserLeftArea(user, this);
                 }
 
+            }
+
+            public void UpdateAreaMarker(FactionColorPicker colorPicker)
+            {
+                bool markerExists = true;
+                if (Type == AreaType.Wilderness)
+                {
+                    if (mapMarker != null)
+                        mapMarker.Kill();
+                }
+                else 
+                {
+                    if (mapMarker == null)
+                    {
+                        markerExists = false;
+                        var markerRadius = ((4000 / Instance.Areas.MapGrid.MapSize) * 0.5f);
+                        var marker = GameManager.server.CreateEntity(
+                            "assets/prefabs/tools/map/genericradiusmarker.prefab", transform.position)
+                            as MapMarkerGenericRadius;
+                        marker.radius = markerRadius;
+                        mapMarker = marker;
+                    }
+
+                    if (Type == AreaType.Claimed)
+                    {
+                        mapMarker.alpha = 0.3f;
+                        mapMarker.color1 = Util.ConvertSystemToUnityColor(
+                            colorPicker.GetColorForFaction(FactionId));
+                        mapMarker.color2 = Color.black;
+                        if (!markerExists)
+                            mapMarker.Spawn();
+                        mapMarker.SendUpdate();
+                    }
+                    if (Type == AreaType.Headquarters)
+                    {
+                        mapMarker.alpha = 0.3f;
+                        mapMarker.color1 = Util.ConvertSystemToUnityColor(
+                            colorPicker.GetColorForFaction(FactionId));
+                        mapMarker.color2 = Color.black;
+                        if (!markerExists)
+                            mapMarker.Spawn();
+                        mapMarker.SendUpdate();
+                    }
+                    if (Type == AreaType.Badlands)
+                    {
+                        mapMarker.alpha = 0.2f;
+                        mapMarker.color1 = Color.black;
+                        mapMarker.color2 = Color.black;
+                        if (!markerExists)
+                            mapMarker.Spawn();
+                        mapMarker.SendUpdate();
+                    }
+
+                }
             }
 
             public float GetDistanceFromEntity(BaseEntity entity)
@@ -5031,25 +5085,12 @@ namespace Oxide.Plugins
                         lookup.TryGetValue(areaId, out info);
 
                         var area = new GameObject().AddComponent<Area>();
-                        var markerRadius = ((4000 / MapGrid.MapSize) * 0.5f) * 0.9f;
-                        var marker = GameManager.server.CreateEntity(
-                            "assets/prefabs/tools/map/genericradiusmarker.prefab", position)
-                            as MapMarkerGenericRadius;
-                        if (marker != null)
-                        {
-                            area.mapMarker = marker;
-                            marker.alpha = 0.2f;
-                            marker.color1 = Color.gray;
-                            marker.color2 = Color.black;
-                            marker.radius = markerRadius;
-                            marker.Spawn();
-                            marker.SendUpdate();
-                        }
                         area.Init(areaId, row, col, position, size, info);
                         Areas[areaId] = area;
                         Layout[row, col] = area;
                     }
                 }
+                Instance.Areas.UpdateAreaMarkers();
 
                 Instance.Puts($"Created {Areas.Values.Count} area objects.");
             }
@@ -5079,15 +5120,12 @@ namespace Oxide.Plugins
 
             public void UpdateAreaMarkers()
             {
-                
+                FactionColorPicker colorPicker = new FactionColorPicker();
+
                 Area[] AllAreas = GetAll();
                 foreach(Area area in AllAreas)
                 {
-                    if(area.Type == AreaType.Claimed)
-                    {
-                        area.mapMarker.SendUpdate();
-                    }
-                    
+                    area.UpdateAreaMarker(colorPicker);
                 }
             }
 
@@ -5096,7 +5134,8 @@ namespace Oxide.Plugins
                 Area[] AllAreas = GetAll();
                 foreach (Area area in AllAreas)
                 {
-                    area.mapMarker.Kill();
+                    if(area.mapMarker != null)
+                        area.mapMarker.Kill();
                 }
             }
         }
@@ -6953,7 +6992,7 @@ namespace Oxide.Plugins
                 for (int row = 0; row < NumberOfRows; row++)
                     RowIds[row] = row.ToString();
 
-                float z = -(MapHeight / 2) + CellSize/2 - (MapOffsetZ/2);
+                float z = (MapHeight / 2) - CellSize/2 - (MapOffsetZ/2);
                 for (int row = 0; row < NumberOfRows; row++)
                 {
                     float x = -(MapWidth / 2) + CellSize/2 - (MapOffsetX/2);
@@ -6965,7 +7004,7 @@ namespace Oxide.Plugins
                         x += CellSize;
                     }
 
-                    z += CellSize;
+                    z -= CellSize;
                 }
             }
         }
@@ -7388,6 +7427,16 @@ namespace Oxide.Plugins
             public static int GetSecondsBetween(DateTime start, DateTime end)
             {
                 return (int)(start - end).TotalSeconds;
+            }
+
+            public static Color ConvertSystemToUnityColor(System.Drawing.Color color)
+            {
+                Color result;
+                result.r = color.R;
+                result.g = color.G;
+                result.b = color.B;
+                result.a = 255f;
+                return result;
             }
         }
     }

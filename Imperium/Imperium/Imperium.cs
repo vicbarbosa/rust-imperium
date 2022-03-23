@@ -5174,6 +5174,7 @@ namespace Oxide.Plugins
             public HashSet<string> MemberIds { get; }
             public HashSet<string> ManagerIds { get; }
             public HashSet<string> InviteIds { get; }
+            public HashSet<string> Aggressors { get; set; }
 
             public float TaxRate { get; set; }
             public StorageContainer TaxChest { get; set; }
@@ -5181,8 +5182,8 @@ namespace Oxide.Plugins
             public bool IsUpkeepPastDue { get; set; }
             public bool IsBadlands { get; set; }
             public DateTime? BadlandsCommandUsedTime { get; set; }
-
-            public WarParticipation WarFactionState { get; set; }
+            public DateTime CreationTime { get; set; }
+            
 
             public bool CanCollectTaxes
             {
@@ -5194,6 +5195,8 @@ namespace Oxide.Plugins
                 get { return MemberIds.Count; }
             }
 
+
+
             public Faction(string id, User owner)
             {
                 Id = id;
@@ -5202,6 +5205,7 @@ namespace Oxide.Plugins
                 MemberIds = new HashSet<string> { owner.Id };
                 ManagerIds = new HashSet<string>();
                 InviteIds = new HashSet<string>();
+                Aggressors = new HashSet<string>();
                 TaxChest = null;
                 TaxRate = Instance.Options.Taxes.DefaultTaxRate;
                 NextUpkeepPaymentTime = DateTime.UtcNow.AddHours(Instance.Options.Upkeep.CollectionPeriodHours);
@@ -5217,6 +5221,7 @@ namespace Oxide.Plugins
                 MemberIds = new HashSet<string>(info.MemberIds);
                 ManagerIds = new HashSet<string>(info.ManagerIds);
                 InviteIds = new HashSet<string>(info.InviteIds);
+                Aggressors = new HashSet<string>(info.Aggressors);
 
                 if (info.TaxChestId != null)
                 {
@@ -5232,6 +5237,7 @@ namespace Oxide.Plugins
                 IsUpkeepPastDue = info.IsUpkeepPastDue;
                 IsBadlands = info.IsBadlands;
                 BadlandsCommandUsedTime = info.BadlandsCommandUsedTime;
+                CreationTime = info.CreationTime;
 
                 Instance.Log($"[LOAD] Faction {Id}: {MemberIds.Count} members, tax chest = {Util.Format(TaxChest)}");
             }
@@ -5412,11 +5418,13 @@ namespace Oxide.Plugins
                     MemberIds = MemberIds.ToArray(),
                     ManagerIds = ManagerIds.ToArray(),
                     InviteIds = InviteIds.ToArray(),
+                    Aggressors = Aggressors.ToArray(),
                     TaxRate = TaxRate,
                     TaxChestId = TaxChest?.net?.ID,
                     NextUpkeepPaymentTime = NextUpkeepPaymentTime,
                     IsBadlands = IsBadlands,
-                    BadlandsCommandUsedTime = BadlandsCommandUsedTime
+                    BadlandsCommandUsedTime = BadlandsCommandUsedTime,
+                    CreationTime = CreationTime
                 };
             }
         }
@@ -5479,6 +5487,8 @@ namespace Oxide.Plugins
 
             [JsonProperty("inviteIds")] public string[] InviteIds;
 
+            [JsonProperty("aggressors")] public string[] Aggressors;
+
             [JsonProperty("taxRate")] public float TaxRate;
 
             [JsonProperty("taxChestId")] public uint? TaxChestId;
@@ -5492,6 +5502,9 @@ namespace Oxide.Plugins
 
             [JsonProperty("badlandsCommandUsedTime"), JsonConverter(typeof(IsoDateTimeConverter))]
             public DateTime? BadlandsCommandUsedTime;
+
+            [JsonProperty("creationTime"), JsonConverter(typeof(IsoDateTimeConverter))]
+            public DateTime CreationTime;
         }
 
 
@@ -5527,6 +5540,7 @@ namespace Oxide.Plugins
                         $"Cannot create a new faction named ${id}, since one already exists");
 
                 faction = new Faction(id, owner);
+                faction.CreationTime = DateTime.Now;
                 Factions.Add(id, faction);
 
                 Events.OnFactionCreated(faction);
@@ -6150,8 +6164,6 @@ namespace Oxide.Plugins
             public string DefenderId { get; set; }
             public string DeclarerId { get; set; }
             public string CassusBelli { get; set; }
-            public List<WarFactionState> Attackers { get; set; }
-            public List<WarFactionState> Defenders { get; set; }
 
             public DateTime? AttackerPeaceOfferingTime { get; set; }
             public DateTime? DefenderPeaceOfferingTime { get; set; }
@@ -6160,9 +6172,13 @@ namespace Oxide.Plugins
             public DateTime? EndTime { get; set; }
             public WarEndReason? EndReason { get; set; }
 
+            public bool AdminApproved { get; set; }
+
+            public bool DefenderApproved { get; set; }
+
             public bool IsActive
             {
-                get { return EndTime == null; }
+                get { return EndTime == null && AdminApproved && DefenderApproved; }
             }
 
             public bool IsAttackerOfferingPeace
@@ -6180,6 +6196,8 @@ namespace Oxide.Plugins
                 AttackerId = attacker.Id;
                 DefenderId = defender.Id;
                 DeclarerId = declarer.Id;
+                AdminApproved = !Instance.Options.War.AdminApprovalRequired;
+                DefenderApproved = !Instance.Options.War.DefenderApprovalRequired;
                 CassusBelli = cassusBelli;
                 StartTime = DateTime.UtcNow;
             }
@@ -6190,20 +6208,10 @@ namespace Oxide.Plugins
                 DefenderId = info.DefenderId;
                 DeclarerId = info.DeclarerId;
                 CassusBelli = info.CassusBelli;
+                AdminApproved = info.AdminApproved;
+                DefenderApproved = info.DefenderApproved;
                 StartTime = info.StartTime;
                 EndTime = info.EndTime;
-                Attackers = GetWarFactionList(info.attackers);
-                Defenders = GetWarFactionList(info.defenders);
-            }
-
-            public List<WarFactionState> GetWarFactionList(List<WarFactionStateInfo> info)
-            {
-                List<WarFactionState> result = new List<WarFactionState>();
-                foreach(WarFactionStateInfo warFactionInfo in info)
-                {
-                    result.Add(new WarFactionState(warFactionInfo));
-                }
-                return result;
             }
 
             public void OfferPeace(Faction faction)
@@ -6236,37 +6244,14 @@ namespace Oxide.Plugins
                     DefenderId = DefenderId,
                     DeclarerId = DeclarerId,
                     CassusBelli = CassusBelli,
+                    AdminApproved = AdminApproved,
+                    DefenderApproved = DefenderApproved,
                     AttackerPeaceOfferingTime = AttackerPeaceOfferingTime,
                     DefenderPeaceOfferingTime = DefenderPeaceOfferingTime,
                     StartTime = StartTime,
                     EndTime = EndTime,
                     EndReason = EndReason
                 };
-            }
-        }
-    }
-}
-
-
-namespace Oxide.Plugins
-{
-    using System;
-
-    public partial class Imperium
-    {
-        class WarFactionState
-        {
-            public string factionId;
-            public WarParticipation state;
-            public int withdrawScrapOffer;
-            public bool isWarLeader;
-
-            public WarFactionState(WarFactionStateInfo info)
-            {
-                factionId = info.FactionId;
-                state = info.WarParticipation;
-                withdrawScrapOffer = info.WithdrawScrapOffer;
-                isWarLeader = info.IsWarLeader;
             }
         }
     }
@@ -6281,25 +6266,6 @@ namespace Oxide.Plugins
             Treaty,
             AttackerEliminatedDefender,
             DefenderEliminatedAttacker
-        }
-    }
-}
-
-namespace Oxide.Plugins
-{
-    using System;
-
-    public partial class Imperium
-    {
-        enum WarParticipation
-        {
-            Neutral,
-            PendingApproval,
-            PendingApprovalRejected,
-            Participating,
-            Eliminated,
-            PendingWithdraw,
-            Withdraw
         }
     }
 }
@@ -6337,13 +6303,11 @@ namespace Oxide.Plugins
 
             [JsonProperty("declarerId")] public string DeclarerId;
 
-            //[JsonProperty("attackers"), JsonConverter(typeof(List<WarFactionStateInfo>))]
-            public List<WarFactionStateInfo> attackers;
-
-            //[JsonProperty("defenders"), JsonConverter(typeof(List<WarFactionStateInfo>))]
-            public List<WarFactionStateInfo> defenders;
-
             [JsonProperty("cassusBelli")] public string CassusBelli;
+
+            [JsonProperty("adminApproved")] public bool AdminApproved;
+
+            [JsonProperty("defenderApproved")] public bool DefenderApproved;
 
             [JsonProperty("attackerPeaceOfferingTime"), JsonConverter(typeof(IsoDateTimeConverter))]
             public DateTime? AttackerPeaceOfferingTime;
@@ -6359,22 +6323,6 @@ namespace Oxide.Plugins
 
             [JsonProperty("endReason"), JsonConverter(typeof(StringEnumConverter))]
             public WarEndReason? EndReason;
-        }
-
-        [Serializable]
-        class WarFactionStateInfo
-        {
-            [JsonProperty("factionId")]
-            public string FactionId;
-
-            [JsonProperty("warParticipation"), JsonConverter(typeof(StringEnumConverter))]
-            public WarParticipation WarParticipation;
-
-            [JsonProperty("withdrawScrapOffer")]
-            public int WithdrawScrapOffer;
-
-            [JsonProperty("IsWarLeader")]
-            public bool IsWarLeader;
         }
     }
 }
@@ -7204,44 +7152,6 @@ namespace Oxide.Plugins
         }
     }
 }
-
-namespace Oxide.Plugins
-{
-    using System;
-    using System.Collections.Generic;
-    using Newtonsoft.Json;
-    using Newtonsoft.Json.Linq;
-
-    public partial class Imperium : RustPlugin
-    {
-        class WarFactionStateListConverter : JsonConverter
-        {
-            public override void WriteJson(JsonWriter writer, object value, JsonSerializer serializer)
-            {
-                var list = (List<WarFactionState>)value;
-                writer.WriteStartArray();
-                foreach(WarFactionState factionState in list)
-                {
-                    serializer.Serialize(writer, factionState);
-                }
-                writer.WriteEndArray();
-            }
-
-            public override object ReadJson(JsonReader reader, Type objectType, object existingValue,
-                JsonSerializer serializer)
-            {
-                return null;
-            }
-
-            public override bool CanConvert(Type objectType)
-            {
-                return objectType == typeof(List<WarFactionState>);
-            }
-        }
-    }
-}
-
-
 
 namespace Oxide.Plugins
 {
@@ -8233,6 +8143,26 @@ namespace Oxide.Plugins
         {
             [JsonProperty("enabled")] public bool Enabled;
 
+            [JsonProperty("protectionInSeconds")] public int ProtectionInSeconds;
+
+            [JsonProperty("declarationCost")] public int DeclarationCost;
+
+            [JsonProperty("onlineDefendersRequired")] public int OnlineDefendersRequired;
+
+            [JsonProperty("adminApprovalRequired")] public bool AdminApprovalRequired;
+
+            [JsonProperty("defenderApprovalRequired")] public bool DefenderApprovalRequired;
+
+            [JsonProperty("enableShopfrontPeace")] public bool EnableShopfrontPeace;
+
+            [JsonProperty("priorAggressionRequired")] public bool PriorAggressionRequired;
+
+            [JsonProperty("preparationPeriodSeconds")] public int PreparationPeriodSeconds;
+
+            [JsonProperty("expirationSeconds")] public int ExpirationSeconds;
+
+            [JsonProperty("spamPreventionSeconds")] public int SpamPreventionSeconds;
+
             [JsonProperty("minCassusBelliLength")] public int MinCassusBelliLength;
 
             [JsonProperty("defensiveBonuses")] public List<float> DefensiveBonuses = new List<float>();
@@ -8240,6 +8170,16 @@ namespace Oxide.Plugins
             public static WarOptions Default = new WarOptions
             {
                 Enabled = true,
+                ProtectionInSeconds = 86400,
+                DeclarationCost = 5000,
+                OnlineDefendersRequired = 1,
+                AdminApprovalRequired = false,
+                DefenderApprovalRequired = false,
+                PriorAggressionRequired = false,
+                EnableShopfrontPeace = true,
+                PreparationPeriodSeconds = 300,
+                ExpirationSeconds = 86400,
+                SpamPreventionSeconds = 21600,
                 MinCassusBelliLength = 50,
                 DefensiveBonuses = new List<float> { 0, 0.5f, 1f }
             };

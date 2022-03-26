@@ -115,7 +115,6 @@ namespace Oxide.Plugins
 
         void Loaded()
         {
-            Puts("$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$");
             InitLang();
             Permission.RegisterAll(this);
             try

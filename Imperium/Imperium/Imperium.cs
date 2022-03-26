@@ -78,7 +78,7 @@ namespace Oxide.Plugins
     using System.Linq;
 
 
-    [Info("Imperium", "chucklenugget/Orange/evict", "1.16.0")]
+    [Info("Imperium", "chucklenugget/Orange/evict", "1.16.1")]
     public partial class Imperium : RustPlugin
     {
 
@@ -115,6 +115,7 @@ namespace Oxide.Plugins
 
         void Loaded()
         {
+            Puts("$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$");
             InitLang();
             Permission.RegisterAll(this);
             try
@@ -5180,7 +5181,7 @@ namespace Oxide.Plugins
             public HashSet<string> MemberIds { get; }
             public HashSet<string> ManagerIds { get; }
             public HashSet<string> InviteIds { get; }
-            public HashSet<string> Aggressors { get; set; }
+            public HashSet<string> Aggressors { get; }
 
             public float TaxRate { get; set; }
             public StorageContainer TaxChest { get; set; }
@@ -6216,6 +6217,8 @@ namespace Oxide.Plugins
                 CassusBelli = info.CassusBelli;
                 AdminApproved = info.AdminApproved;
                 DefenderApproved = info.DefenderApproved;
+                AttackerPeaceOfferingTime = info.AttackerPeaceOfferingTime;
+                DefenderPeaceOfferingTime = info.DefenderPeaceOfferingTime;
                 StartTime = info.StartTime;
                 EndTime = info.EndTime;
             }

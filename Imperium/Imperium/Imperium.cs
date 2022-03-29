@@ -2711,6 +2711,12 @@ namespace Oxide.Plugins
                 case "end":
                     OnWarEndCommand(user, restArgs);
                     break;
+                case "pending":
+                    OnWarPendingCommand(user);
+                    break;
+                case "admin":
+                    OnWarAdminCommand(user, restArgs);
+                    break;
                 default:
                     OnWarHelpCommand(user);
                     break;
@@ -2718,6 +2724,7 @@ namespace Oxide.Plugins
         }
     }
 }
+
 
 namespace Oxide.Plugins
 {
@@ -2842,6 +2849,15 @@ namespace Oxide.Plugins
                 "  <color=#ffd479>/war declare FACTION \"REASON\"</color>: Declare war against another faction");
             sb.AppendLine(
                 "  <color=#ffd479>/war end FACTION</color>: Offer to end a war, or accept an offer made to you");
+            if(user.HasPermission("imperium.admin.wars"))
+            {
+                sb.AppendLine(
+                "  <color=#ffd479>/war admin pending</color>: List all wars waiting for admin approval");
+                sb.AppendLine(
+                "  <color=#ffd479>/war admin approve FACTION_1 FACTION_2</color>: Approve a war between two factions");
+                sb.AppendLine(
+               "  <color=#ffd479>/war admin deny FACTION_1 FACTION_2</color>: Deny a pending war between two factions");
+            }
             sb.AppendLine("  <color=#ffd479>/war help</color>: Show this message");
 
             user.SendChatMessage(sb);
@@ -2920,6 +2936,203 @@ namespace Oxide.Plugins
                         sb.AppendFormat(": <color=#ffd479>{0}</color> is offering peace!", war.AttackerId);
                     if (war.IsDefenderOfferingPeace)
                         sb.AppendFormat(": <color=#ffd479>{0}</color> is offering peace!", war.DefenderId);
+                    sb.AppendLine();
+                }
+            }
+
+            user.SendChatMessage(sb);
+        }
+    }
+}
+
+namespace Oxide.Plugins
+{
+    public partial class Imperium
+    {
+        void OnWarAdminCommand(User user, string[] args)
+        {
+            if (!user.HasPermission("imperium.wars.admin"))
+            {
+                user.SendChatMessage(Messages.NoPermission);
+            }
+            var restArgs = args.Skip(1).ToArray();
+            switch (args[0].ToLower())
+            {
+                case "pending":
+                    OnWarAdminPendingCommand(user);
+                    break;
+                case "approve":
+                    OnWarAdminApproveCommand(user, restArgs);
+                    break;
+                case "deny":
+                    OnWarAdminDenyCommand(user, restArgs);
+                    break;
+                default:
+                    OnWarHelpCommand(user);
+                    break;
+            }
+        }
+    }
+}
+
+namespace Oxide.Plugins
+{
+    using System;
+    using System.Text;
+
+    public partial class Imperium
+    {
+        void OnWarAdminPendingCommand(User user)
+        {
+            var sb = new StringBuilder();
+            War[] wars = Wars.GetAllAdminUnnaprovedWars();
+
+            if (wars.Length == 0)
+            {
+                sb.AppendLine("There are no wars waiting for an admin decision");
+            }
+            else
+            {
+                sb.AppendLine(
+                    String.Format("<color=#ffd479>There are {0} pending wars to approve or deny:</color>", wars.Length));
+                for (var idx = 0; idx < wars.Length; idx++)
+                {
+                    War war = wars[idx];
+                    sb.AppendFormat("{0}. <color=#ffd479>{1}</color> vs <color=#ffd479>{2}</color>", (idx + 1),
+                        war.AttackerId, war.DefenderId);
+                    sb.AppendLine();
+                }
+            }
+
+            user.SendChatMessage(sb);
+        }
+    }
+}
+
+namespace Oxide.Plugins
+{
+    using System;
+    using System.Text;
+
+    public partial class Imperium
+    {
+        void OnWarAdminApproveCommand(User user, string[] args)
+        {
+            if(args.Length != 2)
+            {
+                user.SendChatMessage(Messages.Usage, "/war admin approve FACTION_1 FACTION_2");
+                return;
+            }
+            War[] wars = Wars.GetAllAdminUnnaprovedWars();
+            Faction f1 = Factions.Get(Util.NormalizeFactionId(args[0]));
+            Faction f2 = Factions.Get(Util.NormalizeFactionId(args[1]));
+            if(wars.Length == 0)
+            {
+                user.SendChatMessage("There are no wars waiting for an admin decision");
+                return;
+            }
+            if(f1 == null)
+            {
+                user.SendChatMessage(Messages.FactionDoesNotExist, args[0]);
+                return;
+            }
+            if (f2 == null)
+            {
+                user.SendChatMessage(Messages.FactionDoesNotExist, args[1]);
+                return;
+            }
+            var war = wars.SingleOrDefault(w => w.AttackerId == f1.Id && w.DefenderId == f2.Id ||
+            w.AttackerId == f2.Id && w.DefenderId == f1.Id);
+            if(war == null)
+            {
+                user.SendChatMessage(Messages.NoWarBetweenFactions,f1.Id,f2.Id);
+                return;
+            }
+            Instance.Wars.AdminApproveWar(war);
+        }
+    }
+}
+namespace Oxide.Plugins
+{
+    using System;
+    using System.Text;
+
+    public partial class Imperium
+    {
+        void OnWarAdminDenyCommand(User user, string[] args)
+        {
+            if (args.Length != 2)
+            {
+                user.SendChatMessage(Messages.Usage, "/war admin deny FACTION_1 FACTION_2");
+                return;
+            }
+            War[] wars = Wars.GetAllAdminUnnaprovedWars();
+            Faction f1 = Factions.Get(Util.NormalizeFactionId(args[0]));
+            Faction f2 = Factions.Get(Util.NormalizeFactionId(args[1]));
+            if (wars.Length == 0)
+            {
+                user.SendChatMessage("There are no wars waiting for an admin decision");
+                return;
+            }
+            if (f1 == null)
+            {
+                user.SendChatMessage(Messages.FactionDoesNotExist, args[0]);
+                return;
+            }
+            if (f2 == null)
+            {
+                user.SendChatMessage(Messages.FactionDoesNotExist, args[1]);
+                return;
+            }
+            var war = wars.SingleOrDefault(w => w.AttackerId == f1.Id && w.DefenderId == f2.Id ||
+            w.AttackerId == f2.Id && w.DefenderId == f1.Id);
+            if (war == null)
+            {
+                user.SendChatMessage(Messages.NoWarBetweenFactions, f1.Id, f2.Id);
+                return;
+            }
+            Instance.Wars.AdminDenyeWar(war);
+        }
+    }
+}
+
+namespace Oxide.Plugins
+{
+    using System;
+    using System.Text;
+
+    public partial class Imperium
+    {
+        void OnWarPendingCommand(User user)
+        {
+            Faction faction = Factions.GetByMember(user);
+
+            if (faction == null)
+            {
+                user.SendChatMessage(Messages.NotMemberOfFaction);
+                return;
+            }
+
+            var sb = new StringBuilder();
+            War[] wars = Wars.GetAllUnapprovedWarsByFaction(faction);
+
+            if (wars.Length == 0)
+            {
+                sb.AppendLine("Your faction has no unapproved wars.");
+            }
+            else
+            {
+                sb.AppendLine(
+                    String.Format("<color=#ffd479>Your faction has {0} pending wars:</color>", wars.Length));
+                for (var idx = 0; idx < wars.Length; idx++)
+                {
+                    War war = wars[idx];
+                    sb.AppendFormat("{0}. <color=#ffd479>{1}</color> vs <color=#ffd479>{2}</color>", (idx + 1),
+                        war.AttackerId, war.DefenderId);
+                    if (!war.AdminApproved)
+                        sb.AppendFormat(": <color=#ffd479>admin approval pending</color>");
+                    if (!war.DefenderApproved)
+                        sb.AppendFormat(": defender <color=#ffd479>{0}</color> approval pending", war.DefenderId);
                     sb.AppendLine();
                 }
             }
@@ -3754,6 +3967,9 @@ namespace Oxide.Plugins
 
             public const string HeadquartersChangedAnnouncement =
                 "<color=#00ff00>HQ CHANGED:</color> The headquarters of <color=#ffd479>[{0}]</color> is now <color=#ffd479>{1}</color>.";
+
+            public const string NoWarBetweenFactions =
+                "There are no war declarations between <color=#ffd479>[{0}]</color> and <color=#ffd479>[{1}]</color> ";
 
             public const string WarDeclaredAnnouncement =
                 "<color=#ff0000>WAR DECLARED:</color> <color=#ffd479>[{0}]</color> has declared war on <color=#ffd479>[{1}]</color>! Their reason: <color=#ffd479>{2}</color>";
@@ -6273,7 +6489,9 @@ namespace Oxide.Plugins
         {
             Treaty,
             AttackerEliminatedDefender,
-            DefenderEliminatedAttacker
+            DefenderEliminatedAttacker,
+            AdminDenied,
+            DefenderDenied
         }
     }
 }
@@ -6352,9 +6570,26 @@ namespace Oxide.Plugins
                 return Wars.Where(war => war.IsActive).OrderBy(war => war.StartTime).ToArray();
             }
 
+            public War[] GetAllInactiveWars()
+            {
+                return Wars.Where(war => !war.IsActive).OrderBy(war => war.StartTime).ToArray();
+            }
+
             public War[] GetAllActiveWarsByFaction(Faction faction)
             {
                 return GetAllActiveWarsByFaction(faction.Id);
+            }
+
+            public War[] GetAllAdminUnnaprovedWars()
+            {
+                return GetAllInactiveWars().Where(war => !war.AdminApproved && war.EndTime == null)
+                    .ToArray();
+            }
+
+            public War[] GetAllUnapprovedWarsByFaction(Faction faction)
+            {
+                return GetAllInactiveWars().Where(war => !war.IsActive && war.EndTime == null)
+                    .ToArray();
             }
 
             public War[] GetAllActiveWarsByFaction(string factionId)
@@ -6392,6 +6627,18 @@ namespace Oxide.Plugins
                 Wars.Add(war);
                 Instance.OnDiplomacyChanged();
                 return war;
+            }
+
+            public void AdminApproveWar(War war)
+            {
+                war.AdminApproved = true;
+                Instance.OnDiplomacyChanged();
+            }
+
+            public void AdminDenyeWar(War war)
+            {
+                war.AdminApproved = false;
+                EndWar(war, WarEndReason.AdminDenied);
             }
 
             public void EndWar(War war, WarEndReason reason)
@@ -7113,6 +7360,7 @@ namespace Oxide.Plugins
             public const string AdminFactions = "imperium.factions.admin";
             public const string AdminClaims = "imperium.claims.admin";
             public const string AdminBadlands = "imperium.badlands.admin";
+            public const string AdminWars = "imperium.wars.admin";
             public const string AdminPins = "imperium.pins.admin";
             public const string ManageFactions = "imperium.factions";
 

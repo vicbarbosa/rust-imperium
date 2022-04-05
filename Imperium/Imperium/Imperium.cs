@@ -3137,7 +3137,7 @@ namespace Oxide.Plugins
                 user.SendChatMessage(Messages.NoWarBetweenFactions, f1.Id, faction.Id);
                 return;
             }
-            Instance.Wars.AdminApproveWar(war);
+            Instance.Wars.DefenderApproveWar(war);
         }
     }
 }
@@ -3187,7 +3187,7 @@ namespace Oxide.Plugins
                 user.SendChatMessage(Messages.NoWarBetweenFactions, f1.Id, f2.Id);
                 return;
             }
-            Instance.Wars.AdminDenyeWar(war);
+            Instance.Wars.DefenderDenyWar(war);
         }
     }
 }
@@ -6743,7 +6743,7 @@ namespace Oxide.Plugins
                 Instance.OnDiplomacyChanged();
             }
 
-            public void DefenderDenied(War war)
+            public void DefenderDenyWar(War war)
             {
                 war.DefenderApproved = false;
                 EndWar(war, WarEndReason.DefenderDenied);

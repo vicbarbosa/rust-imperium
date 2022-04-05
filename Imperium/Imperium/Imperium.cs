@@ -2954,6 +2954,7 @@ namespace Oxide.Plugins
             if (!user.HasPermission("imperium.wars.admin"))
             {
                 user.SendChatMessage(Messages.NoPermission);
+                return;
             }
             var restArgs = args.Skip(1).ToArray();
             switch (args[0].ToLower())
@@ -3052,6 +3053,7 @@ namespace Oxide.Plugins
         }
     }
 }
+
 namespace Oxide.Plugins
 {
     using System;
@@ -3072,6 +3074,100 @@ namespace Oxide.Plugins
             if (wars.Length == 0)
             {
                 user.SendChatMessage("There are no wars waiting for an admin decision");
+                return;
+            }
+            if (f1 == null)
+            {
+                user.SendChatMessage(Messages.FactionDoesNotExist, args[0]);
+                return;
+            }
+            if (f2 == null)
+            {
+                user.SendChatMessage(Messages.FactionDoesNotExist, args[1]);
+                return;
+            }
+            var war = wars.SingleOrDefault(w => w.AttackerId == f1.Id && w.DefenderId == f2.Id ||
+            w.AttackerId == f2.Id && w.DefenderId == f1.Id);
+            if (war == null)
+            {
+                user.SendChatMessage(Messages.NoWarBetweenFactions, f1.Id, f2.Id);
+                return;
+            }
+            Instance.Wars.AdminDenyeWar(war);
+        }
+    }
+}
+
+namespace Oxide.Plugins
+{
+    using System;
+    using System.Text;
+
+    public partial class Imperium
+    {
+        void OnWarApproveCommand(User user, string[] args)
+        {
+            if (args.Length != 1)
+            {
+                user.SendChatMessage(Messages.Usage, "/war approve FACTION");
+                return;
+            }
+            Faction faction = Factions.GetByMember(user);
+            if (faction == null || !faction.HasLeader(user))
+            {
+                user.SendChatMessage(Messages.NotLeaderOfFaction);
+                return;
+            }
+            War[] wars = Wars.GetAllUnapprovedWarsByFaction(faction);
+            Faction f1 = Factions.Get(Util.NormalizeFactionId(args[0]));
+            if (wars.Length == 0)
+            {
+                user.SendChatMessage("There are no pending wars against your faction");
+                return;
+            }
+            if (f1 == null)
+            {
+                user.SendChatMessage(Messages.FactionDoesNotExist, args[0]);
+                return;
+            }
+            var war = wars.SingleOrDefault(w => w.AttackerId == f1.Id && w.DefenderId == faction.Id ||
+            w.AttackerId == faction.Id && w.DefenderId == f1.Id);
+            if (war == null)
+            {
+                user.SendChatMessage(Messages.NoWarBetweenFactions, f1.Id, faction.Id);
+                return;
+            }
+            Instance.Wars.AdminApproveWar(war);
+        }
+    }
+}
+
+namespace Oxide.Plugins
+{
+    using System;
+    using System.Text;
+
+    public partial class Imperium
+    {
+        void OnWarDenyCommand(User user, string[] args)
+        {
+            if (args.Length != 1)
+            {
+                user.SendChatMessage(Messages.Usage, "/war deny FACTION");
+                return;
+            }
+            Faction faction = Factions.GetByMember(user);
+            if (faction == null || !faction.HasLeader(user))
+            {
+                user.SendChatMessage(Messages.NotLeaderOfFaction);
+                return;
+            }
+            War[] wars = Wars.GetAllUnapprovedWarsByFaction(faction);
+            Faction f1 = Factions.Get(Util.NormalizeFactionId(args[0]));
+            Faction f2 = Factions.Get(Util.NormalizeFactionId(args[1]));
+            if (wars.Length == 0)
+            {
+                user.SendChatMessage("There are no pending wars against your faction");
                 return;
             }
             if (f1 == null)
@@ -6639,6 +6735,18 @@ namespace Oxide.Plugins
             {
                 war.AdminApproved = false;
                 EndWar(war, WarEndReason.AdminDenied);
+            }
+
+            public void DefenderApproveWar(War war)
+            {
+                war.DefenderApproved = true;
+                Instance.OnDiplomacyChanged();
+            }
+
+            public void DefenderDenied(War war)
+            {
+                war.DefenderApproved = false;
+                EndWar(war, WarEndReason.DefenderDenied);
             }
 
             public void EndWar(War war, WarEndReason reason)

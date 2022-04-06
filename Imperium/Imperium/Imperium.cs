@@ -2714,6 +2714,12 @@ namespace Oxide.Plugins
                 case "pending":
                     OnWarPendingCommand(user);
                     break;
+                case "approve":
+                    OnWarApproveCommand(user, restArgs);
+                    break;
+                case "deny":
+                    OnWarDenyCommand(user, restArgs);
+                    break;
                 case "admin":
                     OnWarAdminCommand(user, restArgs);
                     break;
@@ -3130,8 +3136,7 @@ namespace Oxide.Plugins
                 user.SendChatMessage(Messages.FactionDoesNotExist, args[0]);
                 return;
             }
-            var war = wars.SingleOrDefault(w => w.AttackerId == f1.Id && w.DefenderId == faction.Id ||
-            w.AttackerId == faction.Id && w.DefenderId == f1.Id);
+            var war = wars.SingleOrDefault(w => w.AttackerId == f1.Id && w.DefenderId == faction.Id);
             if (war == null)
             {
                 user.SendChatMessage(Messages.NoWarBetweenFactions, f1.Id, faction.Id);
@@ -3604,6 +3609,32 @@ namespace Oxide.Plugins
                 user.CurrentZones.Clear();
             }
 
+            return null;
+        }
+
+        object OnShopAcceptClick(ShopFront entity, BasePlayer player)
+        {
+            if (!Instance.Options.War.EnableShopfrontPeace)
+                return null;
+
+            var user1 = Instance.Users.Get(entity.vendorPlayer);
+            var user2 = Instance.Users.Get(entity.customerPlayer);
+
+            if (user1 == null || user2 == null)
+                return null;
+            if (user1.Faction == null || user2.Faction == null)
+                return null;
+            if (!Instance.Wars.AreFactionsAtWar(user1.Faction, user2.Faction))
+                return null;
+            if (user1.Faction.HasLeader(user1) && user2.Faction.HasLeader(user2))
+                return null;
+            user1.SendChatMessage("Only leaders of both enemy factions can trade right now");
+            return false;
+        }
+
+        object OnShopCompleteTrade(ShopFront entity)
+        {
+            Instance.Wars.TryShopfrontTreaty(entity.vendorPlayer, entity.customerPlayer);
             return null;
         }
 
@@ -6725,6 +6756,26 @@ namespace Oxide.Plugins
                 return war;
             }
 
+            public bool TryShopfrontTreaty(BasePlayer player1, BasePlayer player2)
+            {
+                if (!Instance.Options.War.EnableShopfrontPeace)
+                    return false;
+
+                var user1 = Instance.Users.Get(player1);
+                var user2 = Instance.Users.Get(player2);
+
+                if (user1 == null || user2 == null)
+                    return false;
+                if (user1.Faction == null || user2.Faction == null)
+                    return false;
+                if (!Instance.Wars.AreFactionsAtWar(user1.Faction, user2.Faction))
+                    return false;
+                if (!user1.Faction.HasLeader(user1) || !user2.Faction.HasLeader(user2))
+                    return false;
+                EndWar(GetActiveWarBetween(user1.Faction, user2.Faction), WarEndReason.Treaty);
+                return true;
+            }
+
             public void AdminApproveWar(War war)
             {
                 war.AdminApproved = true;
@@ -8521,9 +8572,9 @@ namespace Oxide.Plugins
 
             [JsonProperty("priorAggressionRequired")] public bool PriorAggressionRequired;
 
-            [JsonProperty("preparationPeriodSeconds")] public int PreparationPeriodSeconds;
+            //[JsonProperty("preparationPeriodSeconds")] public int PreparationPeriodSeconds;
 
-            [JsonProperty("expirationSeconds")] public int ExpirationSeconds;
+            //[JsonProperty("expirationSeconds")] public int ExpirationSeconds;
 
             [JsonProperty("spamPreventionSeconds")] public int SpamPreventionSeconds;
 
@@ -8541,8 +8592,8 @@ namespace Oxide.Plugins
                 DefenderApprovalRequired = false,
                 PriorAggressionRequired = false,
                 EnableShopfrontPeace = true,
-                PreparationPeriodSeconds = 300,
-                ExpirationSeconds = 86400,
+                //PreparationPeriodSeconds = 300,
+                //ExpirationSeconds = 86400,
                 SpamPreventionSeconds = 21600,
                 MinCassusBelliLength = 50,
                 DefensiveBonuses = new List<float> { 0, 0.5f, 1f }

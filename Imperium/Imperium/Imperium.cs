@@ -21,8 +21,7 @@
  */
 
 /* TO DO
- * THE FIXES UPDATE:
- * Debug and fix area geneartion with strange offset. Should match actual map grid
+ * THE FIXES UPDATE [All done!]
  * 
  * THE WAR UPDATE:
  * War option to prevent war being initiated from/against noob factions
@@ -56,6 +55,7 @@
  * War option to require war acceptance from defenders (Must say /war accept FACTION_NAME
  * War option to require admin approval (Must say /war approve ATTACKER DEFENDER)
  * War option to end war by leaders trading in any shopfront
+ * Debug and fix area geneartion with strange offset. Should match actual map grid
  */
 
 

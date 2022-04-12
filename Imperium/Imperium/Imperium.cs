@@ -7354,7 +7354,7 @@ namespace Oxide.Plugins
                 for (int row = 0; row < NumberOfRows; row++)
                     RowIds[row] = row.ToString();
 
-                float z = (MapHeight / 2) - CellSize/2 - (MapOffsetZ/2);
+                float z = (MapHeight / 2) - CellSize/2 - (MapOffsetZ/2) - (CellSize * Instance.Options.Map.MapGridYOffset);
                 for (int row = 0; row < NumberOfRows; row++)
                 {
                     float x = -(MapWidth / 2) + CellSize/2 - (MapOffsetX/2);
@@ -8295,6 +8295,8 @@ namespace Oxide.Plugins
     {
         class MapOptions
         {
+            [JsonProperty("mapGridYOffset")] public int MapGridYOffset;
+
             [JsonProperty("pinsEnabled")] public bool PinsEnabled;
 
             [JsonProperty("minPinNameLength")] public int MinPinNameLength;
@@ -8314,6 +8316,7 @@ namespace Oxide.Plugins
 
             public static MapOptions Default = new MapOptions
             {
+                MapGridYOffset = 0,
                 PinsEnabled = true,
                 MinPinNameLength = 2,
                 MaxPinNameLength = 20,

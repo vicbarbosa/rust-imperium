@@ -26,20 +26,11 @@
  * 
  * THE WAR UPDATE:
  * War option to prevent war being initiated from/against noob factions
- * War option to require war acceptance from defenders (Must say /war accept FACTION_NAME
  * War option to require war acknowlegment from defenders (Must have online members)
- * War option to require admin approval (Must say /war approve ATTACKER DEFENDER)
  * War option to require prior aggression
  * War option to pay scrap to declare war (Configurable cost)
- * War option to activate Preparation Phase (Configurable time, a war phase to delay pvp and raiding
- * War option to activate Raiding Phase (Configurable time, allowed pvp and raiding between enemy factions)
- * War option to end war by leaders trading in any shopfront
- * War option to prevent war spam
+ * War option to prevent war spam (Cooldown after treaty)
  * War option to skip restrictions against any faction currently at war
- * 
- * Add alliances
- * Declaring war against alliances multiplies cost by allied factions
- * If an alliance faction declares war it involves all allied factions in both sides
  * 
  * THE ECONOMY UPDATE:
  * Land produce mechanic to generate different types of resources depending on each land topology map
@@ -62,6 +53,9 @@
  * Land levels that affects passive resource income, raid resistance bonus and better recruits
  * Provide default icon pack
  * Load icons from own server directory instead of external website
+ * War option to require war acceptance from defenders (Must say /war accept FACTION_NAME
+ * War option to require admin approval (Must say /war approve ATTACKER DEFENDER)
+ * War option to end war by leaders trading in any shopfront
  */
 
 

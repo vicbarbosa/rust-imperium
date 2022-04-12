@@ -5243,7 +5243,7 @@ namespace Oxide.Plugins
             {
                 Vector3 position = entity.transform.position;
 
-                int row = Mathf.FloorToInt((MapGrid.MapHeight / 2 - (position.z + (MapGrid.MapOffsetZ/2))) / MapGrid.CellSize);
+                int row = Mathf.FloorToInt((MapGrid.MapHeight / 2  - (position.z + (MapGrid.MapOffsetZ/2))) / MapGrid.CellSize) - Instance.Options.Map.MapGridYOffset;
                 int col = Mathf.FloorToInt((MapGrid.MapWidth / 2 + (position.x + (MapGrid.MapOffsetX)/2)) / MapGrid.CellSize);
                 if (Instance.Options.Pvp.AllowedUnderground && position.y < -20f)
                     return null;
@@ -5255,7 +5255,7 @@ namespace Oxide.Plugins
 
             public Area GetByWorldPosition(Vector3 position)
             {
-                int row = Mathf.FloorToInt((MapGrid.MapHeight / 2 - (position.z + (MapGrid.MapOffsetZ / 2))) / MapGrid.CellSize);
+                int row = Mathf.FloorToInt((MapGrid.MapHeight / 2  - (position.z + (MapGrid.MapOffsetZ / 2))) / MapGrid.CellSize) - Instance.Options.Map.MapGridYOffset;
                 int col = Mathf.FloorToInt((MapGrid.MapWidth / 2 + (position.x + (MapGrid.MapOffsetX) / 2)) / MapGrid.CellSize);
                 if (Instance.Options.Pvp.AllowedUnderground && position.y < -20f)
                     return null;

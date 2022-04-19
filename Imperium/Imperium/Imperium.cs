@@ -24,10 +24,8 @@
  * THE FIXES UPDATE [All done!]
  * 
  * THE WAR UPDATE:
- * War option to prevent war being initiated from/against noob factions
  * War option to require war acknowlegment from defenders (Must have online members)
  * War option to require prior aggression
- * War option to pay scrap to declare war (Configurable cost)
  * War option to prevent war spam (Cooldown after treaty)
  * War option to skip restrictions against any faction currently at war
  * 
@@ -55,6 +53,8 @@
  * War option to require war acceptance from defenders (Must say /war accept FACTION_NAME
  * War option to require admin approval (Must say /war approve ATTACKER DEFENDER)
  * War option to end war by leaders trading in any shopfront
+ * War option to pay scrap to declare war (Configurable cost)
+ * War option to prevent war being initiated from/against noob factions
  * Debug and fix area geneartion with strange offset. Should match actual map grid
  */
 
@@ -72,7 +72,7 @@ namespace Oxide.Plugins
     using System.Linq;
 
 
-    [Info("Imperium", "chucklenugget/Orange/evict", "1.16.1")]
+    [Info("Imperium", "chucklenugget/Orange/evict", "1.18.1")]
     public partial class Imperium : RustPlugin
     {
 
@@ -2743,6 +2743,20 @@ namespace Oxide.Plugins
                 return;
             }
 
+            if (Instance.Options.War.NoobFactionProtectionInSeconds > 0)
+            {
+                int elapsedSeconds = Instance.Options.War.NoobFactionProtectionInSeconds;
+                int secondsRemaining = 1;
+                elapsedSeconds = (int)(DateTime.Now - attacker.CreationTime).TotalSeconds;
+
+                if (elapsedSeconds < Instance.Options.War.NoobFactionProtectionInSeconds)
+                {
+                    secondsRemaining = Instance.Options.War.NoobFactionProtectionInSeconds - elapsedSeconds;
+                    user.SendChatMessage(Messages.CannotDeclareWarNoobAttacker, secondsRemaining);
+                    return;
+                }
+            }
+
             Faction defender = Factions.Get(Util.NormalizeFactionId(args[0]));
 
             if (defender == null)
@@ -2765,12 +2779,40 @@ namespace Oxide.Plugins
                 return;
             }
 
+            if(Instance.Options.War.NoobFactionProtectionInSeconds > 0)
+            {
+                int elapsedSeconds = Instance.Options.War.NoobFactionProtectionInSeconds;
+                int secondsRemaining = 1;
+                elapsedSeconds = (int)(DateTime.Now - defender.CreationTime).TotalSeconds;
+
+                if (elapsedSeconds < Instance.Options.War.NoobFactionProtectionInSeconds)
+                {
+                    secondsRemaining = Instance.Options.War.NoobFactionProtectionInSeconds - elapsedSeconds;
+                    user.SendChatMessage(Messages.CannotDeclareWarDefenderProtected, defender.Id, secondsRemaining);
+                    return;
+                }
+            }
+            
+
             string cassusBelli = args[1].Trim();
 
             if (cassusBelli.Length < Options.War.MinCassusBelliLength)
             {
                 user.SendChatMessage(Messages.CannotDeclareWarInvalidCassusBelli, defender.Id);
                 return;
+            }
+
+            var cost = Instance.Options.War.DeclarationCost;
+            if (cost > 0)
+            {
+                ItemDefinition scrapDef = ItemManager.FindItemDefinition("scrap");
+                List<Item> stacks = user.Player.inventory.FindItemIDs(scrapDef.itemid);
+
+                if (!Instance.TryCollectFromStacks(scrapDef, stacks, cost))
+                {
+                    user.SendChatMessage(Messages.CannotDeclareWarCannotAfford, cost);
+                    return;
+                }
             }
 
             War war = Wars.DeclareWar(attacker, defender, user, cassusBelli);
@@ -3994,8 +4036,18 @@ namespace Oxide.Plugins
             public const string CannotDeclareWarAlreadyAtWar =
                 "You area already at war with <color=#ffd479>[{0}]</color>!";
 
+            public const string CannotDeclareWarNoobAttacker =
+                "You cannot declare war yet because your faction is not old enough. Try again in <color=#ffd479>[{0}]</color> seconds!";
+
+
+            public const string CannotDeclareWarDefenderProtected =
+                "You cannot declare war against <color=#ffd479>[{0}]</color> because this faction is not old enough. Try again in <color=#ffd479>[{1}]</color> seconds!";
+
             public const string CannotDeclareWarInvalidCassusBelli =
                 "You cannot declare war against <color=#ffd479>[{0}]</color>, because your reason doesn't meet the minimum length.";
+
+            public const string CannotDeclareWarCannotAfford =
+                "Declaring war <color=#ffd479>{0}</color> scrap. Add this amount to your inventory and try again.";
 
             public const string CannotOfferPeaceAlreadyOfferedPeace =
                 "You have already offered peace to <color=#ffd479>[{0}]</color>.";
@@ -8555,7 +8607,7 @@ namespace Oxide.Plugins
         {
             [JsonProperty("enabled")] public bool Enabled;
 
-            [JsonProperty("protectionInSeconds")] public int ProtectionInSeconds;
+            [JsonProperty("noobFactionProtectionInSeconds")] public int NoobFactionProtectionInSeconds;
 
             [JsonProperty("declarationCost")] public int DeclarationCost;
 
@@ -8564,6 +8616,8 @@ namespace Oxide.Plugins
             [JsonProperty("adminApprovalRequired")] public bool AdminApprovalRequired;
 
             [JsonProperty("defenderApprovalRequired")] public bool DefenderApprovalRequired;
+
+            [JsonProperty("defenderOnlineRequired")] public bool DefenderOnlineRequired;
 
             [JsonProperty("enableShopfrontPeace")] public bool EnableShopfrontPeace;
 
@@ -8582,12 +8636,13 @@ namespace Oxide.Plugins
             public static WarOptions Default = new WarOptions
             {
                 Enabled = true,
-                ProtectionInSeconds = 86400,
+                NoobFactionProtectionInSeconds = 86400,
                 DeclarationCost = 5000,
                 OnlineDefendersRequired = 1,
                 AdminApprovalRequired = false,
                 DefenderApprovalRequired = false,
                 PriorAggressionRequired = false,
+                DefenderOnlineRequired = false,
                 EnableShopfrontPeace = true,
                 //PreparationPeriodSeconds = 300,
                 //ExpirationSeconds = 86400,

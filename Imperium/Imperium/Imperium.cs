@@ -24,7 +24,6 @@
  * THE FIXES UPDATE [All done!]
  * 
  * THE WAR UPDATE:
- * War option to require war acknowlegment from defenders (Must have online members)
  * War option to require prior aggression
  * War option to prevent war spam (Cooldown after treaty)
  * War option to skip restrictions against any faction currently at war
@@ -46,16 +45,22 @@
  * 
  */
 
-/* DONE
- * Land levels that affects passive resource income, raid resistance bonus and better recruits
- * Provide default icon pack
- * Load icons from own server directory instead of external website
+/* PENDING TESTS
  * War option to require war acceptance from defenders (Must say /war accept FACTION_NAME
  * War option to require admin approval (Must say /war approve ATTACKER DEFENDER)
  * War option to end war by leaders trading in any shopfront
  * War option to pay scrap to declare war (Configurable cost)
  * War option to prevent war being initiated from/against noob factions
+ * War option to require war acknowlegment from defenders (Must have online members)
+ * Vertical grid offset option
+*/
+
+/* DONE
+ * Land levels that affects passive resource income, raid resistance bonus and better recruits
+ * Provide default icon pack
+ * Load icons from own server directory instead of external website
  * Debug and fix area geneartion with strange offset. Should match actual map grid
+ * Generate visible areas on in-game map
  */
 
 

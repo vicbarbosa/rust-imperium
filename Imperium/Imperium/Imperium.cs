@@ -2815,6 +2815,16 @@ namespace Oxide.Plugins
                 }
             }
 
+            if(Instance.Options.War.OnlineDefendersRequired > 0)
+            {
+                User[] defenders = Instance.Users.GetAll().Where(u => u.Faction.Id == defender.Id).ToArray();
+                if(defenders.Length < Instance.Options.War.OnlineDefendersRequired)
+                {
+                    user.SendChatMessage(Messages.CannotDeclareWarDefendersNotOnline, Instance.Options.War.OnlineDefendersRequired);
+                    return;
+                }
+            }
+
             War war = Wars.DeclareWar(attacker, defender, user, cassusBelli);
             PrintToChat(Messages.WarDeclaredAnnouncement, war.AttackerId, war.DefenderId, war.CassusBelli);
             Log(
@@ -4049,6 +4059,8 @@ namespace Oxide.Plugins
             public const string CannotDeclareWarCannotAfford =
                 "Declaring war <color=#ffd479>{0}</color> scrap. Add this amount to your inventory and try again.";
 
+            public const string CannotDeclareWarDefendersNotOnline =
+                "Declaring war requires at least <color=#ffd479>{0}</color> defending member online. Try again when your enemies are online";
             public const string CannotOfferPeaceAlreadyOfferedPeace =
                 "You have already offered peace to <color=#ffd479>[{0}]</color>.";
 
@@ -8617,15 +8629,9 @@ namespace Oxide.Plugins
 
             [JsonProperty("defenderApprovalRequired")] public bool DefenderApprovalRequired;
 
-            [JsonProperty("defenderOnlineRequired")] public bool DefenderOnlineRequired;
-
             [JsonProperty("enableShopfrontPeace")] public bool EnableShopfrontPeace;
 
             [JsonProperty("priorAggressionRequired")] public bool PriorAggressionRequired;
-
-            //[JsonProperty("preparationPeriodSeconds")] public int PreparationPeriodSeconds;
-
-            //[JsonProperty("expirationSeconds")] public int ExpirationSeconds;
 
             [JsonProperty("spamPreventionSeconds")] public int SpamPreventionSeconds;
 
@@ -8642,10 +8648,7 @@ namespace Oxide.Plugins
                 AdminApprovalRequired = false,
                 DefenderApprovalRequired = false,
                 PriorAggressionRequired = false,
-                DefenderOnlineRequired = false,
                 EnableShopfrontPeace = true,
-                //PreparationPeriodSeconds = 300,
-                //ExpirationSeconds = 86400,
                 SpamPreventionSeconds = 21600,
                 MinCassusBelliLength = 50,
                 DefensiveBonuses = new List<float> { 0, 0.5f, 1f }

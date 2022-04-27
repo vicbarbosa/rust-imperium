@@ -2733,6 +2733,9 @@ namespace Oxide.Plugins
 
 namespace Oxide.Plugins
 {
+    using System;
+    using System.Collections.Generic;
+    using System.Linq;
     public partial class Imperium
     {
         void OnWarDeclareCommand(User user, string[] args)
@@ -2811,7 +2814,7 @@ namespace Oxide.Plugins
             if (cost > 0)
             {
                 ItemDefinition scrapDef = ItemManager.FindItemDefinition("scrap");
-                List<Item> stacks = user.Player.inventory.FindItemIDs(scrapDef.itemid);
+                var stacks = user.Player.inventory.FindItemIDs(scrapDef.itemid);
 
                 if (!Instance.TryCollectFromStacks(scrapDef, stacks, cost))
                 {
@@ -2840,6 +2843,7 @@ namespace Oxide.Plugins
 
 namespace Oxide.Plugins
 {
+    using System.Linq;
     public partial class Imperium
     {
         void OnWarEndCommand(User user, string[] args)
@@ -3004,6 +3008,7 @@ namespace Oxide.Plugins
 
 namespace Oxide.Plugins
 {
+    using System.Linq;
     public partial class Imperium
     {
         void OnWarAdminCommand(User user, string[] args)
@@ -3071,6 +3076,7 @@ namespace Oxide.Plugins
 {
     using System;
     using System.Text;
+    using System.Linq;
 
     public partial class Imperium
     {
@@ -3115,6 +3121,7 @@ namespace Oxide.Plugins
 {
     using System;
     using System.Text;
+    using System.Linq;
 
     public partial class Imperium
     {
@@ -3159,6 +3166,7 @@ namespace Oxide.Plugins
 {
     using System;
     using System.Text;
+    using System.Linq;
 
     public partial class Imperium
     {
@@ -3202,6 +3210,7 @@ namespace Oxide.Plugins
 {
     using System;
     using System.Text;
+    using System.Linq;
 
     public partial class Imperium
     {

@@ -24,6 +24,9 @@
  * THE FIXES UPDATE [All done!]
  * 
  * THE WAR UPDATE:
+ * Add deny feedback
+ * Add approval feedback
+ * Change noob protection to minutes if > than 60
  * War option to require prior aggression
  * War option to prevent war spam (Cooldown after treaty)
  * War option to skip restrictions against any faction currently at war
@@ -47,16 +50,17 @@
 
 /* PENDING TESTS
  * War option to require war acceptance from defenders (Must say /war accept FACTION_NAME
- * War option to require admin approval (Must say /war approve ATTACKER DEFENDER)
- * War option to end war by leaders trading in any shopfront
- * War option to pay scrap to declare war (Configurable cost)
- * War option to prevent war being initiated from/against noob factions
- * War option to require war acknowlegment from defenders (Must have online members)
- * Vertical grid offset option
+
 */
 
 /* DONE
+ * War option to require admin approval (Must say /war approve ATTACKER DEFENDER)
+ * War option to end war by leaders trading in any shopfront
+ * War option to pay scrap to declare war (Configurable cost)
  * Land levels that affects passive resource income, raid resistance bonus and better recruits
+ * War option to require war acknowlegment from defenders (Must have online members)
+ * War option to prevent war being initiated from/against noob factions
+ * Vertical grid offset option
  * Provide default icon pack
  * Load icons from own server directory instead of external website
  * Debug and fix area geneartion with strange offset. Should match actual map grid
@@ -2810,6 +2814,16 @@ namespace Oxide.Plugins
                 return;
             }
 
+            if(Instance.Options.War.OnlineDefendersRequired > 0)
+            {
+                User[] defenders = Instance.Users.GetAll().Where(u => u.Faction.Id == defender.Id).ToArray();
+                if(defenders.Length < Instance.Options.War.OnlineDefendersRequired)
+                {
+                    user.SendChatMessage(Messages.CannotDeclareWarDefendersNotOnline, Instance.Options.War.OnlineDefendersRequired);
+                    return;
+                }
+            }
+
             var cost = Instance.Options.War.DeclarationCost;
             if (cost > 0)
             {
@@ -2822,17 +2836,6 @@ namespace Oxide.Plugins
                     return;
                 }
             }
-
-            if(Instance.Options.War.OnlineDefendersRequired > 0)
-            {
-                User[] defenders = Instance.Users.GetAll().Where(u => u.Faction.Id == defender.Id).ToArray();
-                if(defenders.Length < Instance.Options.War.OnlineDefendersRequired)
-                {
-                    user.SendChatMessage(Messages.CannotDeclareWarDefendersNotOnline, Instance.Options.War.OnlineDefendersRequired);
-                    return;
-                }
-            }
-
             War war = Wars.DeclareWar(attacker, defender, user, cassusBelli);
             PrintToChat(Messages.WarDeclaredAnnouncement, war.AttackerId, war.DefenderId, war.CassusBelli);
             Log(

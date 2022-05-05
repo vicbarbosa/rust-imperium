@@ -24,9 +24,6 @@
  * THE FIXES UPDATE [All done!]
  * 
  * THE WAR UPDATE:
- * Add deny feedback
- * Add approval feedback
- * Change noob protection to minutes if > than 60
  * War option to require prior aggression
  * War option to prevent war spam (Cooldown after treaty)
  * War option to skip restrictions against any faction currently at war
@@ -49,11 +46,11 @@
  */
 
 /* PENDING TESTS
- * War option to require war acceptance from defenders (Must say /war accept FACTION_NAME
 
 */
 
 /* DONE
+ * War option to require war acceptance from defenders (Must say /war accept FACTION_NAME
  * War option to require admin approval (Must say /war approve ATTACKER DEFENDER)
  * War option to end war by leaders trading in any shopfront
  * War option to pay scrap to declare war (Configurable cost)
@@ -65,6 +62,9 @@
  * Load icons from own server directory instead of external website
  * Debug and fix area geneartion with strange offset. Should match actual map grid
  * Generate visible areas on in-game map
+ * Add deny feedback
+ * Add approval feedback
+ * Change noob protection to minutes if > than 60
  */
 
 
@@ -2764,7 +2764,15 @@ namespace Oxide.Plugins
                 if (elapsedSeconds < Instance.Options.War.NoobFactionProtectionInSeconds)
                 {
                     secondsRemaining = Instance.Options.War.NoobFactionProtectionInSeconds - elapsedSeconds;
-                    user.SendChatMessage(Messages.CannotDeclareWarNoobAttacker, secondsRemaining);
+                    int minutesRemaining = secondsRemaining / 60;
+                    if (secondsRemaining >= 60)
+                    {
+                        user.SendChatMessage(Messages.CannotDeclareWarNoobAttacker, minutesRemaining, "minutes");
+                        return;
+
+                    }
+                    
+                    user.SendChatMessage(Messages.CannotDeclareWarNoobAttacker, secondsRemaining, "seconds");
                     return;
                 }
             }
@@ -2800,7 +2808,13 @@ namespace Oxide.Plugins
                 if (elapsedSeconds < Instance.Options.War.NoobFactionProtectionInSeconds)
                 {
                     secondsRemaining = Instance.Options.War.NoobFactionProtectionInSeconds - elapsedSeconds;
-                    user.SendChatMessage(Messages.CannotDeclareWarDefenderProtected, defender.Id, secondsRemaining);
+                    int minutesRemaining = secondsRemaining / 60;
+                    if(secondsRemaining >= 60)
+                    {
+                        user.SendChatMessage(Messages.CannotDeclareWarDefenderProtected, defender.Id, secondsRemaining, "minutes");
+                        return;
+                    }
+                    user.SendChatMessage(Messages.CannotDeclareWarDefenderProtected, defender.Id, secondsRemaining, "seconds");
                     return;
                 }
             }
@@ -3116,6 +3130,9 @@ namespace Oxide.Plugins
                 return;
             }
             Instance.Wars.AdminApproveWar(war);
+            PrintToChat(Messages.WarDeclaredAdminApproved, war.AttackerId, war.DefenderId, war.CassusBelli);
+            Log(
+                $"{Util.Format(user)} approved war between faction {war.DefenderId} and {war.AttackerId} for reason: {war.CassusBelli}");
         }
     }
 }
@@ -3161,6 +3178,9 @@ namespace Oxide.Plugins
                 return;
             }
             Instance.Wars.AdminDenyeWar(war);
+            PrintToChat(Messages.WarDeclaredAdminDenied, war.AttackerId, war.DefenderId, war.CassusBelli);
+            Log(
+                $"{Util.Format(user)} denied war between faction {war.DefenderId} and {war.AttackerId} for reason: {war.CassusBelli}");
         }
     }
 }
@@ -3205,6 +3225,9 @@ namespace Oxide.Plugins
                 return;
             }
             Instance.Wars.DefenderApproveWar(war);
+            PrintToChat(Messages.WarDeclaredDefenderApproved, war.AttackerId, war.DefenderId, war.CassusBelli);
+            Log(
+                 $"{Util.Format(user)} approved war between faction {war.DefenderId} and {war.AttackerId} for reason: {war.CassusBelli}");
         }
     }
 }
@@ -3232,7 +3255,6 @@ namespace Oxide.Plugins
             }
             War[] wars = Wars.GetAllUnapprovedWarsByFaction(faction);
             Faction f1 = Factions.Get(Util.NormalizeFactionId(args[0]));
-            Faction f2 = Factions.Get(Util.NormalizeFactionId(args[1]));
             if (wars.Length == 0)
             {
                 user.SendChatMessage("There are no pending wars against your faction");
@@ -3243,19 +3265,21 @@ namespace Oxide.Plugins
                 user.SendChatMessage(Messages.FactionDoesNotExist, args[0]);
                 return;
             }
-            if (f2 == null)
+            if (faction == null)
             {
                 user.SendChatMessage(Messages.FactionDoesNotExist, args[1]);
                 return;
             }
-            var war = wars.SingleOrDefault(w => w.AttackerId == f1.Id && w.DefenderId == f2.Id ||
-            w.AttackerId == f2.Id && w.DefenderId == f1.Id);
+            var war = wars.SingleOrDefault(w => w.AttackerId == f1.Id && w.DefenderId == faction.Id);
             if (war == null)
             {
-                user.SendChatMessage(Messages.NoWarBetweenFactions, f1.Id, f2.Id);
+                user.SendChatMessage(Messages.NoWarBetweenFactions, f1.Id, faction.Id);
                 return;
             }
             Instance.Wars.DefenderDenyWar(war);
+            PrintToChat(Messages.WarDeclaredDefenderDenied, war.AttackerId, war.DefenderId, war.CassusBelli);
+            Log(
+                $"{Util.Format(user)} denied war between faction {war.DefenderId} and {war.AttackerId} for reason: {war.CassusBelli}");
         }
     }
 }
@@ -4064,11 +4088,11 @@ namespace Oxide.Plugins
                 "You area already at war with <color=#ffd479>[{0}]</color>!";
 
             public const string CannotDeclareWarNoobAttacker =
-                "You cannot declare war yet because your faction is not old enough. Try again in <color=#ffd479>[{0}]</color> seconds!";
+                "You cannot declare war yet because your faction is not old enough. Try again in <color=#ffd479>[{0}]</color> {1}!";
 
 
             public const string CannotDeclareWarDefenderProtected =
-                "You cannot declare war against <color=#ffd479>[{0}]</color> because this faction is not old enough. Try again in <color=#ffd479>[{1}]</color> seconds!";
+                "You cannot declare war against <color=#ffd479>[{0}]</color> because this faction is not old enough. Try again in <color=#ffd479>[{1}]</color> {2}!";
 
             public const string CannotDeclareWarInvalidCassusBelli =
                 "You cannot declare war against <color=#ffd479>[{0}]</color>, because your reason doesn't meet the minimum length.";
@@ -4175,6 +4199,18 @@ namespace Oxide.Plugins
 
             public const string WarDeclaredAnnouncement =
                 "<color=#ff0000>WAR DECLARED:</color> <color=#ffd479>[{0}]</color> has declared war on <color=#ffd479>[{1}]</color>! Their reason: <color=#ffd479>{2}</color>";
+
+            public const string WarDeclaredAdminApproved =
+                "<color=#ff0000>WAR APPROVED BY AN ADMIN:</color> <color=#ffd479>[{0}]</color> has declared war on <color=#ffd479>[{1}]</color>! Their reason: <color=#ffd479>{2}</color>";
+
+            public const string WarDeclaredAdminDenied =
+                "<color=#ff0000>WAR DENIED BY AN ADMIN:</color> <color=#ffd479>[{0}]</color> has declared war on <color=#ffd479>[{1}]</color>! Their reason: <color=#ffd479>{2}</color>";
+
+            public const string WarDeclaredDefenderApproved =
+                "<color=#ff0000>WAR APPROVED BY DEFENDERS:</color> <color=#ffd479>[{0}]</color> has declared war on <color=#ffd479>[{1}]</color>! Their reason: <color=#ffd479>{2}</color>";
+
+            public const string WarDeclaredDefenderDenied =
+                "<color=#ff0000>WAR DENIED BY DEFENDERS:</color> <color=#ffd479>[{0}]</color> has declared war on <color=#ffd479>[{1}]</color>! Their reason: <color=#ffd479>{2}</color>";
 
             public const string WarEndedTreatyAcceptedAnnouncement =
                 "<color=#00ff00>WAR ENDED:</color> The war between <color=#ffd479>[{0}]</color> and <color=#ffd479>[{1}]</color> has ended after both sides have agreed to a treaty.";
@@ -6848,6 +6884,8 @@ namespace Oxide.Plugins
                 if (!user1.Faction.HasLeader(user1) || !user2.Faction.HasLeader(user2))
                     return false;
                 EndWar(GetActiveWarBetween(user1.Faction, user2.Faction), WarEndReason.Treaty);
+                Instance.PrintToChat(Messages.WarEndedTreatyAcceptedAnnouncement, user1.Faction, user2.Faction);
+                Instance.Log($"{Util.Format(user1)} and {Util.Format(user2)} accepted the peace by trading on a shop front");
                 return true;
             }
 

@@ -8697,14 +8697,14 @@ namespace Oxide.Plugins
             public static WarOptions Default = new WarOptions
             {
                 Enabled = true,
-                NoobFactionProtectionInSeconds = 86400,
-                DeclarationCost = 5000,
-                OnlineDefendersRequired = 1,
+                NoobFactionProtectionInSeconds = 0,
+                DeclarationCost = 0,
+                OnlineDefendersRequired = 0,
                 AdminApprovalRequired = false,
                 DefenderApprovalRequired = false,
                 PriorAggressionRequired = false,
                 EnableShopfrontPeace = true,
-                SpamPreventionSeconds = 21600,
+                SpamPreventionSeconds = 0,
                 MinCassusBelliLength = 50,
                 DefensiveBonuses = new List<float> { 0, 0.5f, 1f }
             };

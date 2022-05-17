@@ -81,7 +81,7 @@ namespace Oxide.Plugins
     using System.Linq;
 
 
-    [Info("Imperium", "chucklenugget/Orange/evict", "2.0.0")]
+    [Info("Imperium", "chucklenugget/evict/Orange", "2.0.0")]
     public partial class Imperium : RustPlugin
     {
 

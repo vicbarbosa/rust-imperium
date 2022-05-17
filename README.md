@@ -98,6 +98,8 @@ Allied bot recruiting, procedural storytellying, land passive resource produce w
 * Data from previous versions are not compatible
 * The plugin might spam a OnEntityTakeDamage error when you first start the server. If this happens just run oxide.reload Imperium and everything should work
 
+[Donations ](https://www.paypal.com/donate/?token=kS3ubEttzXAW5nN07ZuubIvdge3i2pj7zSM2YzaCd9mj_oFI6JQikZi72Wtfe1u7HUnKY3DoUsQRjvjH&locale.x=US) are appreciated, but never required.
+
 ## Credits
 - **chucklenugget**, the original author of this plugin 
 - **Orange**, the previous maintainer

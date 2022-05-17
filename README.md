@@ -62,6 +62,42 @@ For players
 * `/war end FACTION_NAME` Ask (or accept) to end the war with the specified faction
 * `/war help` Show help about the war command
 
+## What's new in 2.0.0?
+**Fixes:**
+* Land areas will now correctly align with the in-game map grid
+* Plugin now uses icons from /data/ImperiumImages. Download [this image pack](https://github.com/vicbarbosa/rust-imperium-images/archive/refs/heads/master.zip) and put ImperiumImages folder inside your server's data folder and everything should work.
+
+**New features**
+* Claimed areas now show in the in-game map as colored circles.
+* Support for underground badlands (to allow pvp inside tunnels and underwater labs)
+* Option for faction leaders to decide if their own land allows unrestricted pvp with `/faction badlands` command
+* Land upgrading. Leaders and Managers can upgrade land level to increase bonuses in that land with `/upgrade land` command
+* War option to require admins to approve or deny wars with in-game commands `/war admin approve`, `/war admin deny` and `/war admin pending`
+* War option to allow Shop Front peace: If leaders from both enemy factions perform any trade in a shop front, the war will be over
+* War option to require defenders to approve or deny wars with in-game commands  `/war approve`, `/war deny` and `/war pending`
+* War option to require scrap payment to declare war (To discourage pointless wars)
+* War option to protect noob factions from wars. Default value is 24 hours (86400 seconds)
+* War option to require defender members online in order to declare war (To discourage offline raiding)
+* MapGridYOffset parameter to adjust the vertical land grid (This is a hacky solution to fix some cases where the land is generated with a offset of 1 grid) 
+
+**WORK IN PROGRESS**
+
+Some config options already exists but they don't do anything for now because I'm still working on it so ignore the following in your config file:
+
+*`war priorAggressionRequired`
+*`war spamPreventionSeconds`
+*`upgrade maxProduceBonus`
+*`upgrade maxRecruitBotBuffs`
+*`recruiting enabled`
+
+**Features planned for the future**
+Allied bot recruiting, procedural storytellying, land passive resource produce with specific resources per type of land, optional Faction Karma system to encourage roleplaying and other interesting conflicts.
+
+**KNOWN ISSUES**
+* Configs from previous versions are not compatible
+* Data from previous versions are not compatible
+* The plugin might spam a OnEntityTakeDamage error when you first start the server. If this happens just run oxide.reload Imperium and everything should work
+
 ## Credits
 - **chucklenugget**, the original author of this plugin 
 - **Orange**, the previous maintainer

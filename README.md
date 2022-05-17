@@ -1,3 +1,6 @@
+**READ BEFORE UPDATING TO 2.0.0**
+Old configs and data are not compatible with this version, do not update mid wipe without backing and then wiping your config and data files.
+
 Imperium creates a unique new way to play Rust, first used on servers such as Rust Factions and The Lost Isles. Claim land, fight wars, and battle for supremacy!
 
 At its heart, Imperium adds the idea of "territory" to Rust. The game is divided into a grid of tiles matching those displayed on the in-game map. Players can create factions, and these factions can claim these tiles of land and levy taxes on resources harvested therein. Factions can declare war on one another and battle for control of the territory.
@@ -78,7 +81,7 @@ For players
 * War option to require scrap payment to declare war (To discourage pointless wars)
 * War option to protect noob factions from wars. Default value is 24 hours (86400 seconds)
 * War option to require defender members online in order to declare war (To discourage offline raiding)
-* MapGridYOffset parameter to adjust the vertical land grid (This is a hacky solution to fix some cases where the land is generated with a offset of 1 grid) 
+* MapGridYOffset parameter to adjust the vertical land grid (This is a hacky solution to fix some cases where the land is generated with a offset of 1 grid). The number you set in this property will be the number of grids to offset upwards
 
 **WORK IN PROGRESS**
 

@@ -1,4 +1,5 @@
 **READ BEFORE UPDATING TO 2.0.0**
+
 Old configs and data are not compatible with this version, do not update mid wipe without backing and then wiping your config and data files.
 
 Imperium creates a unique new way to play Rust, first used on servers such as Rust Factions and The Lost Isles. Claim land, fight wars, and battle for supremacy!

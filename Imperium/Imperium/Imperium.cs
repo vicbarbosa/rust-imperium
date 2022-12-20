@@ -23,10 +23,17 @@
 /* TO DO
  * THE FIXES UPDATE [All done!]
  * 
+ * THE QOL UPDATE
+ * Auto claim when placing TC
+ * Auto create faction on fisrt claim
+ * Integration with Clans Reborn
+ * UI
+ * 
  * THE WAR UPDATE:
  * War option to require prior aggression
  * War option to prevent war spam (Cooldown after treaty)
  * War option to skip restrictions against any faction currently at war
+ * War duration option
  * 
  * THE ECONOMY UPDATE:
  * Land produce mechanic to generate different types of resources depending on each land topology map
@@ -8408,6 +8415,8 @@ namespace Oxide.Plugins
     {
         class MapOptions
         {
+            [JsonProperty("showEventsHUD")] public bool ShowEventsHUD;
+
             [JsonProperty("mapGridYOffset")] public int MapGridYOffset;
 
             [JsonProperty("pinsEnabled")] public bool PinsEnabled;
@@ -8429,6 +8438,7 @@ namespace Oxide.Plugins
 
             public static MapOptions Default = new MapOptions
             {
+                ShowEventsHUD = true,
                 MapGridYOffset = 0,
                 PinsEnabled = true,
                 MinPinNameLength = 2,
@@ -9445,38 +9455,42 @@ namespace Oxide.Plugins
                             taxRate, 0.78f);
                     }
                 }
-
-                string planeIcon = Instance.Hud.GameEvents.IsCargoPlaneActive
+                
+                if(Instance.Options.Map.ShowEventsHUD)
+                {
+                    string planeIcon = Instance.Hud.GameEvents.IsCargoPlaneActive
                     ? Ui.HudIcon.CargoPlaneIndicatorOn
                     : Ui.HudIcon.CargoPlaneIndicatorOff;
-                AddWidget(container, Ui.Element.HudPanelRight, planeIcon);
+                    AddWidget(container, Ui.Element.HudPanelRight, planeIcon);
 
-                string shipIcon = Instance.Hud.GameEvents.IsCargoShipActive
-                    ? Ui.HudIcon.CargoShipIndicatorOn
-                    : Ui.HudIcon.CargoShipIndicatorOff;
-                AddWidget(container, Ui.Element.HudPanelRight, shipIcon, 0.1f);
+                    string shipIcon = Instance.Hud.GameEvents.IsCargoShipActive
+                        ? Ui.HudIcon.CargoShipIndicatorOn
+                        : Ui.HudIcon.CargoShipIndicatorOff;
+                    AddWidget(container, Ui.Element.HudPanelRight, shipIcon, 0.1f);
 
-                string heliIcon = Instance.Hud.GameEvents.IsHelicopterActive
-                    ? Ui.HudIcon.HelicopterIndicatorOn
-                    : Ui.HudIcon.HelicopterIndicatorOff;
-                AddWidget(container, Ui.Element.HudPanelRight, heliIcon, 0.2f);
+                    string heliIcon = Instance.Hud.GameEvents.IsHelicopterActive
+                        ? Ui.HudIcon.HelicopterIndicatorOn
+                        : Ui.HudIcon.HelicopterIndicatorOff;
+                    AddWidget(container, Ui.Element.HudPanelRight, heliIcon, 0.2f);
 
-                string chinookIcon = Instance.Hud.GameEvents.IsChinookOrLockedCrateActive
-                    ? Ui.HudIcon.ChinookIndicatorOn
-                    : Ui.HudIcon.ChinookIndicatorOff;
-                AddWidget(container, Ui.Element.HudPanelRight, chinookIcon, 0.3f);
+                    string chinookIcon = Instance.Hud.GameEvents.IsChinookOrLockedCrateActive
+                        ? Ui.HudIcon.ChinookIndicatorOn
+                        : Ui.HudIcon.ChinookIndicatorOff;
+                    AddWidget(container, Ui.Element.HudPanelRight, chinookIcon, 0.3f);
 
-                string activePlayers = BasePlayer.activePlayerList.Count.ToString();
-                AddWidget(container, Ui.Element.HudPanelRight, Ui.HudIcon.Players, PanelColor.TextNormal, activePlayers,
-                    0.43f);
+                    string activePlayers = BasePlayer.activePlayerList.Count.ToString();
+                    AddWidget(container, Ui.Element.HudPanelRight, Ui.HudIcon.Players, PanelColor.TextNormal, activePlayers,
+                        0.43f);
 
-                string sleepingPlayers = BasePlayer.sleepingPlayerList.Count.ToString();
-                AddWidget(container, Ui.Element.HudPanelRight, Ui.HudIcon.Sleepers, PanelColor.TextNormal,
-                    sleepingPlayers, 0.58f);
+                    string sleepingPlayers = BasePlayer.sleepingPlayerList.Count.ToString();
+                    AddWidget(container, Ui.Element.HudPanelRight, Ui.HudIcon.Sleepers, PanelColor.TextNormal,
+                        sleepingPlayers, 0.58f);
 
-                string currentTime = TOD_Sky.Instance.Cycle.DateTime.ToString("HH:mm");
-                AddWidget(container, Ui.Element.HudPanelRight, Ui.HudIcon.Clock, PanelColor.TextNormal, currentTime,
-                    0.75f);
+                    string currentTime = TOD_Sky.Instance.Cycle.DateTime.ToString("HH:mm");
+                    AddWidget(container, Ui.Element.HudPanelRight, Ui.HudIcon.Clock, PanelColor.TextNormal, currentTime,
+                        0.75f);
+                }
+                
 
                 bool claimUpkeepPastDue = Instance.Options.Upkeep.Enabled && User.Faction != null &&
                                           User.Faction.IsUpkeepPastDue;

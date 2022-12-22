@@ -162,6 +162,7 @@ namespace Oxide.Plugins
             Puts("Decay reduction is " + (Options.Decay.Enabled ? "enabled" : "disabled"));
             Puts("Claim upkeep is " + (Options.Upkeep.Enabled ? "enabled" : "disabled"));
             Puts("Zones are " + (Options.Zones.Enabled ? "enabled" : "disabled"));
+
             if (Options.Upgrading.Enabled)
             {
                 PrintWarning("Land upgrading is not available in this Imperium version yet! Disabling it");
@@ -3886,7 +3887,6 @@ namespace Oxide.Plugins
             var locker = entity as Locker;
             if (Options.Recruiting.Enabled && locker != null)
             {
-                Instance.Puts("is locker and recruiting enabled");
                 var area = Areas.GetByArmoryLocker(locker);
                 if (area != null)
                 {
@@ -4790,15 +4790,15 @@ namespace Oxide.Plugins
 
                 if(result == DamageResult.Friendly)
                 {
-                    //faction leaders deal double damage to structures in their own land while the land is peaceful
-                    if(attacker.Faction.HasLeader(attacker) && (!area.IsWarZone && !area.IsHostile))
-                    {
-                        hit.damageTypes.ScaleAll(2f);
-                    }
-                    //faction members deal half damage to structures to minimize griefing
                     if (!attacker.Faction.HasLeader(attacker) && (!area.IsWarZone && !area.IsHostile))
                     {
-                        hit.damageTypes.ScaleAll(0.5f);
+                        if(hit.damageTypes.Has(Rust.DamageType.Explosion) || hit.damageTypes.Has(Rust.DamageType.Heat))
+                        {
+                            hit.damageTypes.ScaleAll(Instance.Options.Factions.MemberSelfExplosiveRaidingDamageScale);
+                            return null;
+                        }
+                        hit.damageTypes.ScaleAll(Instance.Options.Factions.MemberSelfEcoRaidingDamageScale);
+                        return null;
                     }
                     return null;
                 }
@@ -5886,6 +5886,7 @@ namespace Oxide.Plugins
             public HashSet<string> ManagerIds { get; }
             public HashSet<string> InviteIds { get; }
             public HashSet<string> Aggressors { get; }
+            public ulong InGameTeamID { get; set; }
 
             public float TaxRate { get; set; }
             public StorageContainer TaxChest { get; set; }
@@ -5933,7 +5934,7 @@ namespace Oxide.Plugins
                 ManagerIds = new HashSet<string>(info.ManagerIds);
                 InviteIds = new HashSet<string>(info.InviteIds);
                 Aggressors = new HashSet<string>(info.Aggressors);
-
+                InGameTeamID = info.InGameTeamID;
                 if (info.TaxChestId != null)
                 {
                     var taxChest = BaseNetworkable.serverEntities.Find((uint)info.TaxChestId) as StorageContainer;
@@ -6200,6 +6201,8 @@ namespace Oxide.Plugins
 
             [JsonProperty("aggressors")] public string[] Aggressors;
 
+            [JsonProperty("inGameTeamID")] public ulong InGameTeamID;
+
             [JsonProperty("taxRate")] public float TaxRate;
 
             [JsonProperty("taxChestId")] public uint? TaxChestId;
@@ -6252,6 +6255,30 @@ namespace Oxide.Plugins
 
                 faction = new Faction(id, owner);
                 faction.CreationTime = DateTime.Now;
+
+                if (Instance.Options.Factions.OverrideInGameTeamSystem)
+                {
+                    if (owner.Player.currentTeam == 0UL)
+                    {
+                        RelationshipManager.PlayerTeam team = RelationshipManager.ServerInstance.CreateTeam();
+                        team.SetTeamLeader(owner.Player.userID);
+                        team.AddPlayer(owner.Player);
+                        faction.InGameTeamID = team.teamID;
+                    }
+                    else
+                    {
+                        RelationshipManager.PlayerTeam team = RelationshipManager.ServerInstance.FindTeam(owner.Player.currentTeam);
+                        foreach(ulong pid in team.members)
+                        {
+                            if(pid != owner.Player.userID)
+                            {
+                                team.RemovePlayer(pid);
+                            }
+                        }
+                        faction.InGameTeamID = owner.Player.currentTeam;
+                    }
+                }
+
                 Factions.Add(id, faction);
 
                 Events.OnFactionCreated(faction);
@@ -7477,7 +7504,7 @@ namespace Oxide.Plugins
                 Vector3 position = cargoShip.transform.position;
                 float radius = Instance.Options.Zones.EventZoneRadius;
                 float lifespan = Instance.Options.Zones.EventZoneLifespanSeconds;
-                Create(ZoneType.CargoShip, "Supply Drop", cargoShip, radius, GetEventEndTime());
+                Create(ZoneType.CargoShip, "Cargo Ship", cargoShip, radius, GetEventEndTime());
             }
 
             public void CreateForRaid(BuildingPrivlidge cupboard)
@@ -8706,6 +8733,10 @@ namespace Oxide.Plugins
 
             [JsonProperty("overrideInGameTeamSystem")] public bool OverrideInGameTeamSystem = false;
 
+            [JsonProperty("memberSelfEcoRaidingDamageScale")] public float MemberSelfEcoRaidingDamageScale = 1f;
+
+            [JsonProperty("memberSelfExplosiveRaidingDamageScale")] public float MemberSelfExplosiveRaidingDamageScale = 1f;
+
             public static FactionOptions Default = new FactionOptions
             {
                 MinFactionNameLength = 1,
@@ -8713,7 +8744,9 @@ namespace Oxide.Plugins
                 MaxMembers = null,
                 AllowFactionBadlands = false,
                 CommandCooldownSeconds = 300,
-                OverrideInGameTeamSystem = false
+                OverrideInGameTeamSystem = false,
+                MemberSelfEcoRaidingDamageScale = 0.2f,
+                MemberSelfExplosiveRaidingDamageScale = 0f
             };
 
             
@@ -10792,7 +10825,7 @@ namespace Oxide.Plugins
             }
 
             public User User { get; }
-            public bool IsDisabled = false;
+            public bool IsDisabled = true;
             public string currentCategory = "";
             public UIChatCommandDef selectedCommand;
             public string currentCommand = "";

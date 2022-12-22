@@ -3669,6 +3669,70 @@ namespace Oxide.Plugins
                 Users.Remove(player);
         }
 
+        object OnTeamCreate(BasePlayer player)
+        {
+            if (Instance.Options.Factions.OverrideInGameTeamSystem)
+            {
+                return false;
+            }
+            return null;
+        }
+
+        object OnTeamInvite(BasePlayer inviter, BasePlayer target)
+        {
+            if (Instance.Options.Factions.OverrideInGameTeamSystem)
+            {
+                return false;
+            }
+            return null;
+        }
+
+        object OnTeamPromote(RelationshipManager.PlayerTeam team, BasePlayer newLeader)
+        {
+            if (Instance.Options.Factions.OverrideInGameTeamSystem)
+            {
+                return false;
+            }
+            return null;
+        }
+
+        object OnTeamKick(ulong currentTeam, ulong newTeam, BasePlayer player)
+        {
+            if (Instance.Options.Factions.OverrideInGameTeamSystem)
+            {
+                return false;
+            }
+            return null;
+        }
+
+        object OnTeamLeave(RelationshipManager.PlayerTeam team, BasePlayer player)
+        {
+            if (Instance.Options.Factions.OverrideInGameTeamSystem)
+            {
+                return false;
+            }
+            return null;
+        }
+
+        object OnTeamDisband(RelationshipManager.PlayerTeam team)
+        {
+            Puts("OnTeamDisband works!");
+            if (Instance.Options.Factions.OverrideInGameTeamSystem)
+            {
+                return false;
+            }
+            return null;
+        }
+
+        object OnTeamUpdate(ulong currentTeam, ulong newTeam, BasePlayer player)
+        {
+            if (Instance.Options.Factions.OverrideInGameTeamSystem)
+            {
+                return false;
+            }
+            return null;
+        }
+
         void OnHammerHit(BasePlayer player, HitInfo hit)
         {
             User user = Users.Get(player);
@@ -6619,7 +6683,7 @@ namespace Oxide.Plugins
 
             }
 
-            void UpdateInGameTeam()
+            public void UpdateInGameTeam()
             {
                 RelationshipManager.PlayerTeam team;
                 RelationshipManager.PlayerTeam otherTeam;

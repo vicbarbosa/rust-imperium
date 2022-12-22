@@ -448,7 +448,6 @@ namespace Oxide.Plugins
             User user = player.GetComponent<User>();
             if (user == null)
                 return;
-            Debug.LogWarning(arg.FullString);
             user.Panel.OpenTab(arg.Args[0]);
         }
     }
@@ -468,7 +467,6 @@ namespace Oxide.Plugins
             User user = player.GetComponent<User>();
             if (user == null)
                 return;
-            Debug.LogWarning(arg.FullString);
             user.Panel.OpenCommand(arg.Args[0]);
         }
     }
@@ -490,11 +488,8 @@ namespace Oxide.Plugins
             User user = player.GetComponent<User>();
             if (user == null)
                 return;
-            Debug.LogWarning(arg.FullString);
             string chatCommand = user.Panel.GetFullConsoleCommand();
             Regex.Replace(chatCommand, @"[\""]", "\\\"", RegexOptions.None);
-            Debug.LogWarning(chatCommand);
-            Debug.LogWarning("chat.say " + chatCommand);
             player.SendConsoleCommand("chat.say " + chatCommand);
             if(Convert.ToBoolean(arg.Args[0]))
             {
@@ -526,7 +521,6 @@ namespace Oxide.Plugins
                 return;
             if (arg.Args.Length < 3)
                 return;
-            Debug.LogWarning(arg.FullString);
             string fullArg = "";
             for (int i = 2; i < arg.Args.Length; i++)
             {
@@ -10658,7 +10652,7 @@ namespace Oxide.Plugins
                     UI.Color(UI.Colors.Secondary, 1f),
                     "X",
                     12,
-                    new UI4(0.9f, 0.1f, 0.95f, 0.9f),
+                    new UI4(0.93f, 0.3f, 0.97f, 0.7f),
                     "imperium.panel.close"
                 );
 
@@ -10713,7 +10707,7 @@ namespace Oxide.Plugins
                         sy += SPACING + 0.05f;
 
                         UI.Label(container, UI.Element.PanelDialog,
-                            arg.description, 10,
+                            arg.description, 12,
                             new UI4(0f, sy, 1f, sy + 0.05f),
                             TextAnchor.MiddleLeft);
                         sy += SPACING + 0.05f;
@@ -10755,7 +10749,6 @@ namespace Oxide.Plugins
                     for (int i = 0; i < categoryCmds.Count; i++)
                     {
                         UIChatCommandDef cmd = categoryCmds[i];
-                        Debug.LogWarning(cmd.command + " " + cmd.auth.ToString() + " " + cmd.authExclusive);
                         bool skip = false;
                         if(cmd.authExclusive)
                         {
@@ -10817,7 +10810,6 @@ namespace Oxide.Plugins
                     }
                 }
                 s = s + "\"";
-                Debug.LogWarning("Full console command is " + s);
                 return s;
             }
             public void SetArg(int index, string arg, bool isSubstring = false)

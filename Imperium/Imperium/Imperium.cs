@@ -24,31 +24,49 @@
  * THE FIXES UPDATE [All done!]
  * 
  * THE QOL UPDATE
- * Auto claim when placing TC
- * Auto create faction on fisrt claim
  * Integration with Clans Reborn
  * UI
  * 
  * THE WAR UPDATE:
  * War option to require prior aggression
  * War option to prevent war spam (Cooldown after treaty)
- * War option to skip restrictions against any faction currently at war
+ * War option to skip restrictions against any attacker faction currently at war
  * War duration option
  * 
  * THE ECONOMY UPDATE:
  * Land produce mechanic to generate different types of resources depending on each land topology map
- * Require vendmachine to receive land produce
  * 
  * THE SOCIETY UPDATE:
- * Faction points
- * Faction perks
+ * Faction reputation and Citizen reputation
+ * Imperium points 
+ * Faction tags (town, comercial, hostile, raider)
+ * Leader tags (warlord)
+ * Citizen tags (active, farmer, roleplayer, soldier, killer, wanted, bounty hunter)
  * Faction missions
+ * 
+ * THE PVP UPDATE
+ * Monument Control (King of the Hill mechanic to all pvp enabled monuments)
+ * - Spawn a flag in the monument with a zone around it
+ * - If a player uses the Start Capture command it starts the capture.
+ * - If no attacker member is inside the sphere, the capture process is cancelled
+ * - Attackers must stay inside the circle for 10 minutes
+ * - Global chat is notified when a faction starts and stops a capture interaction
+ * - While a capture interaction is happening, if members of different factions are inside the circle, the flag is contested and progress is halted
+ * - When controlling a monument, the controlling faction receives periodic items in its tax chest (Configurable per monument)
+ * Bounty Hunters System
+ * - Allow faction leaders to create bounty kiosk in their cities.
+ * - Any member of that faction can place a bounty on players from other factions or without a faction. The bounty requester must pay scrap to place a bounty.
+ * - Players can accept a bounty hunt if: They are in a faction, they are not
+ * - The bounty amount accumulates globally
+ * - If a wanted player is wounded or killed by a bounty hunter, the wanted player loses Imperium Points proportionally to the bounty
+ * - The bounty hunter wins the right to claim the reward in any bounty kiosk
+ * - While with wanted status, the wanted player passively receives reputation points while online
  * 
  * THE ARMY UPDATE:
  * Allow factions to recruit bots to fight for them
  * 
  * THE LORE UPDATE:
- * Auto-generate small stories that can be read in chat based on factions interactions
+ * Cobalt Daily Report: Auto-generate small stories that can be read in an interface based on factions interactions
  * 
  */
 
@@ -87,7 +105,7 @@ namespace Oxide.Plugins
     using System.Linq;
 
 
-    [Info("Imperium", "chucklenugget/evict", "2.0.0")]
+    [Info("Imperium", "chucklenugget/evict", "2.1.0")]
     public partial class Imperium : RustPlugin
     {
 
@@ -134,7 +152,8 @@ namespace Oxide.Plugins
             {
                 PrintError($"Error while loading configuration: {ex.ToString()}");
             }
-
+            RelationshipManager.maxTeamSize = 128;
+            RelationshipManager.maxTeamSize_Internal = 128;
             Puts("Area claims are " + (Options.Claims.Enabled ? "enabled" : "disabled"));
             Puts("Taxation is " + (Options.Taxes.Enabled ? "enabled" : "disabled"));
             Puts("Badlands are " + (Options.Badlands.Enabled ? "enabled" : "disabled"));
@@ -148,11 +167,11 @@ namespace Oxide.Plugins
                 PrintWarning("Land upgrading is not available in this Imperium version yet! Disabling it");
                 Options.Upgrading.Enabled = false;
             }
-            if (Options.Factions.AllowFactionBadlands)
+            /*if (Options.Factions.AllowFactionBadlands)
             {
                 PrintWarning("Faction badlands is not available in this Imperium version yet! Disabling it");
                 Options.Factions.AllowFactionBadlands = false;
-            }
+            }*/
             if (Options.Recruiting.Enabled)
             {
                 PrintWarning("Recruiting is not available in this Imperium version yet! Disabling it");
@@ -6449,6 +6468,7 @@ namespace Oxide.Plugins
     using System.Collections.Generic;
     using System.Text;
     using UnityEngine;
+    using System.Linq;
 
     public partial class Imperium
     {
@@ -6462,7 +6482,6 @@ namespace Oxide.Plugins
             public UserHud Hud { get; private set; }
             public UserPanel Panel { get; set; }
             public UserPreferences Preferences { get; set; }
-
             public Area CurrentArea { get; set; }
             public HashSet<Zone> CurrentZones { get; private set; }
             public Faction Faction { get; private set; }
@@ -6524,7 +6543,8 @@ namespace Oxide.Plugins
                     Player.displayName = OriginalName;
                 else
                     Player.displayName = $"[{faction.Id}] {Player.displayName}";
-
+                if(Instance.Options.Factions.OverrideInGameTeamSystem)
+                    UpdateInGameTeam();
                 Player.SendNetworkUpdate();
             }
 
@@ -6599,6 +6619,79 @@ namespace Oxide.Plugins
 
             }
 
+            void UpdateInGameTeam()
+            {
+                RelationshipManager.PlayerTeam team;
+                RelationshipManager.PlayerTeam otherTeam;
+                if (Player == null)
+                    return;
+                //if not in faction and is in any team, leave it
+                if (Faction == null && Player.currentTeam != 0UL)
+                {
+                    team = RelationshipManager.ServerInstance.FindTeam(Player.currentTeam);
+                    team.RemovePlayer(Player.userID);
+                    return;
+                }
+                //if faction owner
+                if(Faction != null && Faction.HasOwner(this))
+                {
+                    if(Player.currentTeam == 0UL)
+                    {
+                        team = RelationshipManager.ServerInstance.CreateTeam();
+                        team.teamLeader = Player.userID;
+                        team.AddPlayer(Player);
+                    }
+                    else
+                    {
+                        team = RelationshipManager.ServerInstance.FindTeam(Player.currentTeam);
+                    }
+                    //if already in a team
+                    List<User> allUsers = Instance.Users.GetAll().ToList();
+                    List<User> validTeammates = allUsers.FindAll(u => !team.members.Contains(u.Player.userID) && u.Faction == Faction);
+                    List<User> invalidTeammates = allUsers.FindAll(u => team.members.Contains(u.Player.userID) && u.Faction != Faction);
+                    foreach (User u in invalidTeammates)
+                    {
+                        if (u == this)
+                            continue;
+                        team.RemovePlayer(u.Player.userID);
+                        u.UpdateInGameTeam();
+                    }
+                    foreach (User u in validTeammates)
+                    {
+                        if (u == this)
+                            continue;
+                        if (u.Player.currentTeam != 0UL)
+                        {
+                            otherTeam = RelationshipManager.ServerInstance.FindTeam(u.Player.currentTeam);
+                            otherTeam.RemovePlayer(u.Player.userID);
+                        }
+                        team.AddPlayer(u.Player);
+                        u.UpdateInGameTeam();
+                    }
+                    return;
+                }
+                //if member of faction but not an owner
+                if(Faction != null && !Faction.HasOwner(this))
+                {
+                    User factionOwner = Instance.Users.Get(Faction.OwnerId);
+                    if (Player.currentTeam == factionOwner.Player.currentTeam)
+                        return;
+                    if (factionOwner.Player.currentTeam == 0UL)
+                    {
+                        factionOwner.UpdateInGameTeam();
+                        return;
+                    }
+                    else if(Player.currentTeam != 0UL)
+                    {
+                        otherTeam = RelationshipManager.ServerInstance.FindTeam(Player.currentTeam);
+                        otherTeam.RemovePlayer(Player.userID);
+                    }
+                    team = RelationshipManager.ServerInstance.FindTeam(factionOwner.Player.currentTeam);
+                    team.AddPlayer(Player);
+                    return;
+                }
+            }
+
             void CheckZones()
             {
             }
@@ -6668,6 +6761,8 @@ namespace Oxide.Plugins
                 Faction faction = Instance.Factions.GetByMember(user);
                 if (faction != null)
                     user.SetFaction(faction);
+                else
+                    user.SetFaction(null);
 
                 Users[user.Player.UserIDString] = user;
 
@@ -8545,13 +8640,16 @@ namespace Oxide.Plugins
 
             [JsonProperty("factionBadlandsCommandCooldownSeconds")] public int CommandCooldownSeconds = 300;
 
+            [JsonProperty("overrideInGameTeamSystem")] public bool OverrideInGameTeamSystem = false;
+
             public static FactionOptions Default = new FactionOptions
             {
                 MinFactionNameLength = 1,
                 MaxFactionNameLength = 8,
                 MaxMembers = null,
                 AllowFactionBadlands = false,
-                CommandCooldownSeconds = 300
+                CommandCooldownSeconds = 300,
+                OverrideInGameTeamSystem = false
             };
 
             
@@ -10775,7 +10873,7 @@ namespace Oxide.Plugins
                     UI.Button(sidebar, UI.Element.PanelSidebar,
                         UI.Color(UI.Colors.Primary, 1f),
                         categories[i].ToUpper(),
-                        22,
+                        20,
                         new UI4(0f, sy, 1f, sy + 0.1f),
                         "imperium.panel.opentab " + categories[i].ToString()
                     );
@@ -11004,6 +11102,7 @@ namespace Oxide.Plugins
                 {
                     CuiHelper.AddUi(User.Player, container);
                 }
+                IsDisabled = false;
             }
 
             public void Hide()
@@ -11012,6 +11111,7 @@ namespace Oxide.Plugins
                 CuiHelper.DestroyUi(User.Player, UI.Element.PanelHeader);
                 CuiHelper.DestroyUi(User.Player, UI.Element.PanelSidebar);
                 CuiHelper.DestroyUi(User.Player, UI.Element.PanelDialog);
+                IsDisabled = true;
 
             }
 

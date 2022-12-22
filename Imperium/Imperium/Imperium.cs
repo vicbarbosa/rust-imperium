@@ -478,6 +478,7 @@ namespace Oxide.Plugins
 {
     using UnityEngine;
     using System;
+    using System.Text.RegularExpressions;
     public partial class Imperium
     {
         [ConsoleCommand("imperium.panel.run")]
@@ -491,7 +492,10 @@ namespace Oxide.Plugins
                 return;
             Debug.LogWarning(arg.FullString);
             string chatCommand = user.Panel.GetFullConsoleCommand();
-            player.SendConsoleCommand("chat.say \"" + chatCommand + "\"");
+            Regex.Replace(chatCommand, @"[\""]", "\\\"", RegexOptions.None);
+            Debug.LogWarning(chatCommand);
+            Debug.LogWarning("chat.say " + chatCommand);
+            player.SendConsoleCommand("chat.say " + chatCommand);
             if(Convert.ToBoolean(arg.Args[0]))
             {
                 user.Panel.Close();
@@ -523,7 +527,14 @@ namespace Oxide.Plugins
             if (arg.Args.Length < 3)
                 return;
             Debug.LogWarning(arg.FullString);
-            user.Panel.SetArg(Convert.ToInt32(arg.Args[0]), arg.Args[2], Convert.ToBoolean(arg.Args[1]));
+            string fullArg = "";
+            for (int i = 2; i < arg.Args.Length; i++)
+            {
+                fullArg = fullArg + arg.Args[i];
+                if (i != arg.Args.Length - 1)
+                    fullArg = fullArg + " ";
+            }
+            user.Panel.SetArg(Convert.ToInt32(arg.Args[0]), fullArg, Convert.ToBoolean(arg.Args[1]));
         }
     }
 }
@@ -610,7 +621,7 @@ namespace Oxide.Plugins
         void OnImperiumCommand(BasePlayer player, string command, string[] args)
         {
             User user = Users.Get(player);
-            user.Panel.Show();
+            user.Panel.Toggle();
         }
     }
 }
@@ -10821,7 +10832,7 @@ namespace Oxide.Plugins
                 }
                 if(isSubstring)
                 {
-                    indexedArgs[index] = "\"" + indexedArgs[index] + "\"";
+                    indexedArgs[index] = "\\\"" + indexedArgs[index] + "\\\"";
                 }
             }
 

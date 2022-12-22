@@ -74,7 +74,6 @@
  * Change noob protection to minutes if > than 60
  */
 
-
 #region > Singleton
 namespace Oxide.Plugins
 {
@@ -415,6 +414,121 @@ namespace Oxide.Plugins
 }
 #endregion
 
+#region > Console To Chat
+
+namespace Oxide.Plugins
+{
+    public partial class Imperium
+    {
+        [ConsoleCommand("imperium.panel.close")]
+        private void ccmdImperiumPanelClose(ConsoleSystem.Arg arg)
+        {
+            BasePlayer player = arg.Connection.player as BasePlayer;
+            if (player == null)
+                return;
+            User user = player.GetComponent<User>();
+            if (user == null)
+                return;
+            user.Panel.Close();
+        }
+    }
+}
+
+namespace Oxide.Plugins
+{
+    using UnityEngine;
+    public partial class Imperium
+    {
+        [ConsoleCommand("imperium.panel.opentab")]
+        private void ccmdImperiumPanelOpenTab(ConsoleSystem.Arg arg)
+        {
+            BasePlayer player = arg.Connection.player as BasePlayer;
+            if (player == null)
+                return;
+            User user = player.GetComponent<User>();
+            if (user == null)
+                return;
+            Debug.LogWarning(arg.FullString);
+            user.Panel.OpenTab(arg.Args[0]);
+        }
+    }
+}
+
+namespace Oxide.Plugins
+{
+    using UnityEngine;
+    public partial class Imperium
+    {
+        [ConsoleCommand("imperium.panel.opencmd")]
+        private void ccmdImperiumPanelOpenCmd(ConsoleSystem.Arg arg)
+        {
+            BasePlayer player = arg.Connection.player as BasePlayer;
+            if (player == null)
+                return;
+            User user = player.GetComponent<User>();
+            if (user == null)
+                return;
+            Debug.LogWarning(arg.FullString);
+            user.Panel.OpenCommand(arg.Args[0]);
+        }
+    }
+}
+
+namespace Oxide.Plugins
+{
+    using UnityEngine;
+    using System;
+    public partial class Imperium
+    {
+        [ConsoleCommand("imperium.panel.run")]
+        private void ccmdImperiumPanelRun(ConsoleSystem.Arg arg)
+        {
+            BasePlayer player = arg.Connection.player as BasePlayer;
+            if (player == null)
+                return;
+            User user = player.GetComponent<User>();
+            if (user == null)
+                return;
+            Debug.LogWarning(arg.FullString);
+            string chatCommand = user.Panel.GetFullConsoleCommand();
+            player.SendConsoleCommand("chat.say \"" + chatCommand + "\"");
+            if(Convert.ToBoolean(arg.Args[0]))
+            {
+                user.Panel.Close();
+            }
+            else
+            {
+                user.Panel.ClearCurrentCommand();
+                user.Panel.Refresh();
+            }
+
+        }
+    }
+}
+namespace Oxide.Plugins
+{
+    using System;
+    using UnityEngine;
+    public partial class Imperium
+    {
+        [ConsoleCommand("imperium.panel.setarg")]
+        private void ccmdImperiumPanelSetArg(ConsoleSystem.Arg arg)
+        {
+            BasePlayer player = arg.Connection.player as BasePlayer;
+            if (!player)
+                return;
+            User user = player.GetComponent<User>();
+            if (!user)
+                return;
+            if (arg.Args.Length < 3)
+                return;
+            Debug.LogWarning(arg.FullString);
+            user.Panel.SetArg(Convert.ToInt32(arg.Args[0]), arg.Args[2], Convert.ToBoolean(arg.Args[1]));
+        }
+    }
+}
+#endregion
+
 #region > Chat Commands
 #region commons
 namespace Oxide.Plugins
@@ -483,6 +597,20 @@ namespace Oxide.Plugins
             }
 
             user.SendChatMessage(sb);
+        }
+    }
+}
+#endregion
+#region /imperium
+namespace Oxide.Plugins
+{
+    public partial class Imperium
+    {
+        [ChatCommand("i")]
+        void OnImperiumCommand(BasePlayer player, string command, string[] args)
+        {
+            User user = Users.Get(player);
+            user.Panel.Show();
         }
     }
 }
@@ -2306,7 +2434,6 @@ namespace Oxide.Plugins
     }
 }
 #endregion
-
 #region /recruit
 /*
 namespace Oxide.Plugins
@@ -6299,6 +6426,7 @@ namespace Oxide.Plugins
             public BasePlayer Player { get; private set; }
             public UserMap Map { get; private set; }
             public UserHud Hud { get; private set; }
+            public UserPanel Panel { get; set; }
             public UserPreferences Preferences { get; set; }
 
             public Area CurrentArea { get; set; }
@@ -6336,6 +6464,7 @@ namespace Oxide.Plugins
 
                 Map = new UserMap(this);
                 Hud = new UserHud(this);
+                Panel = new UserPanel(this);
 
                 InvokeRepeating(nameof(UpdateHud), 5f, 5f);
                 InvokeRepeating(nameof(CheckArea), 2f, 2f);
@@ -7576,7 +7705,7 @@ namespace Oxide.Plugins
                     var converter = new ImageConverter();
                     var imageData = (byte[])converter.ConvertTo(bitmap, typeof(byte[]));
 
-                    Image image = Instance.Hud.RegisterImage(Ui.MapOverlayImageUrl, imageData, true);
+                    Image image = Instance.Hud.RegisterImage(UI.MapOverlayImageUrl, imageData, true);
 
                     Instance.Puts($"Generated new map overlay image {image.Id}.");
                     Instance.Log($"Created new map overlay image {image.Id}.");
@@ -8763,7 +8892,9 @@ namespace Oxide.Plugins
                     {"trainyard", 180},
                     {"water_treatment_plant", 180 },
                     {"oilrig_1",200},
-                    {"oilrig_2",200}
+                    {"oilrig_2",200},
+                    {"desert_military_base",150},
+                    {"arctic_research_base_a",150}
                 }
             };
         }
@@ -8980,9 +9111,9 @@ namespace Oxide.Plugins
                 }
 
                 if (image.Id != null)
-                    return new CuiRawImageComponent { Png = image.Id, Sprite = Ui.TransparentTexture };
+                    return new CuiRawImageComponent { Png = image.Id, Sprite = UI.TransparentTexture };
                 else
-                    return new CuiRawImageComponent { Url = image.Url, Sprite = Ui.TransparentTexture };
+                    return new CuiRawImageComponent { Url = image.Url, Sprite = UI.TransparentTexture };
             }
 
             public void GenerateMapOverlayImage()
@@ -8992,10 +9123,11 @@ namespace Oxide.Plugins
 
             public void Init()
             {
+                UserPanel.InitializeUserPanelCommandDefs();
                 RegisterImage(dataDirectory + "map-image.png");
                 RegisterImage(dataDirectory + "server-logo.png");
-                RegisterDefaultImages(typeof(Ui.HudIcon));
-                RegisterDefaultImages(typeof(Ui.MapIcon));
+                RegisterDefaultImages(typeof(UI.HudIcon));
+                RegisterDefaultImages(typeof(UI.MapIcon));
             }
 
             public void Destroy()
@@ -9147,7 +9279,7 @@ namespace Oxide.Plugins
             {
                 return new MapMarker
                 {
-                    IconUrl = Ui.MapIcon.Player,
+                    IconUrl = UI.MapIcon.Player,
                     X = TranslatePositionX(user.Player.transform.position.x),
                     Z = TranslatePositionZ(user.Player.transform.position.z)
                 };
@@ -9157,7 +9289,7 @@ namespace Oxide.Plugins
             {
                 return new MapMarker
                 {
-                    IconUrl = Ui.MapIcon.Headquarters,
+                    IconUrl = UI.MapIcon.Headquarters,
                     Label = Util.RemoveSpecialCharacters(faction.Id),
                     X = TranslatePositionX(area.ClaimCupboard.transform.position.x),
                     Z = TranslatePositionZ(area.ClaimCupboard.transform.position.z)
@@ -9170,7 +9302,7 @@ namespace Oxide.Plugins
                 return new MapMarker
                 {
                     IconUrl = iconUrl,
-                    Label = (iconUrl == Ui.MapIcon.Unknown) ? monument.displayPhrase.english : null,
+                    Label = (iconUrl == UI.MapIcon.Unknown) ? monument.displayPhrase.english : null,
                     X = TranslatePositionX(monument.transform.position.x),
                     Z = TranslatePositionZ(monument.transform.position.z)
                 };
@@ -9202,27 +9334,27 @@ namespace Oxide.Plugins
 
             static string GetIconForMonument(MonumentInfo monument)
             {
-                if (monument.Type == MonumentType.Cave) return Ui.MapIcon.Cave;
-                if (monument.name.Contains("airfield")) return Ui.MapIcon.Airfield;
-                if (monument.name.Contains("bandit_town")) return Ui.MapIcon.BanditTown;
-                if (monument.name.Contains("compound")) return Ui.MapIcon.Compound;
-                if (monument.name.Contains("sphere_tank")) return Ui.MapIcon.Dome;
-                if (monument.name.Contains("harbor")) return Ui.MapIcon.Harbor;
-                if (monument.name.Contains("gas_station")) return Ui.MapIcon.GasStation;
-                if (monument.name.Contains("junkyard")) return Ui.MapIcon.Junkyard;
-                if (monument.name.Contains("launch_site")) return Ui.MapIcon.LaunchSite;
-                if (monument.name.Contains("lighthouse")) return Ui.MapIcon.Lighthouse;
-                if (monument.name.Contains("military_tunnel")) return Ui.MapIcon.MilitaryTunnel;
-                if (monument.name.Contains("warehouse")) return Ui.MapIcon.MiningOutpost;
-                if (monument.name.Contains("powerplant")) return Ui.MapIcon.PowerPlant;
-                if (monument.name.Contains("quarry")) return Ui.MapIcon.Quarry;
-                if (monument.name.Contains("satellite_dish")) return Ui.MapIcon.SatelliteDish;
-                if (monument.name.Contains("radtown_small_3")) return Ui.MapIcon.SewerBranch;
-                if (monument.name.Contains("power_sub")) return Ui.MapIcon.Substation;
-                if (monument.name.Contains("supermarket")) return Ui.MapIcon.Supermarket;
-                if (monument.name.Contains("trainyard")) return Ui.MapIcon.Trainyard;
-                if (monument.name.Contains("water_treatment_plant")) return Ui.MapIcon.WaterTreatmentPlant;
-                return Ui.MapIcon.Unknown;
+                if (monument.Type == MonumentType.Cave) return UI.MapIcon.Cave;
+                if (monument.name.Contains("airfield")) return UI.MapIcon.Airfield;
+                if (monument.name.Contains("bandit_town")) return UI.MapIcon.BanditTown;
+                if (monument.name.Contains("compound")) return UI.MapIcon.Compound;
+                if (monument.name.Contains("sphere_tank")) return UI.MapIcon.Dome;
+                if (monument.name.Contains("harbor")) return UI.MapIcon.Harbor;
+                if (monument.name.Contains("gas_station")) return UI.MapIcon.GasStation;
+                if (monument.name.Contains("junkyard")) return UI.MapIcon.Junkyard;
+                if (monument.name.Contains("launch_site")) return UI.MapIcon.LaunchSite;
+                if (monument.name.Contains("lighthouse")) return UI.MapIcon.Lighthouse;
+                if (monument.name.Contains("military_tunnel")) return UI.MapIcon.MilitaryTunnel;
+                if (monument.name.Contains("warehouse")) return UI.MapIcon.MiningOutpost;
+                if (monument.name.Contains("powerplant")) return UI.MapIcon.PowerPlant;
+                if (monument.name.Contains("quarry")) return UI.MapIcon.Quarry;
+                if (monument.name.Contains("satellite_dish")) return UI.MapIcon.SatelliteDish;
+                if (monument.name.Contains("radtown_small_3")) return UI.MapIcon.SewerBranch;
+                if (monument.name.Contains("power_sub")) return UI.MapIcon.Substation;
+                if (monument.name.Contains("supermarket")) return UI.MapIcon.Supermarket;
+                if (monument.name.Contains("trainyard")) return UI.MapIcon.Trainyard;
+                if (monument.name.Contains("water_treatment_plant")) return UI.MapIcon.WaterTreatmentPlant;
+                return UI.MapIcon.Unknown;
             }
         }
 
@@ -9231,17 +9363,17 @@ namespace Oxide.Plugins
             switch (pin.Type)
             {
                 case PinType.Arena:
-                    return Ui.MapIcon.Arena;
+                    return UI.MapIcon.Arena;
                 case PinType.Hotel:
-                    return Ui.MapIcon.Hotel;
+                    return UI.MapIcon.Hotel;
                 case PinType.Marina:
-                    return Ui.MapIcon.Marina;
+                    return UI.MapIcon.Marina;
                 case PinType.Shop:
-                    return Ui.MapIcon.Shop;
+                    return UI.MapIcon.Shop;
                 case PinType.Town:
-                    return Ui.MapIcon.Town;
+                    return UI.MapIcon.Town;
                 default:
-                    return Ui.MapIcon.Unknown;
+                    return UI.MapIcon.Unknown;
             }
         }
     }
@@ -9249,10 +9381,17 @@ namespace Oxide.Plugins
 
 namespace Oxide.Plugins
 {
+    using Oxide.Game.Rust.Cui;
+    using System;
+    using System.Linq;
+    using UnityEngine;
+    using System.Globalization;
     public partial class Imperium
     {
-        public static class Ui
+        
+        public static class UI
         {
+
             //public const string ImageBaseUrl = "";
             public const string MapOverlayImageUrl = "imperium://map-overlay.png";
             public const string TransparentTexture = "assets/content/textures/generic/fulltransparent.tga";
@@ -9279,6 +9418,17 @@ namespace Oxide.Plugins
                 public static string MapSidebar = "Imperium.MapDialog.Sidebar";
                 public static string MapButton = "Imperium.MapDialog.Sidebar.Button";
                 public static string MapServerLogoImage = "Imperium.MapDialog.Sidebar.ServerLogo";
+
+                public static string PanelWindow = "Imperium.Panel.Window";
+                public static string PanelDialog = "Imperium.Panel.Dialog";
+                public static string PanelHeader = "Imperium.Panel.Header";
+                public static string PanelHeaderTitle = "Imperium.Panel.Header.Title";
+                public static string PanelSidebar = "Imperium.Panel.Sidebar";
+                public static string PanelTab = "Imperium.Panel.Sidebar.Tab";
+                public static string PanelLabel = "Imperium.Panel.Dialog.Label";
+                public static string PanelCommandButton = "Imperium.Panel.Dialog.CommandButton";
+                public static string PanelTextInput = "Imperium.Panel.Dialog.TextInput";
+                public static string PanelConfirmButton = "Imperium.Panel.Dialog.ConfirmButton";
             }
 
             public static class HudIcon
@@ -9342,8 +9492,188 @@ namespace Oxide.Plugins
                 public static string Unknown = dataDirectory + "icons/map/unknown.png";
                 public static string WaterTreatmentPlant = dataDirectory + "icons/map/water-treatment-plant.png";
             }
+
+            public static class Colors
+            {
+                public static string Primary = "#CC412B";
+                public static string Secondary = "#222222";
+                public static string Highlight = "#2D2D2D";
+                public static string Success = "#708C41";
+                public static string Info = "#206A9E";
+            }
+
+
+            public static CuiElementContainer Container(string panel, string color, UI4 dimensions, bool blur = true, string parent = "Overlay")
+            {
+                CuiElementContainer container = new CuiElementContainer()
+            {
+                {
+                    new CuiPanel
+                    {
+                        Image = { Color = color, Material = blur ? "assets/content/ui/uibackgroundblur-ingamemenu.mat" : string.Empty },
+                        RectTransform = { AnchorMin = dimensions.GetMin(), AnchorMax = dimensions.GetMax() },
+                        CursorEnabled = true
+                    },
+                    new CuiElement().Parent = parent,
+                    panel
+                }
+            };
+                return container;
+            }
+
+            public static CuiElementContainer Popup(string panel, string text, int size, UI4 dimensions, TextAnchor align = TextAnchor.MiddleCenter, string parent = "Overlay")
+            {
+                CuiElementContainer container = UI.Container(panel, "0 0 0 0", dimensions);
+
+                UI.Label(container, panel, text, size, UI4.Full, align);
+
+                return container;
+            }
+
+            public static void Panel(CuiElementContainer container, string panel, string color, UI4 dimensions)
+            {
+                container.Add(new CuiPanel
+                {
+                    Image = { Color = color },
+                    RectTransform = { AnchorMin = dimensions.GetMin(), AnchorMax = dimensions.GetMax() }
+                },
+                panel);
+            }
+
+            public static void Label(CuiElementContainer container, string panel, string text, int size, UI4 dimensions, TextAnchor align = TextAnchor.MiddleCenter)
+            {
+                container.Add(new CuiLabel
+                {
+                    Text = { FontSize = size, Align = align, Text = text },
+                    RectTransform = { AnchorMin = dimensions.GetMin(), AnchorMax = dimensions.GetMax() }
+                },
+                panel);
+            }
+
+            public static void Button(CuiElementContainer container, string panel, string color, string text, int size, UI4 dimensions, string command, TextAnchor align = TextAnchor.MiddleCenter)
+            {
+                container.Add(new CuiButton
+                {
+                    Button = { Color = color, Command = command, FadeIn = 0f },
+                    RectTransform = { AnchorMin = dimensions.GetMin(), AnchorMax = dimensions.GetMax() },
+                    Text = { Text = text, FontSize = size, Align = align }
+                },
+                panel);
+            }
+
+            public static void Button(CuiElementContainer container, string panel, string color, string png, UI4 dimensions, string command)
+            {
+                UI.Panel(container, panel, color, dimensions);
+                UI.Image(container, panel, png, dimensions);
+                UI.Button(container, panel, "0 0 0 0", string.Empty, 0, dimensions, command);
+            }
+
+            public static void Input(CuiElementContainer container, string panel, string color, string text, int size, string command, UI4 dimensions, TextAnchor anchor = TextAnchor.MiddleLeft)
+            {
+                UI.Panel(container, panel, color, dimensions);
+                container.Add(new CuiElement
+                {
+                    Name = CuiHelper.GetGuid(),
+                    Parent = panel,
+                    Components =
+                {
+                    new CuiInputFieldComponent
+                    {
+                        Align = anchor,
+                        CharsLimit = 300,
+                        Command = command + text,
+                        FontSize = size,
+                        IsPassword = false,
+                        Text = text,
+                        NeedsKeyboard = true
+                    },
+                    new CuiRectTransformComponent {AnchorMin = dimensions.GetMin(), AnchorMax = dimensions.GetMax() }
+                }
+                });
+            }
+
+            public static void Image(CuiElementContainer container, string panel, string png, UI4 dimensions)
+            {
+                container.Add(new CuiElement
+                {
+                    Name = CuiHelper.GetGuid(),
+                    Parent = panel,
+                    Components =
+                {
+                    new CuiRawImageComponent {Png = png },
+                    new CuiRectTransformComponent { AnchorMin = dimensions.GetMin(), AnchorMax = dimensions.GetMax() }
+                }
+                });
+            }
+
+            public static void Image(CuiElementContainer container, string panel, int itemId, ulong skinId, UI4 dimensions)
+            {
+                container.Add(new CuiElement
+                {
+                    Name = CuiHelper.GetGuid(),
+                    Parent = panel,
+                    Components =
+                {
+                    new CuiImageComponent { ItemId = itemId, SkinId = skinId },
+                    new CuiRectTransformComponent { AnchorMin = dimensions.GetMin(), AnchorMax = dimensions.GetMax() }
+                }
+                });
+            }
+
+            public static void Toggle(CuiElementContainer container, string panel, string boxColor, int fontSize, UI4 dimensions, string command, bool isOn)
+            {
+                UI.Panel(container, panel, boxColor, dimensions);
+
+                if (isOn)
+                    UI.Label(container, panel, "✔", fontSize, dimensions);
+
+                UI.Button(container, panel, "0 0 0 0", string.Empty, 0, dimensions, command);
+            }
+
+            public static string Color(string hexColor, float alpha)
+            {
+                if (hexColor.StartsWith("#"))
+                    hexColor = hexColor.TrimStart('#');
+
+                int red = int.Parse(hexColor.Substring(0, 2), NumberStyles.AllowHexSpecifier);
+                int green = int.Parse(hexColor.Substring(2, 2), NumberStyles.AllowHexSpecifier);
+                int blue = int.Parse(hexColor.Substring(4, 2), NumberStyles.AllowHexSpecifier);
+
+                return $"{(double)red / 255} {(double)green / 255} {(double)blue / 255} {alpha}";
+            }
+            
+        }
+
+        public class UI4
+        {
+            public float xMin, yMin, xMax, yMax;
+
+            public UI4(float xMin, float yMin, float xMax, float yMax)
+            {
+                this.xMin = xMin;
+                this.yMin = yMin;
+                this.xMax = xMax;
+                this.yMax = yMax;
+            }
+
+            public string GetMin() => $"{xMin} {1- yMax}";
+
+            public string GetMax() => $"{xMax} {1 - yMin}";
+
+            private static UI4 _full;
+
+            public static UI4 Full
+            {
+                get
+                {
+                    if (_full == null)
+                        _full = new UI4(0, 0, 1, 1);
+                    return _full;
+                }
+            }
         }
     }
+        
 }
 
 namespace Oxide.Plugins
@@ -9385,9 +9715,9 @@ namespace Oxide.Plugins
 
             public void Hide()
             {
-                CuiHelper.DestroyUi(User.Player, Ui.Element.HudPanelLeft);
-                CuiHelper.DestroyUi(User.Player, Ui.Element.HudPanelRight);
-                CuiHelper.DestroyUi(User.Player, Ui.Element.HudPanelWarning);
+                CuiHelper.DestroyUi(User.Player, UI.Element.HudPanelLeft);
+                CuiHelper.DestroyUi(User.Player, UI.Element.HudPanelRight);
+                CuiHelper.DestroyUi(User.Player, UI.Element.HudPanelWarning);
             }
 
             public void Toggle()
@@ -9423,15 +9753,17 @@ namespace Oxide.Plugins
                 {
                     Image = { Color = GetLeftPanelBackgroundColor() },
                     RectTransform = { AnchorMin = "0.006 0.956", AnchorMax = "0.241 0.989" }
-                }, Ui.Element.Hud, Ui.Element.HudPanelLeft);
+                }, UI.Element.Hud, UI.Element.HudPanelLeft);
 
-                container.Add(new CuiPanel
+                if(Instance.Options.Map.ShowEventsHUD)
                 {
-                    Image = { Color = PanelColor.BackgroundNormal },
-                    RectTransform = { AnchorMin = "0.759 0.956", AnchorMax = "0.994 0.989" }
-                }, Ui.Element.Hud, Ui.Element.HudPanelRight);
-
-                AddWidget(container, Ui.Element.HudPanelLeft, GetLocationIcon(), GetLeftPanelTextColor(),
+                    container.Add(new CuiPanel
+                    {
+                        Image = { Color = PanelColor.BackgroundNormal },
+                        RectTransform = { AnchorMin = "0.759 0.956", AnchorMax = "0.994 0.989" }
+                    }, UI.Element.Hud, UI.Element.HudPanelRight);
+                }
+                AddWidget(container, UI.Element.HudPanelLeft, GetLocationIcon(), GetLeftPanelTextColor(),
                     GetLocationDescription());
 
                 if (area != null)
@@ -9439,19 +9771,19 @@ namespace Oxide.Plugins
                     if (area.Type == AreaType.Badlands)
                     {
                         string harvestBonus = String.Format("+{0}%", Instance.Options.Taxes.BadlandsGatherBonus * 100);
-                        AddWidget(container, Ui.Element.HudPanelLeft, Ui.HudIcon.Harvest, GetLeftPanelTextColor(),
+                        AddWidget(container, UI.Element.HudPanelLeft, UI.HudIcon.Harvest, GetLeftPanelTextColor(),
                             harvestBonus, 0.77f);
                     }
                     else if (area.IsWarZone)
                     {
                         string defensiveBonus = String.Format("+{0}%", area.GetDefensiveBonus() * 100);
-                        AddWidget(container, Ui.Element.HudPanelLeft, Ui.HudIcon.Defense, GetLeftPanelTextColor(),
+                        AddWidget(container, UI.Element.HudPanelLeft, UI.HudIcon.Defense, GetLeftPanelTextColor(),
                             defensiveBonus, 0.77f);
                     }
                     else if (area.IsTaxableClaim)
                     {
                         string taxRate = String.Format("{0}%", area.GetTaxRate() * 100);
-                        AddWidget(container, Ui.Element.HudPanelLeft, Ui.HudIcon.Taxes, GetLeftPanelTextColor(),
+                        AddWidget(container, UI.Element.HudPanelLeft, UI.HudIcon.Taxes, GetLeftPanelTextColor(),
                             taxRate, 0.78f);
                     }
                 }
@@ -9459,35 +9791,35 @@ namespace Oxide.Plugins
                 if(Instance.Options.Map.ShowEventsHUD)
                 {
                     string planeIcon = Instance.Hud.GameEvents.IsCargoPlaneActive
-                    ? Ui.HudIcon.CargoPlaneIndicatorOn
-                    : Ui.HudIcon.CargoPlaneIndicatorOff;
-                    AddWidget(container, Ui.Element.HudPanelRight, planeIcon);
+                    ? UI.HudIcon.CargoPlaneIndicatorOn
+                    : UI.HudIcon.CargoPlaneIndicatorOff;
+                    AddWidget(container, UI.Element.HudPanelRight, planeIcon);
 
                     string shipIcon = Instance.Hud.GameEvents.IsCargoShipActive
-                        ? Ui.HudIcon.CargoShipIndicatorOn
-                        : Ui.HudIcon.CargoShipIndicatorOff;
-                    AddWidget(container, Ui.Element.HudPanelRight, shipIcon, 0.1f);
+                        ? UI.HudIcon.CargoShipIndicatorOn
+                        : UI.HudIcon.CargoShipIndicatorOff;
+                    AddWidget(container, UI.Element.HudPanelRight, shipIcon, 0.1f);
 
                     string heliIcon = Instance.Hud.GameEvents.IsHelicopterActive
-                        ? Ui.HudIcon.HelicopterIndicatorOn
-                        : Ui.HudIcon.HelicopterIndicatorOff;
-                    AddWidget(container, Ui.Element.HudPanelRight, heliIcon, 0.2f);
+                        ? UI.HudIcon.HelicopterIndicatorOn
+                        : UI.HudIcon.HelicopterIndicatorOff;
+                    AddWidget(container, UI.Element.HudPanelRight, heliIcon, 0.2f);
 
                     string chinookIcon = Instance.Hud.GameEvents.IsChinookOrLockedCrateActive
-                        ? Ui.HudIcon.ChinookIndicatorOn
-                        : Ui.HudIcon.ChinookIndicatorOff;
-                    AddWidget(container, Ui.Element.HudPanelRight, chinookIcon, 0.3f);
+                        ? UI.HudIcon.ChinookIndicatorOn
+                        : UI.HudIcon.ChinookIndicatorOff;
+                    AddWidget(container, UI.Element.HudPanelRight, chinookIcon, 0.3f);
 
                     string activePlayers = BasePlayer.activePlayerList.Count.ToString();
-                    AddWidget(container, Ui.Element.HudPanelRight, Ui.HudIcon.Players, PanelColor.TextNormal, activePlayers,
+                    AddWidget(container, UI.Element.HudPanelRight, UI.HudIcon.Players, PanelColor.TextNormal, activePlayers,
                         0.43f);
 
                     string sleepingPlayers = BasePlayer.sleepingPlayerList.Count.ToString();
-                    AddWidget(container, Ui.Element.HudPanelRight, Ui.HudIcon.Sleepers, PanelColor.TextNormal,
+                    AddWidget(container, UI.Element.HudPanelRight, UI.HudIcon.Sleepers, PanelColor.TextNormal,
                         sleepingPlayers, 0.58f);
 
                     string currentTime = TOD_Sky.Instance.Cycle.DateTime.ToString("HH:mm");
-                    AddWidget(container, Ui.Element.HudPanelRight, Ui.HudIcon.Clock, PanelColor.TextNormal, currentTime,
+                    AddWidget(container, UI.Element.HudPanelRight, UI.HudIcon.Clock, PanelColor.TextNormal, currentTime,
                         0.75f);
                 }
                 
@@ -9500,13 +9832,13 @@ namespace Oxide.Plugins
                     {
                         Image = { Color = PanelColor.BackgroundDanger },
                         RectTransform = { AnchorMin = "0.759 0.911", AnchorMax = "0.994 0.944" }
-                    }, Ui.Element.Hud, Ui.Element.HudPanelWarning);
+                    }, UI.Element.Hud, UI.Element.HudPanelWarning);
 
                     if (claimUpkeepPastDue)
-                        AddWidget(container, Ui.Element.HudPanelWarning, Ui.HudIcon.Ruins, PanelColor.TextDanger,
+                        AddWidget(container, UI.Element.HudPanelWarning, UI.HudIcon.Ruins, PanelColor.TextDanger,
                             "Claim upkeep past due!");
                     else
-                        AddWidget(container, Ui.Element.HudPanelWarning, Ui.HudIcon.PvpMode, PanelColor.TextDanger,
+                        AddWidget(container, UI.Element.HudPanelWarning, UI.HudIcon.PvpMode, PanelColor.TextDanger,
                             "PVP mode enabled");
                 }
 
@@ -9538,13 +9870,13 @@ namespace Oxide.Plugins
                     switch (zone.Type)
                     {
                         case ZoneType.SupplyDrop:
-                            return Ui.HudIcon.SupplyDrop;
+                            return UI.HudIcon.SupplyDrop;
                         case ZoneType.Debris:
-                            return Ui.HudIcon.Debris;
+                            return UI.HudIcon.Debris;
                         case ZoneType.Monument:
-                            return Ui.HudIcon.Monument;
+                            return UI.HudIcon.Monument;
                         case ZoneType.Raid:
-                            return Ui.HudIcon.Raid;
+                            return UI.HudIcon.Raid;
                     }
                 }
 
@@ -9553,24 +9885,24 @@ namespace Oxide.Plugins
                 if (area == null)
                 {
                     if (Instance.Options.Pvp.AllowedInDeepWater)
-                        return Ui.HudIcon.Monument;
+                        return UI.HudIcon.Monument;
                     else
-                        return Ui.HudIcon.Wilderness;
+                        return UI.HudIcon.Wilderness;
                 }
 
                 if (area.IsWarZone)
-                    return Ui.HudIcon.WarZone;
+                    return UI.HudIcon.WarZone;
 
                 switch (area.Type)
                 {
                     case AreaType.Badlands:
-                        return Ui.HudIcon.Badlands;
+                        return UI.HudIcon.Badlands;
                     case AreaType.Claimed:
-                        return Ui.HudIcon.Claimed;
+                        return UI.HudIcon.Claimed;
                     case AreaType.Headquarters:
-                        return Ui.HudIcon.Headquarters;
+                        return UI.HudIcon.Headquarters;
                     default:
-                        return Ui.HudIcon.Wilderness;
+                        return UI.HudIcon.Wilderness;
                 }
             }
 
@@ -9673,7 +10005,7 @@ namespace Oxide.Plugins
 
                 container.Add(new CuiElement
                 {
-                    Name = Ui.Element.HudPanelIcon + guid,
+                    Name = UI.Element.HudPanelIcon + guid,
                     Parent = parent,
                     Components =
                     {
@@ -9704,7 +10036,7 @@ namespace Oxide.Plugins
                         OffsetMin = "11 0",
                         OffsetMax = "11 0"
                     }
-                }, parent, Ui.Element.HudPanelText + guid);
+                }, parent, UI.Element.HudPanelText + guid);
             }
 
             void AddWidget(CuiElementContainer container, string parent, string iconName, float left = 0f)
@@ -9713,7 +10045,7 @@ namespace Oxide.Plugins
 
                 container.Add(new CuiElement
                 {
-                    Name = Ui.Element.HudPanelIcon + guid,
+                    Name = UI.Element.HudPanelIcon + guid,
                     Parent = parent,
                     Components =
                     {
@@ -9731,8 +10063,829 @@ namespace Oxide.Plugins
         }
     }
 }
+
+namespace Oxide.Plugins
+{
+    using Oxide.Game.Rust.Cui;
+    using System.Collections.Generic;
+    using System;
+    using System.Linq;
+    using UnityEngine;
+
+    public partial class Imperium
+    {
+        class UserPanel
+        {
+            public static List<UIChatCommandDef> UiCommands = new List<UIChatCommandDef>();
+            public static void InitializeUserPanelCommandDefs()
+            {
+                UiCommands =
+                new List<UIChatCommandDef>()
+                {
+                    //faction create
+                    new UIChatCommandDef()
+                    {
+                        category = "faction",
+                        displayName = "CREATE",
+                        command = "faction create",
+                        auth = UIChatCommandDef.FactionAuth.NotFactionMember,
+                        authExclusive = true,
+                        args =
+                        {
+                            new UIChatCommandArg()
+                            {
+                                label = "Faction Name",
+                                description = "The name of your new faction",
+                                isSubstring = false,
+                            }
+                        }
+                    },
+                    //faction join
+                    new UIChatCommandDef()
+                    {
+                        category = "faction",
+                        displayName = "JOIN",
+                        command = "faction join",
+                        auth = UIChatCommandDef.FactionAuth.NotFactionMember,
+                        authExclusive = true,
+                        args =
+                        {
+                            new UIChatCommandArg()
+                            {
+                                label = "Faction Name",
+                                description = "The name of the faction you want to join",
+                                isSubstring = false,
+                            }
+                        }
+                    },
+                    //faction show
+                    new UIChatCommandDef()
+                    {
+                        category = "faction",
+                        displayName = "INFO",
+                        command = "faction",
+                        auth = UIChatCommandDef.FactionAuth.Member,
+                        authExclusive = false
+                    },
+                    //faction leave
+                    new UIChatCommandDef()
+                    {
+                        category = "faction",
+                        displayName = "LEAVE",
+                        command = "faction leave",
+                        auth = UIChatCommandDef.FactionAuth.Member,
+                        authExclusive = false
+                    },
+                    //faction invite
+                    new UIChatCommandDef()
+                    {
+                        category = "faction",
+                        displayName = "INVITE",
+                        command = "faction invite",
+                        auth = UIChatCommandDef.FactionAuth.Leader,
+                        authExclusive = true,
+                        args =
+                        {
+                            new UIChatCommandArg()
+                            {
+                                label = "Player name",
+                                description = "The player to invite to your faction",
+                                isSubstring = true,
+                            }
+                        }
+                    },
+                    //faction promote
+                    new UIChatCommandDef()
+                    {
+                        category = "faction",
+                        displayName = "PROMOTE",
+                        command = "faction promote",
+                        auth = UIChatCommandDef.FactionAuth.Leader,
+                        authExclusive = true,
+                        args =
+                        {
+                            new UIChatCommandArg()
+                            {
+                                label = "Player name",
+                                description = "The player to promote to manager role",
+                                isSubstring = true,
+                            }
+                        }
+                    },
+                    //faction demote
+                    new UIChatCommandDef()
+                    {
+                        category = "faction",
+                        displayName = "DEMOTE",
+                        command = "faction demote",
+                        auth = UIChatCommandDef.FactionAuth.Leader,
+                        authExclusive = true,
+                        args =
+                        {
+                            new UIChatCommandArg()
+                            {
+                                label = "Player name",
+                                description = "The player to demote to member role",
+                                isSubstring = true,
+                            }
+                        }
+                    },
+                    //faction kick
+                    new UIChatCommandDef()
+                    {
+                        category = "faction",
+                        displayName = "KICK",
+                        command = "faction kick",
+                        auth = UIChatCommandDef.FactionAuth.Leader,
+                        authExclusive = true,
+                        args =
+                        {
+                            new UIChatCommandArg()
+                            {
+                                label = "Player name",
+                                description = "The player to kick from your faction",
+                                isSubstring = true,
+                            }
+                        }
+                    },
+
+                    //faction badlands confirm
+                    new UIChatCommandDef()
+                    {
+                        category = "faction",
+                        displayName = "TOGGLE BADLANDS",
+                        command = "faction badlands confirm",
+                        auth = UIChatCommandDef.FactionAuth.Leader,
+                        authExclusive = true
+                    },
+
+                    //faction disband forever
+                    new UIChatCommandDef()
+                    {
+                        category = "faction",
+                        displayName = "DISBAND",
+                        command = "faction disband forever",
+                        auth = UIChatCommandDef.FactionAuth.Leader,
+                        authExclusive = true
+                    },
+
+                    //CLAIM
+                    //claim add
+                    new UIChatCommandDef()
+                    {
+                        category = "claim",
+                        displayName = "START CLAIM LAND INTERACTION",
+                        command = "claim add",
+                        auth = UIChatCommandDef.FactionAuth.Leader,
+                        authExclusive = true,
+                        closesUI = true
+                    },
+                    //claim remove
+                    new UIChatCommandDef()
+                    {
+                        category = "claim",
+                        displayName = "START UNCLAIM LAND INTERACTION",
+                        command = "claim remove",
+                        auth = UIChatCommandDef.FactionAuth.Leader,
+                        authExclusive = true,
+                        closesUI = true
+                    },
+                    //claim hq
+                    new UIChatCommandDef()
+                    {
+                        category = "claim",
+                        displayName = "START SET HEADQUARTERS INTERACTION",
+                        command = "claim hq",
+                        auth = UIChatCommandDef.FactionAuth.Leader,
+                        authExclusive = true,
+                        closesUI = true
+                    },
+                    
+                    //claim give
+                    new UIChatCommandDef()
+                    {
+                        category = "claim",
+                        displayName = "START LAND DONATION INTERACTION",
+                        command = "claim give",
+                        auth = UIChatCommandDef.FactionAuth.Leader,
+                        authExclusive = true,
+                        args =
+                        {
+                            new UIChatCommandArg()
+                            {
+                                label = "Faction Name",
+                                description = "The faction to receive the land",
+                                isSubstring = false,
+                            }
+                        },
+                        closesUI = true
+                    },
+                    //claim rename
+                    new UIChatCommandDef()
+                    {
+                        category = "claim",
+                        displayName = "RENAME LAND",
+                        command = "claim rename",
+                        auth = UIChatCommandDef.FactionAuth.Leader,
+                        authExclusive = true,
+                        args =
+                        {
+                            new UIChatCommandArg()
+                            {
+                                label = "Land coordinates [XY]",
+                                description = "The land to rename (Example usage: C6)",
+                                isSubstring = false,
+                            },
+                            new UIChatCommandArg()
+                            {
+                                label = "Name",
+                                description = "The new name for the land",
+                                isSubstring = true,
+                            },
+                        }
+                    },
+                    //claim cost
+                    new UIChatCommandDef()
+                    {
+                        category = "claim",
+                        displayName = "CHECK CLAIM COST",
+                        command = "claim cost",
+                        auth = UIChatCommandDef.FactionAuth.Leader,
+                        authExclusive = true,
+                        args =
+                        {
+                            new UIChatCommandArg()
+                            {
+                                label = "Land coordinates [XY]",
+                                description = "The land to check the claim cost (Example usage: C6)",
+                                isSubstring = false,
+                            }
+                        }
+                    },
+                    //claim list
+                    new UIChatCommandDef()
+                    {
+                        category = "claim",
+                        displayName = "CLAIM LIST",
+                        command = "claim list",
+                        auth = UIChatCommandDef.FactionAuth.Member,
+                        authExclusive = false
+                    },
+                    //claim upkeep
+                    new UIChatCommandDef()
+                    {
+                        category = "claim",
+                        displayName = "CHECK LAND UPKEEP",
+                        command = "claim upkeep",
+                        auth = UIChatCommandDef.FactionAuth.Member,
+                        authExclusive = false
+                    },
+
+                    //TAX
+                    //tax chest
+                    new UIChatCommandDef()
+                    {
+                        category = "tax",
+                        displayName = "SELECT TAX CHEST INTERACTION",
+                        command = "tax chest",
+                        auth = UIChatCommandDef.FactionAuth.Leader,
+                        authExclusive = true,
+                        closesUI = true
+                    },
+
+                    //tax rate XX
+                    new UIChatCommandDef()
+                    {
+                        category = "tax",
+                        displayName = "SET TAX PERCENTAGE",
+                        command = "tax rate",
+                        auth = UIChatCommandDef.FactionAuth.Leader,
+                        authExclusive = true,
+                        args =
+                        {
+                            new UIChatCommandArg()
+                            {
+                                label = "Tax Percentage [XX]",
+                                description = "The farming percentage to charge in your land (Example usage: 10)",
+                                isSubstring = false,
+                            }
+                        }
+                    },
+
+                    //WAR
+                    //war declare
+                    new UIChatCommandDef()
+                    {
+                        category = "war",
+                        displayName = "DECLARE WAR",
+                        command = "war declare",
+                        auth = UIChatCommandDef.FactionAuth.Leader,
+                        authExclusive = true,
+                        args =
+                        {
+                            new UIChatCommandArg()
+                            {
+                                label = "Target Faction",
+                                description = "The enemy faction's name to declare war against",
+                                isSubstring = false,
+                            },
+                            new UIChatCommandArg()
+                            {
+                                label = "Reason",
+                                description = "The reason of the war declaration",
+                                isSubstring = true,
+                            }
+                        }
+                    },
+
+                    //war end
+                    new UIChatCommandDef()
+                    {
+                        category = "war",
+                        displayName = "END WAR",
+                        command = "war end",
+                        auth = UIChatCommandDef.FactionAuth.Leader,
+                        authExclusive = true,
+                        args =
+                        {
+                            new UIChatCommandArg()
+                            {
+                                label = "Enemy Faction",
+                                description = "The enemy faction's name to end war",
+                                isSubstring = false,
+                            }
+                        }
+                    },
+
+                    //war pending
+                    new UIChatCommandDef()
+                    {
+                        category = "war",
+                        displayName = "LIST PENDING WAR REQUESTS",
+                        command = "war pending",
+                        auth = UIChatCommandDef.FactionAuth.Leader,
+                        authExclusive = true
+                    },
+
+                    //war approve
+                    new UIChatCommandDef()
+                    {
+                        category = "war",
+                        displayName = "APPROVE PENDING WAR REQUEST",
+                        command = "war approve",
+                        auth = UIChatCommandDef.FactionAuth.Leader,
+                        authExclusive = true,
+                        args =
+                        {
+                            new UIChatCommandArg()
+                            {
+                                label = "Enemy Faction",
+                                description = "The enemy faction's name to approve a pending war request",
+                                isSubstring = false,
+                            }
+                        }
+                    },
+
+                    //war deny
+                    new UIChatCommandDef()
+                    {
+                        category = "war",
+                        displayName = "DENY PENDING WAR REQUEST",
+                        command = "war deny",
+                        auth = UIChatCommandDef.FactionAuth.Leader,
+                        authExclusive = true,
+                        args =
+                        {
+                            new UIChatCommandArg()
+                            {
+                                label = "Enemy Faction",
+                                description = "The enemy faction's name to deny a pending war request",
+                                isSubstring = false,
+                            }
+                        }
+                    },
+
+                    //war admin pending
+                    new UIChatCommandDef()
+                    {
+                        category = "war",
+                        displayName = "LIST PENDING WAR REQUESTS (ADMIN)",
+                        command = "war admin pending",
+                        auth = UIChatCommandDef.FactionAuth.ServerAdmin,
+                        authExclusive = true
+                    },
+
+                    //war approve
+                    new UIChatCommandDef()
+                    {
+                        category = "war",
+                        displayName = "APPROVE PENDING WAR REQUEST (ADMIN)",
+                        command = "war admin approve",
+                        auth = UIChatCommandDef.FactionAuth.ServerAdmin,
+                        authExclusive = true,
+                        args =
+                        {
+                            new UIChatCommandArg()
+                            {
+                                label = "Faction 1",
+                                description = "The first faction involved in the war declaration",
+                                isSubstring = false,
+                            },
+                            new UIChatCommandArg()
+                            {
+                                label = "Faction 2",
+                                description = "The second faction involved in the war declaration",
+                                isSubstring = false,
+                            }
+                        }
+                    },
+
+                    //war deny
+                    new UIChatCommandDef()
+                    {
+                        category = "war",
+                        displayName = "DENY PENDING WAR REQUEST (ADMIN)",
+                        command = "war admin deny",
+                        auth = UIChatCommandDef.FactionAuth.ServerAdmin,
+                        authExclusive = true,
+                        args =
+                        {
+                            new UIChatCommandArg()
+                            {
+                                label = "Faction 1",
+                                description = "The first faction involved in the war declaration",
+                                isSubstring = false,
+                            },
+                            new UIChatCommandArg()
+                            {
+                                label = "Faction 2",
+                                description = "The second faction involved in the war declaration",
+                                isSubstring = false,
+                            }
+                        }
+                    }
+                };
+
+            }
+
+            public User User { get; }
+            public bool IsDisabled = false;
+            public string currentCategory = "";
+            public UIChatCommandDef selectedCommand;
+            public string currentCommand = "";
+            public Dictionary<int, string> indexedArgs = new Dictionary<int, string>();
+            public int currentRequiredArgs = 0;
+
+            public const float SPACING = 0.025f;
+
+
+            public class UIChatCommandDef
+            {
+                public string displayName;
+                public string category;
+                public string command;
+                public string uid;
+                public List<UIChatCommandArg> args = new List<UIChatCommandArg>();
+                public FactionAuth auth = FactionAuth.NotFactionMember;
+                public bool authExclusive = true;
+                public bool closesUI = false;
+
+                public UIChatCommandDef()
+                {
+                    uid = Guid.NewGuid().ToString();
+                }
+
+
+                public enum FactionAuth
+                {
+                    NotFactionMember,
+                    Member,
+                    Manager,
+                    Leader,
+                    ServerAdmin
+                }
+            }
+
+            public class UIChatCommandArg
+            {
+                public string label;
+                public string description;
+                public bool isSubstring = false;
+            }
+
+            public UserPanel(User user)
+            {
+                User = user;
+            }
+
+            public void ClearCurrentCommand()
+            {
+                selectedCommand = null;
+                currentCommand = "";
+                indexedArgs.Clear();
+            }
+
+            public void OpenTab(string category)
+            {
+                ClearCurrentCommand();
+                currentCategory = category;
+                Refresh();
+            }
+
+            public void OpenCommand(string uid)
+            {
+                ClearCurrentCommand();
+                currentCategory = null;
+                selectedCommand = UiCommands.Find(c => c.uid == uid);
+                Refresh();
+            }
+
+            List<CuiElementContainer> Build()
+            {
+                List<CuiElementContainer> result = new List<CuiElementContainer>();
+
+                CuiElementContainer container = UI.Container(UI.Element.PanelWindow,
+                    UI.Color(UI.Colors.Secondary, 0.8f),
+                    new UI4(0.5f, 0.05f, 0.95f, 0.85f), true);
+
+                CuiElementContainer header = CreatePanelHeader(container);
+                CuiElementContainer sidebar = CreatePanelSidebar(container);
+                CuiElementContainer dialog = UI.Container(UI.Element.PanelDialog,
+                    UI.Color(UI.Colors.Highlight, 0f),
+                    new UI4(0.25f, 0.15f, 0.95f, 0.95f),
+                    false,
+                    UI.Element.PanelWindow);
+                if(selectedCommand != null)
+                {
+                    CreateSelectedCommandDialog(dialog);
+                }
+                else if(currentCategory != null && currentCategory != "")
+                {
+                    CreateSelectedCategoryButtons(dialog);
+                }
+                
+
+                result = new List<CuiElementContainer>(){container, header, sidebar, dialog};
+
+                return result;
+            }
+
+            CuiElementContainer CreatePanelHeader(CuiElementContainer container)
+            {
+                CuiElementContainer header = UI.Container(UI.Element.PanelHeader,
+                    UI.Color(UI.Colors.Primary, 1f),
+                    new UI4(0f, 0f, 1f, 0.1f),
+                    false,
+                    UI.Element.PanelWindow
+                );
+                UI.Label(header, UI.Element.PanelHeader,
+                    "IMPERIUM",
+                    36,
+                    UI4.Full
+                );
+                UI.Button(header, UI.Element.PanelHeader,
+                    UI.Color(UI.Colors.Secondary, 1f),
+                    "X",
+                    12,
+                    new UI4(0.9f, 0.1f, 0.95f, 0.9f),
+                    "imperium.panel.close"
+                );
+
+                return header;
+            }
+
+            CuiElementContainer CreatePanelSidebar(CuiElementContainer container)
+            {
+                List<string> categories = new List<string>() { "faction", "claim", "tax", "war" };
+                CuiElementContainer sidebar = UI.Container(UI.Element.PanelSidebar,
+                    UI.Color(UI.Colors.Primary, 1f),
+                    new UI4(0f, 0.1f, 0.2f, 1f),
+                    false,
+                    UI.Element.PanelWindow
+                );
+                float sy = SPACING;
+                for(int i = 0; i < categories.Count; i++)
+                {
+                    UI.Button(sidebar, UI.Element.PanelSidebar,
+                        UI.Color(UI.Colors.Primary, 1f),
+                        categories[i].ToUpper(),
+                        22,
+                        new UI4(0f, sy, 1f, sy + 0.1f),
+                        "imperium.panel.opentab " + categories[i].ToString()
+                    );
+                    sy += 0.1f + SPACING;
+                }
+                return sidebar;
+            }
+
+            void CreateSelectedCommandDialog(CuiElementContainer container)
+            {
+                if (selectedCommand == null)
+                    return;
+                float sy = SPACING;
+                
+                UI.Label(container, UI.Element.PanelDialog,
+                    selectedCommand.displayName, 26,
+                    new UI4(0f, sy, 1f, 0.1f),
+                    TextAnchor.MiddleLeft);
+                sy += SPACING + 0.1f;
+
+                if(selectedCommand.args.Count > 0)
+                {
+                    for(int i = 0; i < selectedCommand.args.Count; i++)
+                    {
+                        UIChatCommandArg arg = selectedCommand.args[i];
+                        UI.Label(container, UI.Element.PanelDialog,
+                            arg.label, 18,
+                            new UI4(0f, sy, 1f, sy + 0.05f),
+                            TextAnchor.MiddleLeft);
+                        sy += SPACING + 0.05f;
+
+                        UI.Label(container, UI.Element.PanelDialog,
+                            arg.description, 10,
+                            new UI4(0f, sy, 1f, sy + 0.05f),
+                            TextAnchor.MiddleLeft);
+                        sy += SPACING + 0.05f;
+
+                        UI.Input(container, UI.Element.PanelDialog, UI.Color(UI.Colors.Info,1f),
+                            "", 16, "imperium.panel.setarg " + i + " " + arg.isSubstring.ToString().ToLower(),
+                            new UI4(0f, sy, 1f, sy + 0.05f)
+                            );
+                        sy += SPACING + 0.05f;
+                    }
+                }
+
+                UI.Button(container, UI.Element.PanelDialog,
+                    UI.Color(UI.Colors.Success, 1f),
+                    "CONFIRM",
+                    16,
+                    new UI4(0.7f, 0.9f, 1f, 1f),
+                    "imperium.panel.run " + selectedCommand.closesUI.ToString().ToLower(),
+                    TextAnchor.MiddleCenter
+                    );
+            }
+
+            void CreateSelectedCategoryButtons(CuiElementContainer container)
+            {
+                if (currentCategory == null || currentCategory == "")
+                    return;
+                float sy = SPACING;
+
+                UI.Label(container, UI.Element.PanelDialog,
+                    currentCategory.ToUpper(), 26,
+                    new UI4(0f, sy, 1f, 0.1f),
+                    TextAnchor.MiddleLeft);
+                sy += SPACING + 0.1f;
+
+                List<UIChatCommandDef> categoryCmds = UiCommands.FindAll(c => c.category == currentCategory);
+
+                if (categoryCmds.Count > 0)
+                {
+                    for (int i = 0; i < categoryCmds.Count; i++)
+                    {
+                        UIChatCommandDef cmd = categoryCmds[i];
+                        Debug.LogWarning(cmd.command + " " + cmd.auth.ToString() + " " + cmd.authExclusive);
+                        bool skip = false;
+                        if(cmd.authExclusive)
+                        {
+                            if (cmd.auth == UIChatCommandDef.FactionAuth.NotFactionMember && User.Faction != null)
+                                skip = true;
+                            if (cmd.auth == UIChatCommandDef.FactionAuth.Leader && User.Faction == null)
+                                skip = true;
+                            if (cmd.auth == UIChatCommandDef.FactionAuth.Leader && User.Faction != null && !User.Faction.HasLeader(User))
+                                skip = true;
+                            if (cmd.auth == UIChatCommandDef.FactionAuth.ServerAdmin && !User.HasPermission("imperium.admin.*"))
+                                skip = true;
+                        }
+                        else
+                        {
+                            if (cmd.auth == UIChatCommandDef.FactionAuth.Leader && User.Faction != null && !User.Faction.HasLeader(User))
+                                skip = true;
+                            if (cmd.auth > UIChatCommandDef.FactionAuth.NotFactionMember && User.Faction == null)
+                                skip = true;
+                        }
+                        if(!skip)
+                        {
+                            UI.Button(container, UI.Element.PanelDialog,
+                                UI.Color(UI.Colors.Info, 1f),
+                                cmd.displayName,
+                                14,
+                                new UI4(0f, sy, 1f, sy + 0.05f),
+                                "imperium.panel.opencmd " + cmd.uid,
+                                TextAnchor.MiddleCenter);
+                            sy += SPACING + 0.05f;
+                        }
+
+                    }
+                }
+            }
+
+            public void Close()
+            {
+                ClearCurrentCommand();
+                Hide();
+            }
+
+            public void SetCommand(string command)
+            {
+                ClearCurrentCommand();
+                currentCommand = command;
+            }
+
+            public string GetFullConsoleCommand()
+            {
+                string s = "";
+                s = s + "\"/";
+                s = s + selectedCommand.command;
+                if (indexedArgs.Count > 0)
+                {
+                    for(int i = 0; i < indexedArgs.Count; i++)
+                    {
+                        s = s + " ";
+                        s = s + indexedArgs[i];
+                    }
+                }
+                s = s + "\"";
+                Debug.LogWarning("Full console command is " + s);
+                return s;
+            }
+            public void SetArg(int index, string arg, bool isSubstring = false)
+            {
+                if(!indexedArgs.ContainsKey(index))
+                {
+                    indexedArgs.Add(index, arg);
+                }
+                else
+                {
+                    indexedArgs[index] = arg;
+                }
+                if(isSubstring)
+                {
+                    indexedArgs[index] = "\"" + indexedArgs[index] + "\"";
+                }
+            }
+
+            public void RemoveArg(int index)
+            {
+                if (indexedArgs.ContainsKey(index))
+                {
+                    indexedArgs.Remove(index);
+                }
+            }
+
+            public bool HasArg(int index)
+            {
+                return indexedArgs.ContainsKey(index);
+            }
+
+            public void Show()
+            {
+                List<CuiElementContainer> containers = Build();
+                foreach(CuiElementContainer container in containers)
+                {
+                    CuiHelper.AddUi(User.Player, container);
+                }
+            }
+
+            public void Hide()
+            {
+                CuiHelper.DestroyUi(User.Player, UI.Element.PanelWindow);
+                CuiHelper.DestroyUi(User.Player, UI.Element.PanelHeader);
+                CuiHelper.DestroyUi(User.Player, UI.Element.PanelSidebar);
+                CuiHelper.DestroyUi(User.Player, UI.Element.PanelDialog);
+
+            }
+
+            public void Toggle()
+            {
+                if (IsDisabled)
+                {
+                    IsDisabled = false;
+                    Show();
+                }
+                else
+                {
+                    IsDisabled = true;
+                    Hide();
+                }
+            }
+
+            public void Refresh()
+            {
+                if (IsDisabled)
+                    return;
+
+                Hide();
+                Show();
+            }
+        }
+    }
+}
 #endregion
 
+#region > UI Console Commands
+    
+#endregion
 #region > User Map
 namespace Oxide.Plugins
 {
@@ -9763,7 +10916,7 @@ namespace Oxide.Plugins
 
             public void Hide()
             {
-                CuiHelper.DestroyUi(User.Player, Ui.Element.MapDialog);
+                CuiHelper.DestroyUi(User.Player, UI.Element.MapDialog);
                 IsVisible = false;
             }
 
@@ -9779,8 +10932,8 @@ namespace Oxide.Plugins
             {
                 if (IsVisible)
                 {
-                    CuiHelper.DestroyUi(User.Player, Ui.Element.MapSidebar);
-                    CuiHelper.DestroyUi(User.Player, Ui.Element.MapLayers);
+                    CuiHelper.DestroyUi(User.Player, UI.Element.MapSidebar);
+                    CuiHelper.DestroyUi(User.Player, UI.Element.MapLayers);
                     CuiHelper.AddUi(User.Player, BuildSidebar());
                     CuiHelper.AddUi(User.Player, BuildMapLayers());
                 }
@@ -9797,13 +10950,13 @@ namespace Oxide.Plugins
                     Image = { Color = "0 0 0 0.75" },
                     RectTransform = { AnchorMin = "0.164 0.014", AnchorMax = "0.836 0.986" },
                     CursorEnabled = true
-                }, Ui.Element.Overlay, Ui.Element.MapDialog);
+                }, UI.Element.Overlay, UI.Element.MapDialog);
 
                 container.Add(new CuiPanel
                 {
                     Image = { Color = "0 0 0 0" },
                     RectTransform = { AnchorMin = "0.012 0.014", AnchorMax = "0.774 0.951" }
-                }, Ui.Element.MapDialog, Ui.Element.MapContainer);
+                }, UI.Element.MapDialog, UI.Element.MapContainer);
 
                 AddDialogHeader(container);
                 AddMapTerrainImage(container);
@@ -9817,20 +10970,20 @@ namespace Oxide.Plugins
                 {
                     Image = { Color = "0 0 0 1" },
                     RectTransform = { AnchorMin = "0 0.966", AnchorMax = "0.999 0.999" }
-                }, Ui.Element.MapDialog, Ui.Element.MapHeader);
+                }, UI.Element.MapDialog, UI.Element.MapHeader);
 
                 container.Add(new CuiLabel
                 {
                     Text = { Text = ConVar.Server.hostname, FontSize = 13, Align = TextAnchor.MiddleLeft, FadeIn = 0 },
                     RectTransform = { AnchorMin = "0.012 0.025", AnchorMax = "0.099 0.917" }
-                }, Ui.Element.MapHeader, Ui.Element.MapHeaderTitle);
+                }, UI.Element.MapHeader, UI.Element.MapHeaderTitle);
 
                 container.Add(new CuiButton
                 {
                     Text = { Text = "X", FontSize = 13, Align = TextAnchor.MiddleCenter },
                     Button = { Color = "0 0 0 0", Command = "imperium.map.toggle", FadeIn = 0 },
                     RectTransform = { AnchorMin = "0.972 0.083", AnchorMax = "0.995 0.917" }
-                }, Ui.Element.MapHeader, Ui.Element.MapHeaderCloseButton);
+                }, UI.Element.MapHeader, UI.Element.MapHeaderCloseButton);
             }
 
             void AddMapTerrainImage(CuiElementContainer container)
@@ -9843,8 +10996,8 @@ namespace Oxide.Plugins
 
                 container.Add(new CuiElement
                 {
-                    Name = Ui.Element.MapTerrainImage,
-                    Parent = Ui.Element.MapContainer,
+                    Name = UI.Element.MapTerrainImage,
+                    Parent = UI.Element.MapContainer,
                     Components =
                     {
                         image,
@@ -9858,12 +11011,11 @@ namespace Oxide.Plugins
             CuiElementContainer BuildSidebar()
             {
                 var container = new CuiElementContainer();
-
                 container.Add(new CuiPanel
                 {
                     Image = { Color = "0 0 0 0" },
                     RectTransform = { AnchorMin = "0.786 0.014", AnchorMax = "0.988 0.951" }
-                }, Ui.Element.MapDialog, Ui.Element.MapSidebar);
+                }, UI.Element.MapDialog, UI.Element.MapSidebar);
 
                 AddLayerToggleButtons(container);
                 AddServerLogo(container);
@@ -9882,7 +11034,7 @@ namespace Oxide.Plugins
                         FadeIn = 0
                     },
                     RectTransform = { AnchorMin = "0 0.924", AnchorMax = "1 1" }
-                }, Ui.Element.MapSidebar, Ui.Element.MapButton + Guid.NewGuid().ToString());
+                }, UI.Element.MapSidebar, UI.Element.MapButton + Guid.NewGuid().ToString());
 
                 container.Add(new CuiButton
                 {
@@ -9893,7 +11045,7 @@ namespace Oxide.Plugins
                         Command = "imperium.map.togglelayer headquarters", FadeIn = 0
                     },
                     RectTransform = { AnchorMin = "0 0.832", AnchorMax = "1 0.909" }
-                }, Ui.Element.MapSidebar, Ui.Element.MapButton + Guid.NewGuid().ToString());
+                }, UI.Element.MapSidebar, UI.Element.MapButton + Guid.NewGuid().ToString());
 
                 container.Add(new CuiButton
                 {
@@ -9904,7 +11056,7 @@ namespace Oxide.Plugins
                         Command = "imperium.map.togglelayer monuments", FadeIn = 0
                     },
                     RectTransform = { AnchorMin = "0 0.741", AnchorMax = "1 0.817" }
-                }, Ui.Element.MapSidebar, Ui.Element.MapButton + Guid.NewGuid().ToString());
+                }, UI.Element.MapSidebar, UI.Element.MapButton + Guid.NewGuid().ToString());
 
                 container.Add(new CuiButton
                 {
@@ -9915,7 +11067,7 @@ namespace Oxide.Plugins
                         FadeIn = 0
                     },
                     RectTransform = { AnchorMin = "0 0.649", AnchorMax = "1 0.726" }
-                }, Ui.Element.MapSidebar, Ui.Element.MapButton + Guid.NewGuid().ToString());
+                }, UI.Element.MapSidebar, UI.Element.MapButton + Guid.NewGuid().ToString());
             }
 
             void AddServerLogo(CuiElementContainer container)
@@ -9928,8 +11080,8 @@ namespace Oxide.Plugins
 
                 container.Add(new CuiElement
                 {
-                    Name = Ui.Element.MapServerLogoImage,
-                    Parent = Ui.Element.MapSidebar,
+                    Name = UI.Element.MapServerLogoImage,
+                    Parent = UI.Element.MapSidebar,
                     Components =
                     {
                         image,
@@ -9948,7 +11100,7 @@ namespace Oxide.Plugins
                 {
                     Image = { Color = "0 0 0 0" },
                     RectTransform = { AnchorMin = "0 0", AnchorMax = "1 1" }
-                }, Ui.Element.MapContainer, Ui.Element.MapLayers);
+                }, UI.Element.MapContainer, UI.Element.MapLayers);
 
                 if (User.Preferences.IsMapLayerVisible(UserMapLayer.Claims))
                     AddClaimsLayer(container);
@@ -9969,7 +11121,7 @@ namespace Oxide.Plugins
 
             void AddClaimsLayer(CuiElementContainer container)
             {
-                CuiRawImageComponent image = Instance.Hud.CreateImageComponent(Ui.MapOverlayImageUrl);
+                CuiRawImageComponent image = Instance.Hud.CreateImageComponent(UI.MapOverlayImageUrl);
 
                 // If the claims overlay hasn't been generated yet, just display a black box so we don't cause an RPC AddUI crash.
                 if (image == null)
@@ -9977,8 +11129,8 @@ namespace Oxide.Plugins
 
                 container.Add(new CuiElement
                 {
-                    Name = Ui.Element.MapClaimsImage,
-                    Parent = Ui.Element.MapLayers,
+                    Name = UI.Element.MapClaimsImage,
+                    Parent = UI.Element.MapLayers,
                     Components =
                     {
                         image,
@@ -10013,8 +11165,8 @@ namespace Oxide.Plugins
             {
                 container.Add(new CuiElement
                 {
-                    Name = Ui.Element.MapMarkerIcon + Guid.NewGuid().ToString(),
-                    Parent = Ui.Element.MapLayers,
+                    Name = UI.Element.MapMarkerIcon + Guid.NewGuid().ToString(),
+                    Parent = UI.Element.MapLayers,
                     Components =
                     {
                         Instance.Hud.CreateImageComponent(marker.IconUrl),
@@ -10036,7 +11188,7 @@ namespace Oxide.Plugins
                             AnchorMin = $"{marker.X - 0.1} {marker.Z - iconSize - 0.0175}",
                             AnchorMax = $"{marker.X + 0.1} {marker.Z - iconSize}"
                         }
-                    }, Ui.Element.MapLayers, Ui.Element.MapMarkerLabel + Guid.NewGuid().ToString());
+                    }, UI.Element.MapLayers, UI.Element.MapMarkerLabel + Guid.NewGuid().ToString());
                 }
             }
 

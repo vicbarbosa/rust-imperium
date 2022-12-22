@@ -5521,7 +5521,7 @@ namespace Oxide.Plugins
                 area.FactionId = faction.Id;
                 area.ClaimantId = claimant.Id;
                 area.ClaimCupboard = cupboard;
-                Util.RunEffect(claimant.transform.position, "assets/bundled/prefabs/fx/item_unlock.prefab");
+                Util.RunEffect(claimant.transform.position, "assets/prefabs/missions/effects/mission_objective_complete.prefab");
 
                 Events.OnAreaChanged(area);
             }
@@ -9540,7 +9540,8 @@ namespace Oxide.Plugins
                 container.Add(new CuiPanel
                 {
                     Image = { Color = color },
-                    RectTransform = { AnchorMin = dimensions.GetMin(), AnchorMax = dimensions.GetMax() }
+                    RectTransform = { AnchorMin = dimensions.GetMin(), AnchorMax = dimensions.GetMax() },
+                    FadeOut = 0.25f
                 },
                 panel);
             }
@@ -9550,7 +9551,8 @@ namespace Oxide.Plugins
                 container.Add(new CuiLabel
                 {
                     Text = { FontSize = size, Align = align, Text = text },
-                    RectTransform = { AnchorMin = dimensions.GetMin(), AnchorMax = dimensions.GetMax() }
+                    RectTransform = { AnchorMin = dimensions.GetMin(), AnchorMax = dimensions.GetMax() },
+                    FadeOut = 0.25f
                 },
                 panel);
             }
@@ -9561,16 +9563,10 @@ namespace Oxide.Plugins
                 {
                     Button = { Color = color, Command = command, FadeIn = 0f },
                     RectTransform = { AnchorMin = dimensions.GetMin(), AnchorMax = dimensions.GetMax() },
-                    Text = { Text = text, FontSize = size, Align = align }
+                    Text = { Text = text, FontSize = size, Align = align },
+                    FadeOut = 0.25f
                 },
                 panel);
-            }
-
-            public static void Button(CuiElementContainer container, string panel, string color, string png, UI4 dimensions, string command)
-            {
-                UI.Panel(container, panel, color, dimensions);
-                UI.Image(container, panel, png, dimensions);
-                UI.Button(container, panel, "0 0 0 0", string.Empty, 0, dimensions, command);
             }
 
             public static void Input(CuiElementContainer container, string panel, string color, string text, int size, string command, UI4 dimensions, TextAnchor anchor = TextAnchor.MiddleLeft)
@@ -10611,13 +10607,13 @@ namespace Oxide.Plugins
 
                 CuiElementContainer container = UI.Container(UI.Element.PanelWindow,
                     UI.Color(UI.Colors.Secondary, 0.8f),
-                    new UI4(0.5f, 0.05f, 0.95f, 0.85f), true);
+                    new UI4(0.62f, 0.05f, 1f, 0.85f), true);
 
                 CuiElementContainer header = CreatePanelHeader(container);
                 CuiElementContainer sidebar = CreatePanelSidebar(container);
                 CuiElementContainer dialog = UI.Container(UI.Element.PanelDialog,
                     UI.Color(UI.Colors.Highlight, 0f),
-                    new UI4(0.25f, 0.15f, 0.95f, 0.95f),
+                    new UI4(0.05f, 0.15f, 0.75f, 0.95f),
                     false,
                     UI.Element.PanelWindow);
                 if(selectedCommand != null)
@@ -10664,7 +10660,7 @@ namespace Oxide.Plugins
                 List<string> categories = new List<string>() { "faction", "claim", "tax", "war" };
                 CuiElementContainer sidebar = UI.Container(UI.Element.PanelSidebar,
                     UI.Color(UI.Colors.Primary, 1f),
-                    new UI4(0f, 0.1f, 0.2f, 1f),
+                    new UI4(0.8f, 0.1f, 1f, 1f),
                     false,
                     UI.Element.PanelWindow
                 );
@@ -10712,7 +10708,7 @@ namespace Oxide.Plugins
                             TextAnchor.MiddleLeft);
                         sy += SPACING + 0.05f;
 
-                        UI.Input(container, UI.Element.PanelDialog, UI.Color(UI.Colors.Info,1f),
+                        UI.Input(container, UI.Element.PanelDialog, UI.Color(UI.Colors.Info,0.75f),
                             "", 16, "imperium.panel.setarg " + i + " " + arg.isSubstring.ToString().ToLower(),
                             new UI4(0f, sy, 1f, sy + 0.05f)
                             );
@@ -10758,7 +10754,7 @@ namespace Oxide.Plugins
                                 skip = true;
                             if (cmd.auth == UIChatCommandDef.FactionAuth.Leader && User.Faction != null && !User.Faction.HasLeader(User))
                                 skip = true;
-                            if (cmd.auth == UIChatCommandDef.FactionAuth.ServerAdmin && !User.HasPermission("imperium.admin.*"))
+                            if (cmd.auth == UIChatCommandDef.FactionAuth.ServerAdmin && (User.Player.Connection.authLevel == 0))
                                 skip = true;
                         }
                         else
@@ -10767,11 +10763,16 @@ namespace Oxide.Plugins
                                 skip = true;
                             if (cmd.auth > UIChatCommandDef.FactionAuth.NotFactionMember && User.Faction == null)
                                 skip = true;
+                            if (cmd.auth == UIChatCommandDef.FactionAuth.ServerAdmin && (User.Player.Connection.authLevel == 0))
+                                skip = true;
                         }
+                        string color = UI.Color(UI.Colors.Info, 1f);
+                        if (cmd.auth == UIChatCommandDef.FactionAuth.ServerAdmin)
+                            color = UI.Color(UI.Colors.Primary, 1f);
                         if(!skip)
                         {
                             UI.Button(container, UI.Element.PanelDialog,
-                                UI.Color(UI.Colors.Info, 1f),
+                                color,
                                 cmd.displayName,
                                 14,
                                 new UI4(0f, sy, 1f, sy + 0.05f),

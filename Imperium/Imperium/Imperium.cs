@@ -87,7 +87,7 @@ namespace Oxide.Plugins
     using System.Linq;
 
 
-    [Info("Imperium", "chucklenugget/evict/Orange", "2.0.0")]
+    [Info("Imperium", "chucklenugget/evict", "2.0.0")]
     public partial class Imperium : RustPlugin
     {
 
@@ -643,11 +643,13 @@ namespace Oxide.Plugins
             {
                 user.IsInPvpMode = false;
                 user.SendChatMessage(Messages.ExitedPvpMode);
+                Util.RunEffect(user.transform.position, "assets/prefabs/missions/effects/mission_objective_complete.prefab");
             }
             else
             {
                 user.IsInPvpMode = true;
                 user.SendChatMessage(Messages.EnteredPvpMode);
+                Util.RunEffect(user.transform.position, "assets/prefabs/missions/effects/mission_objective_complete.prefab");
             }
 
             user.Hud.Refresh();
@@ -758,7 +760,7 @@ namespace Oxide.Plugins
             }
 
             Areas.AddBadlands(areas);
-
+            Util.RunEffect(user.transform.position, "assets/prefabs/missions/effects/mission_objective_complete.prefab");
             user.SendChatMessage(Messages.BadlandsSet, Util.Format(Areas.GetAllByType(AreaType.Badlands)));
             Log($"{Util.Format(user)} added {Util.Format(areas)} to badlands");
         }
@@ -818,7 +820,7 @@ namespace Oxide.Plugins
             }
 
             Areas.Unclaim(areas);
-
+            Util.RunEffect(user.transform.position, "assets/prefabs/missions/effects/mission_objective_complete.prefab");
             user.SendChatMessage(Messages.BadlandsSet, Util.Format(Areas.GetAllByType(AreaType.Badlands)));
             Log($"{Util.Format(user)} removed {Util.Format(areas)} from badlands");
         }
@@ -857,7 +859,7 @@ namespace Oxide.Plugins
 
             Areas.Unclaim(Areas.GetAllByType(AreaType.Badlands));
             Areas.AddBadlands(areas);
-
+            Util.RunEffect(user.transform.position, "assets/prefabs/missions/effects/mission_objective_complete.prefab");
             user.SendChatMessage(Messages.BadlandsSet, Util.Format(Areas.GetAllByType(AreaType.Badlands)));
             Log($"{Util.Format(user)} set badlands to {Util.Format(areas)}");
         }
@@ -1290,7 +1292,7 @@ namespace Oxide.Plugins
                 user.SendChatMessage(Messages.AreaNotOwnedByYourFaction, area.Id);
                 return;
             }
-
+            Util.RunEffect(user.transform.position, "assets/prefabs/missions/effects/mission_objective_complete.prefab");
             user.SendChatMessage(Messages.AreaRenamed, area.Id, name);
             Log($"{Util.Format(user)} renamed {area.Id} to {name}");
 
@@ -1526,6 +1528,7 @@ namespace Oxide.Plugins
             PrintToChat(Messages.FactionCreatedAnnouncement, id);
             Log($"{Util.Format(user)} created faction {id}");
 
+            Util.RunEffect(user.transform.position, "assets/prefabs/missions/effects/mission_victory.prefab");
             Faction faction = Factions.Create(id, user);
             user.SetFaction(faction);
         }
@@ -1580,7 +1583,7 @@ namespace Oxide.Plugins
 
             user.SendChatMessage(Messages.ManagerRemoved, member.UserName, faction.Id);
             Log($"{Util.Format(user)} demoted {Util.Format(member)} in faction {faction.Id}");
-
+            Util.RunEffect(user.transform.position, "assets/prefabs/missions/effects/mission_failed.prefab");
             faction.Demote(member);
         }
     }
@@ -1629,13 +1632,14 @@ namespace Oxide.Plugins
                 user.SendChatMessage(Messages.FactionIsNotBadlands);
                 faction.IsBadlands = false;
                 faction.BadlandsCommandUsedTime = DateTime.Now;
-
+                Util.RunEffect(user.transform.position, "assets/prefabs/missions/effects/mission_victory.prefab");
             }
             else
             {
                 user.SendChatMessage(Messages.FactionIsBadlands);
                 faction.IsBadlands = true;
                 faction.BadlandsCommandUsedTime = DateTime.Now;
+                Util.RunEffect(user.transform.position, "assets/prefabs/missions/effects/mission_accept.prefab");
             }
         }
     }
@@ -1663,7 +1667,7 @@ namespace Oxide.Plugins
 
             PrintToChat(Messages.FactionDisbandedAnnouncement, faction.Id);
             Log($"{Util.Format(user)} disbanded faction {faction.Id}");
-
+            Util.RunEffect(user.transform.position, "assets/prefabs/missions/effects/mission_failed.prefab");
             Factions.Disband(faction);
         }
     }
@@ -1746,6 +1750,8 @@ namespace Oxide.Plugins
 
             member.SendChatMessage(Messages.InviteReceived, user.UserName, faction.Id);
             user.SendChatMessage(Messages.InviteAdded, member.UserName, faction.Id);
+            Util.RunEffect(user.transform.position, "assets/prefabs/missions/effects/mission_objective_complete.prefab");
+            Util.RunEffect(user.transform.position, "assets/prefabs/missions/effects/mission_objective_complete.prefab", member.Player);
 
             Log($"{Util.Format(user)} invited {Util.Format(member)} to faction {faction.Id}");
 
@@ -1789,7 +1795,7 @@ namespace Oxide.Plugins
             user.SendChatMessage(Messages.YouJoinedFaction, faction.Id);
             PrintToChat(Messages.FactionMemberJoinedAnnouncement, user.UserName, faction.Id);
             Log($"{Util.Format(user)} joined faction {faction.Id}");
-
+            Util.RunEffect(user.transform.position, "assets/prefabs/missions/effects/mission_objective_complete.prefab");
             faction.AddMember(user);
             user.SetFaction(faction);
         }
@@ -1840,7 +1846,7 @@ namespace Oxide.Plugins
             PrintToChat(Messages.FactionMemberLeftAnnouncement, member.UserName, faction.Id);
 
             Log($"{Util.Format(user)} kicked {Util.Format(member)} from faction {faction.Id}");
-
+            Util.RunEffect(user.transform.position, "assets/prefabs/missions/effects/mission_failed.prefab");
             faction.RemoveMember(member);
             member.SetFaction(null);
         }
@@ -1879,7 +1885,7 @@ namespace Oxide.Plugins
             PrintToChat(Messages.FactionMemberLeftAnnouncement, user.UserName, faction.Id);
 
             Log($"{Util.Format(user)} left faction {faction.Id}");
-
+            Util.RunEffect(user.transform.position, "assets/prefabs/missions/effects/mission_failed.prefab");
             faction.RemoveMember(user);
             user.SetFaction(null);
         }
@@ -1934,7 +1940,7 @@ namespace Oxide.Plugins
 
             user.SendChatMessage(Messages.ManagerAdded, member.UserName, faction.Id);
             Log($"{Util.Format(user)} promoted {Util.Format(member)} in faction {faction.Id}");
-
+            Util.RunEffect(user.transform.position, "assets/prefabs/missions/effects/mission_victory.prefab");
             faction.Promote(member);
         }
     }
@@ -2413,7 +2419,7 @@ namespace Oxide.Plugins
 
             user.SendChatMessage(Messages.SetTaxRateSuccessful, faction.Id, taxRate * 100);
             Log($"{Util.Format(user)} set the tax rate for faction {faction.Id} to {taxRate * 100}%");
-
+            Util.RunEffect(user.transform.position, "assets/prefabs/missions/effects/mission_objective_complete.prefab");
             Factions.SetTaxRate(faction, taxRate);
         }
     }
@@ -2991,8 +2997,11 @@ namespace Oxide.Plugins
             }
             War war = Wars.DeclareWar(attacker, defender, user, cassusBelli);
             PrintToChat(Messages.WarDeclaredAnnouncement, war.AttackerId, war.DefenderId, war.CassusBelli);
+            Util.RunEffect(user.transform.position, "assets/prefabs/missions/effects/mission_accept.prefab");
             Log(
                 $"{Util.Format(user)} declared war on faction {war.DefenderId} on behalf of {war.AttackerId} for reason: {war.CassusBelli}");
+
+
         }
     }
 }
@@ -3038,10 +3047,12 @@ namespace Oxide.Plugins
                 PrintToChat(Messages.WarEndedTreatyAcceptedAnnouncement, faction.Id, enemy.Id);
                 Log($"{Util.Format(user)} accepted the peace offering of {enemy.Id} on behalf of {faction.Id}");
                 Wars.EndWar(war, WarEndReason.Treaty);
+                Util.RunEffect(user.transform.position, "assets/prefabs/missions/effects/mission_victory.prefab");
                 OnDiplomacyChanged();
             }
             else
             {
+                Util.RunEffect(user.transform.position, "assets/prefabs/missions/effects/mission_failed.prefab");
                 user.SendChatMessage(Messages.PeaceOffered, enemy.Id);
                 Log($"{Util.Format(user)} offered peace to faction {enemy.Id} on behalf of {faction.Id}");
             }
@@ -3854,7 +3865,7 @@ namespace Oxide.Plugins
                 return null;
             if (user1.Faction.HasLeader(user1) && user2.Faction.HasLeader(user2))
                 return null;
-            user1.SendChatMessage("Only leaders of both enemy factions can trade right now");
+            user1.SendChatMessage("Only owners or managers of both enemy factions can trade right now. Trading will end the war");
             return false;
         }
 
@@ -4388,7 +4399,8 @@ namespace Oxide.Plugins
                 "fireball_small",
                 "fireball_small_arrow",
                 "fireball_small_shotgun",
-                "fireexplosion"
+                "fireexplosion",
+                "fireball_small_molotov"
             };
 
             public static object HandleDamageBetweenPlayers(User attacker, User defender, HitInfo hit)
@@ -4688,8 +4700,25 @@ namespace Oxide.Plugins
                     Instance.Log("Damage from a player to structure with prefab {0}: {1}", entity.ShortPrefabName,
                         result.ToString());
 
-                if (result == DamageResult.NotProtected || result == DamageResult.Friendly)
+                if (result == DamageResult.NotProtected)
+                {
                     return null;
+                }
+
+                if(result == DamageResult.Friendly)
+                {
+                    //faction leaders deal double damage to structures in their own land while the land is peaceful
+                    if(attacker.Faction.HasLeader(attacker) && (!area.IsWarZone && !area.IsHostile))
+                    {
+                        hit.damageTypes.ScaleAll(2f);
+                    }
+                    //faction members deal half damage to structures to minimize griefing
+                    if (!attacker.Faction.HasLeader(attacker) && (!area.IsWarZone && !area.IsHostile))
+                    {
+                        hit.damageTypes.ScaleAll(0.5f);
+                    }
+                    return null;
+                }
 
                 if (result == DamageResult.Prevent)
                     return false;
@@ -5521,7 +5550,7 @@ namespace Oxide.Plugins
                 area.FactionId = faction.Id;
                 area.ClaimantId = claimant.Id;
                 area.ClaimCupboard = cupboard;
-                Util.RunEffect(claimant.transform.position, "assets/prefabs/missions/effects/mission_objective_complete.prefab");
+
 
                 Events.OnAreaChanged(area);
             }
@@ -7431,7 +7460,6 @@ namespace Oxide.Plugins
 {
     using System.Collections.Generic;
     using System.Drawing;
-
     public partial class Imperium
     {
         class FactionColorPicker
@@ -7473,6 +7501,22 @@ namespace Oxide.Plugins
                 }
 
                 return color;
+            }
+
+            public string GetHexColorForFaction(string factionId)
+            {
+                string hexcolor;
+                Color color;
+
+                if (!AssignedColors.TryGetValue(factionId, out color))
+                {
+                    color = Color.FromArgb(128, ColorTranslator.FromHtml(Colors[NextColor]));
+                    AssignedColors.Add(factionId, color);
+                    NextColor = (NextColor + 1) % Colors.Length;
+                }
+                hexcolor = $"#{color.R:X2}{color.G:X2}{color.B:X2}";
+
+                return hexcolor;
             }
         }
     }
@@ -8087,7 +8131,7 @@ namespace Oxide.Plugins
                     {
                         Instance.PrintToChat(Messages.AreaClaimedAnnouncement, Faction.Id, area.Id);
                     }
-
+                    Util.RunEffect(User.transform.position, "assets/prefabs/missions/effects/mission_objective_complete.prefab");
                     Instance.Log($"{Util.Format(User)} claimed {area.Id} on behalf of {Faction.Id}");
                     Instance.Areas.Claim(area, type, Faction, User, cupboard);
 
@@ -8109,6 +8153,7 @@ namespace Oxide.Plugins
                             $"{Util.Format(User)} moved {area.FactionId}'s claim on {area.Id} from cupboard {Util.Format(area.ClaimCupboard)} to cupboard {Util.Format(cupboard)}");
                         area.ClaimantId = User.Id;
                         area.ClaimCupboard = cupboard;
+                        Util.RunEffect(User.transform.position, "assets/prefabs/missions/effects/mission_objective_complete.prefab");
                         return true;
                     }
                 }
@@ -8131,6 +8176,7 @@ namespace Oxide.Plugins
                         $"{Util.Format(User)} captured the claim on {area.Id} from {area.FactionId} on behalf of {Faction.Id}");
 
                     Instance.Areas.Claim(area, type, Faction, User, cupboard);
+                    Util.RunEffect(User.transform.position, "assets/prefabs/missions/effects/mission_objective_complete.prefab");
                     return true;
                 }
 
@@ -8180,6 +8226,7 @@ namespace Oxide.Plugins
                 Instance.Log($"{Util.Format(User)} assigned {area.Id} to {Faction.Id}");
 
                 Instance.Areas.Claim(area, type, Faction, User, cupboard);
+                Util.RunEffect(User.transform.position, "assets/prefabs/missions/effects/mission_objective_complete.prefab");
                 return true;
             }
         }
@@ -8231,6 +8278,7 @@ namespace Oxide.Plugins
                 Instance.Log($"{Util.Format(User)} removed {Faction.Id}'s claim on {area.Id}");
 
                 Instance.Areas.Unclaim(area);
+                Util.RunEffect(User.transform.position, "assets/prefabs/missions/effects/mission_objective_complete.prefab");
                 return true;
             }
         }
@@ -8269,6 +8317,7 @@ namespace Oxide.Plugins
                 Instance.Log($"{Util.Format(User)} set {Faction.Id}'s headquarters to {area.Id}");
 
                 Instance.Areas.SetHeadquarters(area, Faction);
+                Util.RunEffect(User.transform.position, "assets/prefabs/missions/effects/mission_objective_complete.prefab");
                 return true;
             }
         }
@@ -8301,7 +8350,7 @@ namespace Oxide.Plugins
                 User.SendChatMessage(Messages.SelectingTaxChestSucceeded, Faction.TaxRate * 100, Faction.Id);
                 Instance.Log($"{Util.Format(User)} set {Faction.Id}'s tax chest to entity {Util.Format(container)}");
                 Instance.Factions.SetTaxChest(Faction, container);
-
+                Util.RunEffect(User.transform.position, "assets/prefabs/missions/effects/mission_objective_complete.prefab");
                 return true;
             }
         }
@@ -8335,6 +8384,7 @@ namespace Oxide.Plugins
                 User.SendChatMessage(Messages.SelectingArmoryLockerSucceeded, area.Id);
                 Instance.Log($"{Util.Format(User)} set {Faction.Id}'s armory locker to entity {Util.Format(container)} at {area.Id}");
                 Instance.Areas.SetArmory(area, container);
+                Util.RunEffect(User.transform.position, "assets/prefabs/missions/effects/mission_objective_complete.prefab");
                 return true;
             }
         }
@@ -8388,7 +8438,7 @@ namespace Oxide.Plugins
                     TargetFaction.Id);
                 Instance.Log(
                     $"{Util.Format(User)} transferred {SourceFaction.Id}'s claim on {area.Id} to {TargetFaction.Id}");
-
+                Util.RunEffect(User.transform.position, "assets/prefabs/missions/effects/mission_objective_complete.prefab");
                 Instance.Areas.Claim(area, type, TargetFaction, User, cupboard);
 
                 return true;
@@ -8898,8 +8948,8 @@ namespace Oxide.Plugins
                     {"water_treatment_plant", 180 },
                     {"oilrig_1",200},
                     {"oilrig_2",200},
-                    {"desert_military_base",150},
-                    {"arctic_research_base_a",150}
+                    {"military_base",150},
+                    {"research_base",150}
                 }
             };
         }
@@ -9503,6 +9553,7 @@ namespace Oxide.Plugins
                 public static string Primary = "#CC412B";
                 public static string Secondary = "#222222";
                 public static string Highlight = "#2D2D2D";
+                public static string Disabled = "#AAAAAA";
                 public static string Success = "#708C41";
                 public static string Info = "#206A9E";
             }
@@ -9551,6 +9602,17 @@ namespace Oxide.Plugins
                 container.Add(new CuiLabel
                 {
                     Text = { FontSize = size, Align = align, Text = text },
+                    RectTransform = { AnchorMin = dimensions.GetMin(), AnchorMax = dimensions.GetMax() },
+                    FadeOut = 0.25f
+                },
+                panel);
+            }
+
+            public static void Label(CuiElementContainer container, string panel, string color, string text, int size, UI4 dimensions, TextAnchor align = TextAnchor.MiddleCenter)
+            {
+                container.Add(new CuiLabel
+                {
+                    Text = { FontSize = size, Align = align, Text = text, Color = color },
                     RectTransform = { AnchorMin = dimensions.GetMin(), AnchorMax = dimensions.GetMax() },
                     FadeOut = 0.25f
                 },
@@ -10088,6 +10150,7 @@ namespace Oxide.Plugins
                     {
                         category = "faction",
                         displayName = "CREATE",
+                        shortDescription = "Create a new faction with the given name (Max 8 name length)",
                         command = "faction create",
                         auth = UIChatCommandDef.FactionAuth.NotFactionMember,
                         authExclusive = true,
@@ -10106,6 +10169,7 @@ namespace Oxide.Plugins
                     {
                         category = "faction",
                         displayName = "JOIN",
+                        shortDescription = "Accept a faction invite, as long as you have being invited",
                         command = "faction join",
                         auth = UIChatCommandDef.FactionAuth.NotFactionMember,
                         authExclusive = true,
@@ -10124,6 +10188,7 @@ namespace Oxide.Plugins
                     {
                         category = "faction",
                         displayName = "INFO",
+                        shortDescription = "Show information about your faction in the chat",
                         command = "faction",
                         auth = UIChatCommandDef.FactionAuth.Member,
                         authExclusive = false
@@ -10133,6 +10198,7 @@ namespace Oxide.Plugins
                     {
                         category = "faction",
                         displayName = "LEAVE",
+                        shortDescription = "Leave your current faction",
                         command = "faction leave",
                         auth = UIChatCommandDef.FactionAuth.Member,
                         authExclusive = false
@@ -10142,6 +10208,7 @@ namespace Oxide.Plugins
                     {
                         category = "faction",
                         displayName = "INVITE",
+                        shortDescription = "Invite a player to your faction. \nThe player must then accept with FACTION JOIN",
                         command = "faction invite",
                         auth = UIChatCommandDef.FactionAuth.Leader,
                         authExclusive = true,
@@ -10160,6 +10227,7 @@ namespace Oxide.Plugins
                     {
                         category = "faction",
                         displayName = "PROMOTE",
+                        shortDescription = "Promote a member to manager role",
                         command = "faction promote",
                         auth = UIChatCommandDef.FactionAuth.Leader,
                         authExclusive = true,
@@ -10178,6 +10246,7 @@ namespace Oxide.Plugins
                     {
                         category = "faction",
                         displayName = "DEMOTE",
+                        shortDescription = "Demote a manager to member role",
                         command = "faction demote",
                         auth = UIChatCommandDef.FactionAuth.Leader,
                         authExclusive = true,
@@ -10196,6 +10265,7 @@ namespace Oxide.Plugins
                     {
                         category = "faction",
                         displayName = "KICK",
+                        shortDescription = "Kick a player from your faction",
                         command = "faction kick",
                         auth = UIChatCommandDef.FactionAuth.Leader,
                         authExclusive = true,
@@ -10215,6 +10285,7 @@ namespace Oxide.Plugins
                     {
                         category = "faction",
                         displayName = "TOGGLE BADLANDS",
+                        shortDescription = "Allows/Deny PVP in all of your faction's lands.",
                         command = "faction badlands confirm",
                         auth = UIChatCommandDef.FactionAuth.Leader,
                         authExclusive = true
@@ -10225,6 +10296,7 @@ namespace Oxide.Plugins
                     {
                         category = "faction",
                         displayName = "DISBAND",
+                        shortDescription = "Disband your entire faction. \nThis action cannot be undone",
                         command = "faction disband forever",
                         auth = UIChatCommandDef.FactionAuth.Leader,
                         authExclusive = true
@@ -10235,7 +10307,8 @@ namespace Oxide.Plugins
                     new UIChatCommandDef()
                     {
                         category = "claim",
-                        displayName = "START CLAIM LAND INTERACTION",
+                        displayName = "CLAIM LAND",
+                        shortDescription = "Starts claim interaction. \nHit a tool cupboard with a hammer to complete the interaction",
                         command = "claim add",
                         auth = UIChatCommandDef.FactionAuth.Leader,
                         authExclusive = true,
@@ -10245,7 +10318,8 @@ namespace Oxide.Plugins
                     new UIChatCommandDef()
                     {
                         category = "claim",
-                        displayName = "START UNCLAIM LAND INTERACTION",
+                        displayName = "UNCLAIM LAND",
+                        shortDescription = "Starts unclaim interaction. \nHit a tool cupboard with a hammer to complete the interaction",
                         command = "claim remove",
                         auth = UIChatCommandDef.FactionAuth.Leader,
                         authExclusive = true,
@@ -10255,7 +10329,8 @@ namespace Oxide.Plugins
                     new UIChatCommandDef()
                     {
                         category = "claim",
-                        displayName = "START SET HEADQUARTERS INTERACTION",
+                        displayName = "SET HEADQUARTERS",
+                        shortDescription = "Starts set headquarters interaction. \nHit a tool cupboard with a hammer to complete the interaction",
                         command = "claim hq",
                         auth = UIChatCommandDef.FactionAuth.Leader,
                         authExclusive = true,
@@ -10266,7 +10341,8 @@ namespace Oxide.Plugins
                     new UIChatCommandDef()
                     {
                         category = "claim",
-                        displayName = "START LAND DONATION INTERACTION",
+                        displayName = "GIVE LAND",
+                        shortDescription = "Gives the selected land to a target faction. \nHit a tool cupboard with a hammer to complete the interaction",
                         command = "claim give",
                         auth = UIChatCommandDef.FactionAuth.Leader,
                         authExclusive = true,
@@ -10286,6 +10362,7 @@ namespace Oxide.Plugins
                     {
                         category = "claim",
                         displayName = "RENAME LAND",
+                        shortDescription = "Rename the target land with the specified name",
                         command = "claim rename",
                         auth = UIChatCommandDef.FactionAuth.Leader,
                         authExclusive = true,
@@ -10310,6 +10387,7 @@ namespace Oxide.Plugins
                     {
                         category = "claim",
                         displayName = "CHECK CLAIM COST",
+                        shortDescription = "Shows the scrap claim cost for a given land in the chat",
                         command = "claim cost",
                         auth = UIChatCommandDef.FactionAuth.Leader,
                         authExclusive = true,
@@ -10328,6 +10406,7 @@ namespace Oxide.Plugins
                     {
                         category = "claim",
                         displayName = "CLAIM LIST",
+                        shortDescription = "Shows a list of areas claimed by your faction",
                         command = "claim list",
                         auth = UIChatCommandDef.FactionAuth.Member,
                         authExclusive = false
@@ -10337,6 +10416,7 @@ namespace Oxide.Plugins
                     {
                         category = "claim",
                         displayName = "CHECK LAND UPKEEP",
+                        shortDescription = "Show current land upkeep status",
                         command = "claim upkeep",
                         auth = UIChatCommandDef.FactionAuth.Member,
                         authExclusive = false
@@ -10348,6 +10428,7 @@ namespace Oxide.Plugins
                     {
                         category = "tax",
                         displayName = "SELECT TAX CHEST INTERACTION",
+                        shortDescription = "Select a tax chest for your faction. \nHit a chest with a hammer to complete the interaction",
                         command = "tax chest",
                         auth = UIChatCommandDef.FactionAuth.Leader,
                         authExclusive = true,
@@ -10359,6 +10440,7 @@ namespace Oxide.Plugins
                     {
                         category = "tax",
                         displayName = "SET TAX PERCENTAGE",
+                        shortDescription = "Select a tax percentage for the current land. \nThis percentage will be taken from any resources gathered \nand automatically appear in your faction's Tax Chest",
                         command = "tax rate",
                         auth = UIChatCommandDef.FactionAuth.Leader,
                         authExclusive = true,
@@ -10374,11 +10456,22 @@ namespace Oxide.Plugins
                     },
 
                     //WAR
+                    //war status
+                    new UIChatCommandDef()
+                    {
+                        category = "war",
+                        displayName = "WAR STATUS",
+                        shortDescription = "Shows in the chat all wars your faction is involved",
+                        command = "war status",
+                        auth = UIChatCommandDef.FactionAuth.Member,
+                        authExclusive = false
+                    },
                     //war declare
                     new UIChatCommandDef()
                     {
                         category = "war",
                         displayName = "DECLARE WAR",
+                        shortDescription = "Declare war against an enemy faction \nwith a given reason.",
                         command = "war declare",
                         auth = UIChatCommandDef.FactionAuth.Leader,
                         authExclusive = true,
@@ -10404,6 +10497,7 @@ namespace Oxide.Plugins
                     {
                         category = "war",
                         displayName = "END WAR",
+                        shortDescription = "Ask for peace or accept a peace offer from an enemy faction.\nFaction leaders can also end war by trading in a shopfront",
                         command = "war end",
                         auth = UIChatCommandDef.FactionAuth.Leader,
                         authExclusive = true,
@@ -10423,6 +10517,7 @@ namespace Oxide.Plugins
                     {
                         category = "war",
                         displayName = "LIST PENDING WAR REQUESTS",
+                        shortDescription = "Check for pending war requests against your faction that can be approved or denied",
                         command = "war pending",
                         auth = UIChatCommandDef.FactionAuth.Leader,
                         authExclusive = true
@@ -10433,6 +10528,7 @@ namespace Oxide.Plugins
                     {
                         category = "war",
                         displayName = "APPROVE PENDING WAR REQUEST",
+                        shortDescription = "Approve a war request from an enemy faction. \nThis will officialy start war between your factions",
                         command = "war approve",
                         auth = UIChatCommandDef.FactionAuth.Leader,
                         authExclusive = true,
@@ -10452,6 +10548,7 @@ namespace Oxide.Plugins
                     {
                         category = "war",
                         displayName = "DENY PENDING WAR REQUEST",
+                        shortDescription = "Deny pending war request against your faction. \nThis will cancel the war request",
                         command = "war deny",
                         auth = UIChatCommandDef.FactionAuth.Leader,
                         authExclusive = true,
@@ -10471,6 +10568,7 @@ namespace Oxide.Plugins
                     {
                         category = "war",
                         displayName = "LIST PENDING WAR REQUESTS (ADMIN)",
+                        shortDescription = "List all pending war requests waiting for admin approval",
                         command = "war admin pending",
                         auth = UIChatCommandDef.FactionAuth.ServerAdmin,
                         authExclusive = true
@@ -10481,6 +10579,7 @@ namespace Oxide.Plugins
                     {
                         category = "war",
                         displayName = "APPROVE PENDING WAR REQUEST (ADMIN)",
+                        shortDescription = "Approve a war request waiting for admin approval. \nThis will officialy start the war between the two factions",
                         command = "war admin approve",
                         auth = UIChatCommandDef.FactionAuth.ServerAdmin,
                         authExclusive = true,
@@ -10506,6 +10605,7 @@ namespace Oxide.Plugins
                     {
                         category = "war",
                         displayName = "DENY PENDING WAR REQUEST (ADMIN)",
+                        shortDescription = "Deny a war request waiting for admin approval. \nThis will cancel the war request from the attackers",
                         command = "war admin deny",
                         auth = UIChatCommandDef.FactionAuth.ServerAdmin,
                         authExclusive = true,
@@ -10537,12 +10637,13 @@ namespace Oxide.Plugins
             public Dictionary<int, string> indexedArgs = new Dictionary<int, string>();
             public int currentRequiredArgs = 0;
 
-            public const float SPACING = 0.025f;
+            public const float SPACING = 0.015f;
 
 
             public class UIChatCommandDef
             {
                 public string displayName;
+                public string shortDescription;
                 public string category;
                 public string command;
                 public string uid;
@@ -10624,6 +10725,10 @@ namespace Oxide.Plugins
                 {
                     CreateSelectedCategoryButtons(dialog);
                 }
+                else
+                {
+                    CreateHomeDialog(dialog);
+                }
                 
 
                 result = new List<CuiElementContainer>(){container, header, sidebar, dialog};
@@ -10687,11 +10792,18 @@ namespace Oxide.Plugins
                 
                 UI.Label(container, UI.Element.PanelDialog,
                     selectedCommand.displayName, 26,
-                    new UI4(0f, sy, 1f, 0.1f),
+                    new UI4(0f, sy, 1f, sy + 0.1f),
                     TextAnchor.MiddleLeft);
                 sy += SPACING + 0.1f;
 
-                if(selectedCommand.args.Count > 0)
+                UI.Label(container, UI.Element.PanelDialog,
+                    selectedCommand.shortDescription, 12,
+                    new UI4(0f, sy, 1f, sy + 0.1f),
+                    TextAnchor.UpperLeft);
+                sy += SPACING + 0.1f;
+                Debug.LogWarning(selectedCommand.shortDescription);
+
+                if (selectedCommand.args.Count > 0)
                 {
                     for(int i = 0; i < selectedCommand.args.Count; i++)
                     {
@@ -10732,8 +10844,15 @@ namespace Oxide.Plugins
                     return;
                 float sy = SPACING;
 
+                string title = currentCategory.ToUpper();
+
+                if(currentCategory == "faction" && User.Faction != null)
+                {
+                    title = title + " [" + User.Faction.Id.ToUpper() + "]";
+                }
+
                 UI.Label(container, UI.Element.PanelDialog,
-                    currentCategory.ToUpper(), 26,
+                    title, 26,
                     new UI4(0f, sy, 1f, 0.1f),
                     TextAnchor.MiddleLeft);
                 sy += SPACING + 0.1f;
@@ -10742,6 +10861,7 @@ namespace Oxide.Plugins
 
                 if (categoryCmds.Count > 0)
                 {
+                    int buttonsAdded = 0;
                     for (int i = 0; i < categoryCmds.Count; i++)
                     {
                         UIChatCommandDef cmd = categoryCmds[i];
@@ -10779,10 +10899,45 @@ namespace Oxide.Plugins
                                 "imperium.panel.opencmd " + cmd.uid,
                                 TextAnchor.MiddleCenter);
                             sy += SPACING + 0.05f;
+                            buttonsAdded++;
                         }
 
                     }
+                    if(buttonsAdded == 0)
+                    {
+                        UI.Label(container, UI.Element.PanelDialog,
+                            UI.Color(UI.Colors.Disabled, 1f),
+                            "No options available yet.\n\nTry creating or joining a faction first", 18,
+                            new UI4(0f, sy, 1f, sy + 0.5f),
+                            TextAnchor.MiddleCenter);
+                        sy += SPACING + 0.1f;
+                    }
                 }
+            }
+
+            void CreateHomeDialog(CuiElementContainer container)
+            {
+                float sy = SPACING;
+                string description = "At its heart, Imperium adds the idea of territory to Rust. \n\nThe game is divided into a grid of tiles matching those displayed on the in-game map. \n\nPlayers can create factions, and these factions can claim these tiles of land and levy taxes on resources harvested therein. \n\nFactions can declare war on one another and battle for control of the territory.";
+                string credits = "Original creator: ChuckleNugget\nImperium 2.0 developer: evict";
+                UI.Label(container, UI.Element.PanelDialog,
+                    UI.Color(UI.Colors.Disabled,1f),
+                    "IMPERIUM", 26,
+                    new UI4(0f, sy, 1f, 0.1f),
+                    TextAnchor.MiddleCenter);
+                sy += SPACING + 0.12f;
+
+                UI.Label(container, UI.Element.PanelDialog,
+                    UI.Color(UI.Colors.Disabled, 1f),
+                    description, 18,
+                    new UI4(0f, sy, 1f, 0.9f),
+                    TextAnchor.UpperCenter);
+
+                UI.Label(container, UI.Element.PanelDialog,
+                    UI.Color(UI.Colors.Success, 1f),
+                    credits, 12,
+                    new UI4(0f, 0.90f, 1f, 1f),
+                    TextAnchor.LowerLeft);
             }
 
             public void Close()

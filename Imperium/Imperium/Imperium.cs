@@ -3730,16 +3730,6 @@ namespace Oxide.Plugins
             return null;
         }
 
-        object OnTeamUpdate(ulong currentTeam, ulong newTeam, BasePlayer player)
-        {
-            if (Instance.Options.Factions.OverrideInGameTeamSystem)
-            {
-                if (Users.Get(player).Faction != null)
-                    return false;
-            }
-            return null;
-        }
-
         void OnHammerHit(BasePlayer player, HitInfo hit)
         {
             User user = Users.Get(player);
@@ -6129,12 +6119,13 @@ namespace Oxide.Plugins
 
             public void CreateInGameTeam()
             {
+                Debug.LogWarning("Creating faction ingame team");
                 List<User> activeMembers = GetAllActiveMembers().ToList();
                 BasePlayer firstMember = activeMembers.FirstOrDefault().Player;
                 RelationshipManager.PlayerTeam factionTeam = GetFactionPlayerTeam();
                 RelationshipManager.PlayerTeam firstTeam = GetOwnerPlayerTeam();
                 //If owner is online
-                if (firstTeam != null)
+                if (firstMember != null)
                 {
                     //faction has no valid team
                     if(firstTeam == null)
@@ -6320,12 +6311,14 @@ namespace Oxide.Plugins
                 faction = new Faction(id, owner);
                 faction.CreationTime = DateTime.Now;
 
+
+
+                Factions.Add(id, faction);
+
                 if (Instance.Options.Factions.OverrideInGameTeamSystem)
                 {
                     faction.CreateInGameTeam();
                 }
-
-                Factions.Add(id, faction);
 
                 Events.OnFactionCreated(faction);
 

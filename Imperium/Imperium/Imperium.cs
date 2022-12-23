@@ -3674,7 +3674,8 @@ namespace Oxide.Plugins
         {
             if (Instance.Options.Factions.OverrideInGameTeamSystem)
             {
-                return false;
+                if(Users.Get(player).Faction != null)
+                    return false;
             }
             return null;
         }
@@ -3683,7 +3684,8 @@ namespace Oxide.Plugins
         {
             if (Instance.Options.Factions.OverrideInGameTeamSystem)
             {
-                return false;
+                if (Users.Get(inviter).Faction != null)
+                    return false;
             }
             return null;
         }
@@ -3692,7 +3694,8 @@ namespace Oxide.Plugins
         {
             if (Instance.Options.Factions.OverrideInGameTeamSystem)
             {
-                return false;
+                if (Users.Get(newLeader).Faction != null)
+                    return false;
             }
             return null;
         }
@@ -3701,7 +3704,8 @@ namespace Oxide.Plugins
         {
             if (Instance.Options.Factions.OverrideInGameTeamSystem)
             {
-                return false;
+                if (Users.Get(player).Faction != null)
+                    return false;
             }
             return null;
         }
@@ -3710,7 +3714,8 @@ namespace Oxide.Plugins
         {
             if (Instance.Options.Factions.OverrideInGameTeamSystem)
             {
-                return false;
+                if (Users.Get(player).Faction != null)
+                    return false;
             }
             return null;
         }
@@ -3729,7 +3734,8 @@ namespace Oxide.Plugins
         {
             if (Instance.Options.Factions.OverrideInGameTeamSystem)
             {
-                return false;
+                if (Users.Get(player).Faction != null)
+                    return false;
             }
             return null;
         }
@@ -6121,6 +6127,63 @@ namespace Oxide.Plugins
                     user.SendChatMessage(message, args);
             }
 
+            public void CreateInGameTeam()
+            {
+                List<User> activeMembers = GetAllActiveMembers().ToList();
+                BasePlayer firstMember = activeMembers.FirstOrDefault().Player;
+                RelationshipManager.PlayerTeam factionTeam = GetFactionPlayerTeam();
+                RelationshipManager.PlayerTeam firstTeam = GetOwnerPlayerTeam();
+                //If owner is online
+                if (firstTeam != null)
+                {
+                    //faction has no valid team
+                    if(firstTeam == null)
+                    {
+                        firstTeam = RelationshipManager.ServerInstance.CreateTeam();
+                        firstTeam.SetTeamLeader(firstMember.userID);
+                        firstTeam.AddPlayer(firstMember);
+                    }
+                    InGameTeamID = firstTeam.teamID;
+                    factionTeam = firstTeam;
+                }
+                //if faction team is null here, something went very wrong
+                if (factionTeam == null)
+                    return;
+                
+                //Remove all invalid players from the team
+                foreach(ulong teamMember in factionTeam.members)
+                {
+                    if(!MemberIds.Contains(teamMember.ToString()))
+                    {
+                        User user = Instance.Users.Get(teamMember.ToString());
+                        if (user)
+                            user.UpdateInGameTeam();
+                    }
+                }
+                
+                //Add all missing valid players to the team
+                foreach (User factionMember in activeMembers)
+                {
+                    if (!factionTeam.members.Contains(factionMember.Player.userID))
+                    {
+                        factionMember.UpdateInGameTeam();
+                    }
+                }
+            }
+
+            private RelationshipManager.PlayerTeam GetFactionPlayerTeam()
+            {
+                return RelationshipManager.ServerInstance.FindTeam(InGameTeamID);
+            }
+
+            private RelationshipManager.PlayerTeam GetOwnerPlayerTeam()
+            {
+                BasePlayer ownerPlayer = Instance.Users.Get(OwnerId).Player;
+                if (ownerPlayer == null)
+                    return null;
+                return RelationshipManager.ServerInstance.FindTeam(ownerPlayer.userID);
+            }
+
             public FactionInfo Serialize()
             {
                 return new FactionInfo
@@ -6131,6 +6194,7 @@ namespace Oxide.Plugins
                     ManagerIds = ManagerIds.ToArray(),
                     InviteIds = InviteIds.ToArray(),
                     Aggressors = Aggressors.ToArray(),
+                    InGameTeamID = InGameTeamID,
                     TaxRate = TaxRate,
                     TaxChestId = TaxChest?.net?.ID,
                     NextUpkeepPaymentTime = NextUpkeepPaymentTime,
@@ -6258,25 +6322,7 @@ namespace Oxide.Plugins
 
                 if (Instance.Options.Factions.OverrideInGameTeamSystem)
                 {
-                    if (owner.Player.currentTeam == 0UL)
-                    {
-                        RelationshipManager.PlayerTeam team = RelationshipManager.ServerInstance.CreateTeam();
-                        team.SetTeamLeader(owner.Player.userID);
-                        team.AddPlayer(owner.Player);
-                        faction.InGameTeamID = team.teamID;
-                    }
-                    else
-                    {
-                        RelationshipManager.PlayerTeam team = RelationshipManager.ServerInstance.FindTeam(owner.Player.currentTeam);
-                        foreach(ulong pid in team.members)
-                        {
-                            if(pid != owner.Player.userID)
-                            {
-                                team.RemovePlayer(pid);
-                            }
-                        }
-                        faction.InGameTeamID = owner.Player.currentTeam;
-                    }
+                    faction.CreateInGameTeam();
                 }
 
                 Factions.Add(id, faction);
@@ -6567,7 +6613,6 @@ namespace Oxide.Plugins
         {
             string OriginalName;
             Dictionary<string, DateTime> CommandCooldownExpirations;
-
             public BasePlayer Player { get; private set; }
             public UserMap Map { get; private set; }
             public UserHud Hud { get; private set; }
@@ -6712,74 +6757,26 @@ namespace Oxide.Plugins
 
             public void UpdateInGameTeam()
             {
-                RelationshipManager.PlayerTeam team;
-                RelationshipManager.PlayerTeam otherTeam;
-                if (Player == null)
-                    return;
-                //if not in faction and is in any team, leave it
-                if (Faction == null && Player.currentTeam != 0UL)
+                if(Player.currentTeam != 0UL)
                 {
-                    team = RelationshipManager.ServerInstance.FindTeam(Player.currentTeam);
-                    team.RemovePlayer(Player.userID);
-                    return;
-                }
-                //if faction owner
-                if(Faction != null && Faction.HasOwner(this))
-                {
-                    if(Player.currentTeam == 0UL)
+                    if(Player.currentTeam != Faction.InGameTeamID)
                     {
-                        team = RelationshipManager.ServerInstance.CreateTeam();
-                        team.teamLeader = Player.userID;
-                        team.AddPlayer(Player);
-                    }
-                    else
-                    {
-                        team = RelationshipManager.ServerInstance.FindTeam(Player.currentTeam);
-                    }
-                    //if already in a team
-                    List<User> allUsers = Instance.Users.GetAll().ToList();
-                    List<User> validTeammates = allUsers.FindAll(u => !team.members.Contains(u.Player.userID) && u.Faction == Faction);
-                    List<User> invalidTeammates = allUsers.FindAll(u => team.members.Contains(u.Player.userID) && u.Faction != Faction);
-                    foreach (User u in invalidTeammates)
-                    {
-                        if (u == this)
-                            continue;
-                        team.RemovePlayer(u.Player.userID);
-                        u.UpdateInGameTeam();
-                    }
-                    foreach (User u in validTeammates)
-                    {
-                        if (u == this)
-                            continue;
-                        if (u.Player.currentTeam != 0UL)
-                        {
-                            otherTeam = RelationshipManager.ServerInstance.FindTeam(u.Player.currentTeam);
-                            otherTeam.RemovePlayer(u.Player.userID);
-                        }
-                        team.AddPlayer(u.Player);
-                        u.UpdateInGameTeam();
-                    }
-                    return;
-                }
-                //if member of faction but not an owner
-                if(Faction != null && !Faction.HasOwner(this))
-                {
-                    User factionOwner = Instance.Users.Get(Faction.OwnerId);
-                    if (Player.currentTeam == factionOwner.Player.currentTeam)
-                        return;
-                    if (factionOwner.Player.currentTeam == 0UL)
-                    {
-                        factionOwner.UpdateInGameTeam();
+                        Player.Team.RemovePlayer(Player.userID);
                         return;
                     }
-                    else if(Player.currentTeam != 0UL)
+                }
+                if(Player.currentTeam == 0UL)
+                {
+                    if (Faction == null)
+                        return;
+                    RelationshipManager.PlayerTeam factionTeam;
+                    factionTeam = RelationshipManager.ServerInstance.FindTeam(Faction.InGameTeamID);
+                    if (factionTeam == null)
                     {
-                        otherTeam = RelationshipManager.ServerInstance.FindTeam(Player.currentTeam);
-                        otherTeam.RemovePlayer(Player.userID);
+                        Faction.CreateInGameTeam();
+                        return;
                     }
-                    team = RelationshipManager.ServerInstance.FindTeam(factionOwner.Player.currentTeam);
-                    team.AddPlayer(Player);
-                    return;
+                    factionTeam.AddPlayer(Player);
                 }
             }
 

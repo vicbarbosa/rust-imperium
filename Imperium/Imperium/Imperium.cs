@@ -3674,8 +3674,7 @@ namespace Oxide.Plugins
         {
             if (Instance.Options.Factions.OverrideInGameTeamSystem)
             {
-                if(Users.Get(player).Faction != null)
-                    return false;
+                return false;
             }
             return null;
         }
@@ -3684,8 +3683,7 @@ namespace Oxide.Plugins
         {
             if (Instance.Options.Factions.OverrideInGameTeamSystem)
             {
-                if (Users.Get(inviter).Faction != null)
-                    return false;
+                return false;
             }
             return null;
         }
@@ -3694,8 +3692,7 @@ namespace Oxide.Plugins
         {
             if (Instance.Options.Factions.OverrideInGameTeamSystem)
             {
-                if (Users.Get(newLeader).Faction != null)
-                    return false;
+                return false;
             }
             return null;
         }
@@ -3704,8 +3701,7 @@ namespace Oxide.Plugins
         {
             if (Instance.Options.Factions.OverrideInGameTeamSystem)
             {
-                if (Users.Get(player).Faction != null)
-                    return false;
+                return false;
             }
             return null;
         }
@@ -3714,15 +3710,13 @@ namespace Oxide.Plugins
         {
             if (Instance.Options.Factions.OverrideInGameTeamSystem)
             {
-                if (Users.Get(player).Faction != null)
-                    return false;
+               return false;
             }
             return null;
         }
 
         object OnTeamDisband(RelationshipManager.PlayerTeam team)
         {
-            Puts("OnTeamDisband works!");
             if (Instance.Options.Factions.OverrideInGameTeamSystem)
             {
                 return false;
@@ -6117,14 +6111,14 @@ namespace Oxide.Plugins
                     user.SendChatMessage(message, args);
             }
 
-            public void CreateInGameTeam()
+            public void CreateFactionTeam()
             {
                 Debug.LogWarning("Creating faction ingame team");
                 List<User> activeMembers = GetAllActiveMembers().ToList();
                 BasePlayer firstMember = activeMembers.FirstOrDefault().Player;
                 RelationshipManager.PlayerTeam factionTeam = GetFactionPlayerTeam();
                 RelationshipManager.PlayerTeam firstTeam = GetOwnerPlayerTeam();
-                //If owner is online
+                //If has any member online
                 if (firstMember != null)
                 {
                     //faction has no valid team
@@ -6137,7 +6131,7 @@ namespace Oxide.Plugins
                     InGameTeamID = firstTeam.teamID;
                     factionTeam = firstTeam;
                 }
-                //if faction team is null here, something went very wrong
+                //if faction team is still null here, something went very wrong.
                 if (factionTeam == null)
                     return;
                 
@@ -6148,7 +6142,7 @@ namespace Oxide.Plugins
                     {
                         User user = Instance.Users.Get(teamMember.ToString());
                         if (user)
-                            user.UpdateInGameTeam();
+                            user.EnsureIsInFactionTeam();
                     }
                 }
                 
@@ -6157,7 +6151,7 @@ namespace Oxide.Plugins
                 {
                     if (!factionTeam.members.Contains(factionMember.Player.userID))
                     {
-                        factionMember.UpdateInGameTeam();
+                        factionMember.EnsureIsInFactionTeam();
                     }
                 }
             }
@@ -6317,7 +6311,7 @@ namespace Oxide.Plugins
 
                 if (Instance.Options.Factions.OverrideInGameTeamSystem)
                 {
-                    faction.CreateInGameTeam();
+                    faction.CreateFactionTeam();
                 }
 
                 Events.OnFactionCreated(faction);
@@ -6656,6 +6650,7 @@ namespace Oxide.Plugins
             {
                 Map.Hide();
                 Hud.Hide();
+                Panel.Hide();
 
                 if (IsInvoking(nameof(UpdateHud))) CancelInvoke(nameof(UpdateHud));
                 if (IsInvoking(nameof(CheckArea))) CancelInvoke(nameof(CheckArea));
@@ -6673,7 +6668,7 @@ namespace Oxide.Plugins
                 else
                     Player.displayName = $"[{faction.Id}] {Player.displayName}";
                 if(Instance.Options.Factions.OverrideInGameTeamSystem)
-                    UpdateInGameTeam();
+                    Invoke("EnsureIsInFactionTeam",3f);
                 Player.SendNetworkUpdate();
             }
 
@@ -6748,29 +6743,27 @@ namespace Oxide.Plugins
 
             }
 
-            public void UpdateInGameTeam()
+            public void EnsureIsInFactionTeam()
             {
-                if(Player.currentTeam != 0UL)
+                if (Player.currentTeam != 0UL)
                 {
-                    if(Player.currentTeam != Faction.InGameTeamID)
+                    if (Faction == null || Player.currentTeam != Faction.InGameTeamID)
                     {
                         Player.Team.RemovePlayer(Player.userID);
-                        return;
+                        if (Faction == null)
+                            return;
                     }
+                    if (Player.currentTeam == Faction.InGameTeamID)
+                        return;
                 }
-                if(Player.currentTeam == 0UL)
+                RelationshipManager.PlayerTeam factionTeam;
+                factionTeam = RelationshipManager.ServerInstance.FindTeam(Faction.InGameTeamID);
+                if (factionTeam == null)
                 {
-                    if (Faction == null)
-                        return;
-                    RelationshipManager.PlayerTeam factionTeam;
-                    factionTeam = RelationshipManager.ServerInstance.FindTeam(Faction.InGameTeamID);
-                    if (factionTeam == null)
-                    {
-                        Faction.CreateInGameTeam();
-                        return;
-                    }
-                    factionTeam.AddPlayer(Player);
+                    Faction.CreateFactionTeam();
+                    return;
                 }
+                factionTeam.AddPlayer(Player);
             }
 
             void CheckZones()

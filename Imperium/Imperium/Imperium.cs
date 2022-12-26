@@ -3665,6 +3665,11 @@ namespace Oxide.Plugins
         {
             if (Instance.Options.Factions.OverrideInGameTeamSystem)
             {
+                User user = Instance.Users.Get(player);
+                if(user)
+                {
+                    user.SendChatMessage("You can't create a team. Say <color=#ffd479>/i</color> to create your faction");
+                }
                 return false;
             }
             return null;
@@ -5401,13 +5406,13 @@ namespace Oxide.Plugins
                                 marker.transform.position.Set(marker.transform.position.x, -100f, marker.transform.position.z);
                                 hqMarker = marker;
                                 hqMarker.enableSaving = false;
-                                
+                                hqMarker.appType = ProtoBuf.AppMarkerType.Player;
                                 hqMarker.Spawn();
 
                                 
 
                                 var markerTop = GameManager.server.CreateEntity(
-                            "assets/prefabs/tools/map/genericradiusmarker.prefab", tcPosition)
+                            "assets/prefabs/tools/map/genericradiusmarker.prefab")
                             as MapMarkerGenericRadius;
                                 markerTop.radius = 0.3f;
                                 markerTop.enableSaving = false;
@@ -5415,6 +5420,7 @@ namespace Oxide.Plugins
                                    colorPicker.GetColorForFaction(FactionId));
                                 markerTop.color2 = Color.black;
                                 markerTop.alpha = 0.75f;
+                                markerTop.SetParent(hqMarker);
                                 markerTop.Spawn();
                                 hqMarkerColor = markerTop;
 
@@ -8838,9 +8844,9 @@ namespace Oxide.Plugins
 
             [JsonProperty("overrideInGameTeamSystem")] public bool OverrideInGameTeamSystem = false;
 
-            [JsonProperty("memberSelfEcoRaidingDamageScale")] public float MemberOwnLandEcoRaidingDamageScale = 0f;
+            [JsonProperty("memberOwnLandEcoRaidingDamageScale")] public float MemberOwnLandEcoRaidingDamageScale = 0f;
 
-            [JsonProperty("memberSelfExplosiveRaidingDamageScale")] public float MemberOwnLandExplosiveRaidingDamageScale = 0f;
+            [JsonProperty("memberOwnLandExplosiveRaidingDamageScale")] public float MemberOwnLandExplosiveRaidingDamageScale = 0f;
 
             public static FactionOptions Default = new FactionOptions
             {
@@ -10517,21 +10523,12 @@ namespace Oxide.Plugins
                         auth = UIChatCommandDef.FactionAuth.Member,
                         authExclusive = false
                     },
-                    //faction leave
-                    new UIChatCommandDef()
-                    {
-                        category = "faction",
-                        displayName = "LEAVE",
-                        shortDescription = "Leave your current faction",
-                        command = "faction leave",
-                        auth = UIChatCommandDef.FactionAuth.Member,
-                        authExclusive = false
-                    },
+
                     //faction invite
                     new UIChatCommandDef()
                     {
                         category = "faction",
-                        displayName = "INVITE",
+                        displayName = "INVITE MEMBER",
                         shortDescription = "Invite a player to your faction. \nThe player must then accept with FACTION JOIN",
                         command = "faction invite",
                         auth = UIChatCommandDef.FactionAuth.Leader,
@@ -10550,7 +10547,7 @@ namespace Oxide.Plugins
                     new UIChatCommandDef()
                     {
                         category = "faction",
-                        displayName = "PROMOTE",
+                        displayName = "PROMOTE MEMBER",
                         shortDescription = "Promote a member to manager role",
                         command = "faction promote",
                         auth = UIChatCommandDef.FactionAuth.Leader,
@@ -10569,7 +10566,7 @@ namespace Oxide.Plugins
                     new UIChatCommandDef()
                     {
                         category = "faction",
-                        displayName = "DEMOTE",
+                        displayName = "DEMOTE MEMBER",
                         shortDescription = "Demote a manager to member role",
                         command = "faction demote",
                         auth = UIChatCommandDef.FactionAuth.Leader,
@@ -10588,7 +10585,7 @@ namespace Oxide.Plugins
                     new UIChatCommandDef()
                     {
                         category = "faction",
-                        displayName = "KICK",
+                        displayName = "KICK MEMBER",
                         shortDescription = "Kick a player from your faction",
                         command = "faction kick",
                         auth = UIChatCommandDef.FactionAuth.Leader,
@@ -10613,6 +10610,16 @@ namespace Oxide.Plugins
                         command = "faction badlands confirm",
                         auth = UIChatCommandDef.FactionAuth.Leader,
                         authExclusive = true
+                    },
+                    //faction leave
+                    new UIChatCommandDef()
+                    {
+                        category = "faction",
+                        displayName = "LEAVE",
+                        shortDescription = "Leave your current faction",
+                        command = "faction leave",
+                        auth = UIChatCommandDef.FactionAuth.Member,
+                        authExclusive = false
                     },
 
                     //faction disband forever
@@ -10730,10 +10737,19 @@ namespace Oxide.Plugins
                     {
                         category = "claim",
                         displayName = "CLAIM LIST",
-                        shortDescription = "Shows a list of areas claimed by your faction",
+                        shortDescription = "Shows a list of areas claimed by a faction",
                         command = "claim list",
                         auth = UIChatCommandDef.FactionAuth.Member,
-                        authExclusive = false
+                        authExclusive = false,
+                        args =
+                        {
+                            new UIChatCommandArg()
+                            {
+                                label = "Faction Name",
+                                description = "Target faction to check for claimed areas",
+                                isSubstring = false,
+                            }
+                        }
                     },
                     //claim upkeep
                     new UIChatCommandDef()
@@ -10746,12 +10762,55 @@ namespace Oxide.Plugins
                         authExclusive = false
                     },
 
+                    //claim assign
+                    new UIChatCommandDef()
+                    {
+                        category = "claim",
+                        displayName = "CLAIM ASSIGN (ADMIN)",
+                        shortDescription = "Assigns a land to a target faction. \nHit a tool cupboard with a hammer to complete the interaction",
+                        command = "claim assign",
+                        auth = UIChatCommandDef.FactionAuth.ServerAdmin,
+                        authExclusive = true,
+                        closesUI = true,
+                        args =
+                        {
+                            new UIChatCommandArg()
+                            {
+                                label = "Faction Name",
+                                description = "Target faction to assign the land to",
+                                isSubstring = false,
+                            }
+                        }
+                    },
+
+                    //claim delete
+                    new UIChatCommandDef()
+                    {
+                        category = "claim",
+                        displayName = "CLAIM DELETE (ADMIN)",
+                        shortDescription = "Deletes an existing land claim",
+                        command = "claim delete",
+                        auth = UIChatCommandDef.FactionAuth.ServerAdmin,
+                        authExclusive = true,
+                        args =
+                        {
+                            new UIChatCommandArg()
+                            {
+                                label = "Land coordinates [XY]",
+                                description = "The land to remove the current claim. (Example usage: C6)",
+                                isSubstring = false,
+                            }
+                        }
+                    },
+
+
+
                     //TAX
                     //tax chest
                     new UIChatCommandDef()
                     {
                         category = "tax",
-                        displayName = "SELECT TAX CHEST INTERACTION",
+                        displayName = "SELECT TAX CHEST",
                         shortDescription = "Select a tax chest for your faction. \nHit a chest with a hammer to complete the interaction",
                         command = "tax chest",
                         auth = UIChatCommandDef.FactionAuth.Leader,
@@ -10764,7 +10823,7 @@ namespace Oxide.Plugins
                     {
                         category = "tax",
                         displayName = "SET TAX PERCENTAGE",
-                        shortDescription = "Select a tax percentage for the current land. \nThis percentage will be taken from any resources gathered \nand automatically appear in your faction's Tax Chest",
+                        shortDescription = "Select your faction's tax percentage. \nThis percentage will be taken from any resources gathered \nand automatically appear in your faction's Tax Chest",
                         command = "tax rate",
                         auth = UIChatCommandDef.FactionAuth.Leader,
                         authExclusive = true,

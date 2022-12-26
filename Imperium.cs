@@ -99,7 +99,7 @@ namespace Oxide.Plugins
     using System.Linq;
 
 
-    [Info("Imperium", "chucklenugget/evict", "2.1.1")]
+    [Info("Imperium", "chucklenugget/evict", "2.1.2")]
     public partial class Imperium : RustPlugin
     {
 
@@ -10148,7 +10148,7 @@ namespace Oxide.Plugins
                 Area area = User.CurrentArea;
                 float xOff = Instance.Options.Hud.LeftPanelXOffset;
                 float yOff = Instance.Options.Hud.LeftPanelXOffset;
-                UI4 ui4 = new UI4(0.006f + xOff, 0.044f + yOff, 0.241f + xOff, 0.077f + yOff);
+                UI4 ui4 = new UI4(0.006f + xOff, 0.011f + yOff, 0.241f + xOff, 0.044f + yOff);
                 container.Add(new CuiPanel
                 {
                     Image = { Color = GetLeftPanelBackgroundColor() },
@@ -10157,7 +10157,7 @@ namespace Oxide.Plugins
 
                 xOff = Instance.Options.Hud.RightPanelXOffset;
                 yOff = Instance.Options.Hud.RightPanelYOffset;
-                ui4 = new UI4(0.759f + xOff, 0.044f + yOff, 0.994f + xOff, 0.077f + yOff);
+                ui4 = new UI4(0.759f + xOff, 0.011f + yOff, 0.994f + xOff, 0.044f + yOff);
 
                 if (Instance.Options.Hud.ShowEventsHUD)
                 {

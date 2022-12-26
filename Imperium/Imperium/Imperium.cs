@@ -25,7 +25,7 @@
  * 
  * THE QOL UPDATE
  * Integration with Clans Reborn
- * UI
+ * Integration with Friends
  * 
  * THE WAR UPDATE:
  * War option to require prior aggression
@@ -41,7 +41,7 @@
  * Imperium points 
  * Faction tags (town, comercial, hostile, raider)
  * Leader tags (warlord)
- * Citizen tags (active, farmer, roleplayer, soldier, killer, wanted, bounty hunter)
+ * Player roles
  * Faction missions
  * 
  * THE PVP UPDATE
@@ -54,13 +54,6 @@
  * - While a capture interaction is happening, if members of different factions are inside the circle, the flag is contested and progress is halted
  * - When controlling a monument, the controlling faction receives periodic items in its tax chest (Configurable per monument)
  * Bounty Hunters System
- * - Allow faction leaders to create bounty kiosk in their cities.
- * - Any member of that faction can place a bounty on players from other factions or without a faction. The bounty requester must pay scrap to place a bounty.
- * - Players can accept a bounty hunt if: They are in a faction, they are not
- * - The bounty amount accumulates globally
- * - If a wanted player is wounded or killed by a bounty hunter, the wanted player loses Imperium Points proportionally to the bounty
- * - The bounty hunter wins the right to claim the reward in any bounty kiosk
- * - While with wanted status, the wanted player passively receives reputation points while online
  * 
  * THE ARMY UPDATE:
  * Allow factions to recruit bots to fight for them
@@ -90,6 +83,7 @@
  * Add deny feedback
  * Add approval feedback
  * Change noob protection to minutes if > than 60
+ * UI with all essential commands
  */
 
 #region > Singleton
@@ -168,11 +162,7 @@ namespace Oxide.Plugins
                 PrintWarning("Land upgrading is not available in this Imperium version yet! Disabling it");
                 Options.Upgrading.Enabled = false;
             }
-            /*if (Options.Factions.AllowFactionBadlands)
-            {
-                PrintWarning("Faction badlands is not available in this Imperium version yet! Disabling it");
-                Options.Factions.AllowFactionBadlands = false;
-            }*/
+
             if (Options.Recruiting.Enabled)
             {
                 PrintWarning("Recruiting is not available in this Imperium version yet! Disabling it");
@@ -2128,7 +2118,7 @@ namespace Oxide.Plugins
                 user.SendChatMessage(Messages.AreaNotOwnedByYourFaction, area.Id);
                 return;
             }
-
+            
             PinType type;
             if (!Util.TryParseEnum(args[0], out type))
             {
@@ -3017,7 +3007,8 @@ namespace Oxide.Plugins
             }
             War war = Wars.DeclareWar(attacker, defender, user, cassusBelli);
             PrintToChat(Messages.WarDeclaredAnnouncement, war.AttackerId, war.DefenderId, war.CassusBelli);
-            Util.RunEffect(user.transform.position, "assets/prefabs/missions/effects/mission_accept.prefab");
+            if(!war.IsActive)
+                Util.RunEffect(user.transform.position, "assets/prefabs/missions/effects/mission_accept.prefab");
             Log(
                 $"{Util.Format(user)} declared war on faction {war.DefenderId} on behalf of {war.AttackerId} for reason: {war.CassusBelli}");
 
@@ -4219,6 +4210,7 @@ namespace Oxide.Plugins
 
             public const string SelectingCupboardFailedInvalidTarget = "You must select a tool cupboard.";
             public const string SelectingCupboardFailedNotAuthorized = "You must be authorized on the tool cupboard.";
+            public const string SelectingCupboardFailedCantUnclaimHeadquarters = "You must move your headquarters to another land first. Say <color=#ffd479>/claim hq</color> in another land";
 
             public const string SelectingCupboardFailedNotClaimCupboard =
                 "That tool cupboard doesn't represent an area claim made by your faction.";
@@ -4277,7 +4269,7 @@ namespace Oxide.Plugins
                 "It will cost <color=#ffd479>{0}</color> scrap per day to maintain the <color=#ffd479>{1}</color> areas claimed by <color=#ffd479>[{2}]</color>. Upkeep is due <color=#ffd479>{3}</color> hours from now.";
 
             public const string UpkeepCostOverdue =
-                "It will cost <color=#ffd479>{0}</color> scrap per day to maintain the <color=#ffd479>{1}</color> areas claimed by <color=#ffd479>[{2}]</color>. Your upkeep is <color=#ffd479>{3}</color> hours overdue! Fill your tax chest with scrap immediately, before your claims begin to fall into ruin.";
+                "It will cost <color=#ffd479>{0}</color> scrap per day to maintain the <color=#ffd479>{1}</color> areas claimed by <color=#ffd479>[{2}]</color>. Your upkeep is <color=#ffd479>{3}</color> hours overdue! Fill your Headquarters Cupboard with scrap immediately, before your claims begin to fall into ruin.";
             public const string SelectArmoryLocker =
                 "Use the hammer to select the locker to set as this land armory. Say <color=#ffd479>/cancel</color> to cancel.";
 
@@ -4412,7 +4404,7 @@ namespace Oxide.Plugins
                 "<color=#ff0000>AREA CLAIM LOST:</color> <color=#ffd479>[{0}]</color> has been disbanded, losing its claim on <color=#ffd479>{1}</color>!";
 
             public const string AreaClaimLostUpkeepNotPaidAnnouncement =
-                "<color=#ff0000>AREA CLAIM LOST:</color>: <color=#ffd479>[{0}]</color> has lost their claim on <color=#ffd479>{1}</color> after it fell into ruin!";
+                "<color=#ff0000>AREA CLAIM LOST:</color>: <color=#ffd479>[{0}]</color> has lost their claim on <color=#ffd479>{1}</color> after it fell into ruin! Tool Cupboard destroyed!";
 
             public const string HeadquartersChangedAnnouncement =
                 "<color=#00ff00>HQ CHANGED:</color> The headquarters of <color=#ffd479>[{0}]</color> is now <color=#ffd479>{1}</color>.";
@@ -4782,12 +4774,16 @@ namespace Oxide.Plugins
                 {
                     if (!attacker.Faction.HasLeader(attacker) && (!area.IsWarZone && !area.IsHostile))
                     {
-                        if(hit.damageTypes.Has(Rust.DamageType.Explosion) || hit.damageTypes.Has(Rust.DamageType.Heat))
+                        if (hit.HitEntity.OwnerID == attacker.Player.userID)
                         {
-                            hit.damageTypes.ScaleAll(Instance.Options.Factions.MemberSelfExplosiveRaidingDamageScale);
                             return null;
                         }
-                        hit.damageTypes.ScaleAll(Instance.Options.Factions.MemberSelfEcoRaidingDamageScale);
+                        if(hit.damageTypes.Has(Rust.DamageType.Explosion) || hit.damageTypes.Has(Rust.DamageType.Heat))
+                        {
+                            hit.damageTypes.ScaleAll(Instance.Options.Factions.MemberOwnLandExplosiveRaidingDamageScale);
+                            return null;
+                        }
+                        hit.damageTypes.ScaleAll(Instance.Options.Factions.MemberOwnLandEcoRaidingDamageScale);
                         return null;
                     }
                     return null;
@@ -5038,6 +5034,7 @@ namespace Oxide.Plugins
     using System;
     using System.Collections.Generic;
     using System.Linq;
+    using UnityEngine;
 
     public partial class Imperium
     {
@@ -5084,6 +5081,7 @@ namespace Oxide.Plugins
                     {
                         faction.NextUpkeepPaymentTime =
                             faction.NextUpkeepPaymentTime.AddHours(Instance.Options.Upkeep.CollectionPeriodHours);
+                        
                         faction.IsUpkeepPastDue = false;
                         Instance.Log(
                             $"[UPKEEP] {faction.Id}: {amountOwed} scrap upkeep collected, next payment due {faction.NextUpkeepPaymentTime}");
@@ -5099,14 +5097,23 @@ namespace Oxide.Plugins
                         $"[UPKEEP] {faction.Id}: Couldn't collect upkeep, but still within {Instance.Options.Upkeep.GracePeriodHours} hour grace period");
                     return;
                 }
+                Area lostArea = null;
+                Area[] NonHQAreas = areas.Where(a => a.Type != AreaType.Headquarters).ToArray();
+                if(NonHQAreas.Length > 0)
+                {
+                    lostArea = NonHQAreas.OrderBy(area => Instance.Areas.GetDepthInsideFriendlyTerritory(area)).First();
+                }
+                
 
-                Area lostArea = areas.OrderBy(area => Instance.Areas.GetDepthInsideFriendlyTerritory(area)).First();
-
+                if (lostArea == null)
+                    lostArea = headquarters;
                 Instance.Log(
                     $"[UPKEEP] {faction.Id}: Upkeep not paid in {hoursSincePaid} hours, seizing claim on {lostArea.Id}");
                 Instance.PrintToChat(Messages.AreaClaimLostUpkeepNotPaidAnnouncement, faction.Id, lostArea.Id);
-
+                BuildingPrivlidge cupboard = lostArea.ClaimCupboard;
                 Instance.Areas.Unclaim(lostArea);
+                if (cupboard)
+                    cupboard.Kill(BaseNetworkable.DestroyMode.Gib);
             }
         }
     }
@@ -5138,6 +5145,8 @@ namespace Oxide.Plugins
             public Locker ArmoryLocker { get; set; }
             public int Level { get; set; }
             public MapMarkerGenericRadius mapMarker;
+            public VendingMachineMapMarker hqMarker;
+            public MapMarkerGenericRadius hqMarkerColor;
             public BaseEntity textMarker;
             public bool IsClaimed
             {
@@ -5326,6 +5335,21 @@ namespace Oxide.Plugins
             public void UpdateAreaMarker(FactionColorPicker colorPicker)
             {
                 bool markerExists = true;
+                if (Type != AreaType.Headquarters)
+                {
+                    if (hqMarker != null)
+                    {
+                        hqMarker.Kill();
+                        hqMarker = null;
+                    }
+                        
+                    if (hqMarkerColor != null)
+                    {
+                        hqMarkerColor.Kill();
+                        hqMarkerColor = null;
+                    }
+                        
+                }
                 if (Type == AreaType.Wilderness)
                 {
                     if (mapMarker != null)
@@ -5341,6 +5365,7 @@ namespace Oxide.Plugins
                             "assets/prefabs/tools/map/genericradiusmarker.prefab", transform.position)
                             as MapMarkerGenericRadius;
                         marker.radius = markerRadius;
+                        marker.enableSaving = false;
                         mapMarker = marker;
                     }
 
@@ -5363,6 +5388,42 @@ namespace Oxide.Plugins
                         if (!markerExists)
                             mapMarker.Spawn();
                         mapMarker.SendUpdate();
+
+                        if(hqMarker == null)
+                        {
+                            if(ClaimCupboard)
+                            {
+                                Vector3 tcPosition = ClaimCupboard.transform.position;
+                                var marker = GameManager.server.CreateEntity(
+                                "assets/prefabs/deployable/vendingmachine/vending_mapmarker.prefab", tcPosition)
+                                as VendingMachineMapMarker;
+                                marker.markerShopName = FactionId + " Headquarters";
+                                marker.transform.position.Set(marker.transform.position.x, -100f, marker.transform.position.z);
+                                hqMarker = marker;
+                                hqMarker.enableSaving = false;
+                                
+                                hqMarker.Spawn();
+
+                                
+
+                                var markerTop = GameManager.server.CreateEntity(
+                            "assets/prefabs/tools/map/genericradiusmarker.prefab", tcPosition)
+                            as MapMarkerGenericRadius;
+                                markerTop.radius = 0.3f;
+                                markerTop.enableSaving = false;
+                                markerTop.color1 = Util.ConvertSystemToUnityColor(
+                                   colorPicker.GetColorForFaction(FactionId));
+                                markerTop.color2 = Color.black;
+                                markerTop.alpha = 0.75f;
+                                markerTop.Spawn();
+                                hqMarkerColor = markerTop;
+
+                                hqMarker.SendNetworkUpdate();
+                                markerTop.SendUpdate();
+
+                            }
+                       
+                        }
                     }
                     if (Type == AreaType.Badlands)
                     {
@@ -5756,7 +5817,6 @@ namespace Oxide.Plugins
 
                     depth[3]++;
                 }
-
                 return depth.Min() - 1;
             }
 
@@ -5835,8 +5895,24 @@ namespace Oxide.Plugins
                 Area[] AllAreas = GetAll();
                 foreach (Area area in AllAreas)
                 {
-                    if(area.mapMarker != null)
+                    if (area.mapMarker != null)
+                    {
                         area.mapMarker.Kill();
+                        area.mapMarker = null;
+                    }
+                        
+                    if (area.hqMarker != null)
+                    {
+                        area.hqMarker.Kill();
+                        area.hqMarker = null;
+                    }
+                        
+                    if (area.hqMarkerColor != null)
+                    {
+                        area.hqMarkerColor.Kill();
+                        area.hqMarkerColor = null;
+                    }
+                        
                 }
             }
         }
@@ -6113,7 +6189,6 @@ namespace Oxide.Plugins
 
             public void CreateFactionTeam()
             {
-                Debug.LogWarning("Creating faction ingame team");
                 List<User> activeMembers = GetAllActiveMembers().ToList();
                 BasePlayer firstMember = activeMembers.FirstOrDefault().Player;
                 RelationshipManager.PlayerTeam factionTeam = GetFactionPlayerTeam();
@@ -7203,6 +7278,10 @@ namespace Oxide.Plugins
                 var war = new War(attacker, defender, user, cassusBelli);
                 Wars.Add(war);
                 Instance.OnDiplomacyChanged();
+                if(war.IsActive)
+                {
+                    Util.BroadcastEffect("assets/prefabs/missions/effects/mission_accept.prefab");
+                }
                 return war;
             }
 
@@ -7232,6 +7311,10 @@ namespace Oxide.Plugins
             {
                 war.AdminApproved = true;
                 Instance.OnDiplomacyChanged();
+                if (war.IsActive)
+                {
+                    Util.BroadcastEffect("assets/prefabs/missions/effects/mission_accept.prefab");
+                }
             }
 
             public void AdminDenyeWar(War war)
@@ -7244,6 +7327,10 @@ namespace Oxide.Plugins
             {
                 war.DefenderApproved = true;
                 Instance.OnDiplomacyChanged();
+                if (war.IsActive)
+                {
+                    Util.BroadcastEffect("assets/prefabs/missions/effects/mission_accept.prefab");
+                }
             }
 
             public void DefenderDenyWar(War war)
@@ -7297,7 +7384,6 @@ namespace Oxide.Plugins
 
                 Instance.Puts("Wars loaded.");
             }
-
             public void Destroy()
             {
                 Wars.Clear();
@@ -8216,6 +8302,24 @@ namespace Oxide.Plugins
                 }
             }
 
+            public static void BroadcastEffect(string prefab)
+            {
+                Vector3 position;
+                BasePlayer player;
+                foreach(User user in Instance.Users.GetAll())
+                {
+                    player = user.Player;
+                    position = user.transform.position;
+                    if(player)
+                    {
+                        var effect = new Effect();
+                        effect.Init(Effect.Type.Generic, position, Vector3.zero);
+                        effect.pooledString = prefab;
+                        EffectNetwork.Send(effect, player.net.connection);
+                    }
+                }
+            }
+
             public static int GetSecondsBetween(DateTime start, DateTime end)
             {
                 return (int)(start - end).TotalSeconds;
@@ -8416,6 +8520,7 @@ namespace Oxide.Plugins
 
 namespace Oxide.Plugins
 {
+    using System.Linq;
     public partial class Imperium
     {
         class RemovingClaimInteraction : Interaction
@@ -8430,7 +8535,7 @@ namespace Oxide.Plugins
             public override bool TryComplete(HitInfo hit)
             {
                 var cupboard = hit.HitEntity as BuildingPrivlidge;
-
+                var fAreas = Instance.Areas.GetAllClaimedByFaction(Faction).ToList();
                 if (!Instance.EnsureUserCanChangeFactionClaims(User, Faction) ||
                     !Instance.EnsureCupboardCanBeUsedForClaim(User, cupboard))
                     return false;
@@ -8440,6 +8545,14 @@ namespace Oxide.Plugins
                 if (area == null)
                 {
                     User.SendChatMessage(Messages.SelectingCupboardFailedNotClaimCupboard);
+                    return false;
+                }
+
+                
+
+                if (fAreas.Count > 1 && area.Type == AreaType.Headquarters)
+                {
+                    User.SendChatMessage(Messages.SelectingCupboardFailedCantUnclaimHeadquarters);
                     return false;
                 }
 
@@ -8562,6 +8675,7 @@ namespace Oxide.Plugins
 
 namespace Oxide.Plugins
 {
+    using System.Linq;
     public partial class Imperium
     {
         class TransferringClaimInteraction : Interaction
@@ -8578,7 +8692,7 @@ namespace Oxide.Plugins
             public override bool TryComplete(HitInfo hit)
             {
                 var cupboard = hit.HitEntity as BuildingPrivlidge;
-
+                var fAreas = Instance.Areas.GetAllClaimedByFaction(SourceFaction).ToList();
                 if (!Instance.EnsureUserCanChangeFactionClaims(User, SourceFaction) ||
                     !Instance.EnsureCupboardCanBeUsedForClaim(User, cupboard))
                     return false;
@@ -8599,6 +8713,14 @@ namespace Oxide.Plugins
 
                 if (!Instance.EnsureFactionCanClaimArea(User, TargetFaction, area))
                     return false;
+
+                
+
+                if (fAreas.Count > 1 && area.Type == AreaType.Headquarters)
+                {
+                    User.SendChatMessage(Messages.SelectingCupboardFailedCantUnclaimHeadquarters);
+                    return false;
+                }
 
                 Area[] claimedAreas = Instance.Areas.GetAllClaimedByFaction(TargetFaction);
                 AreaType type = (claimedAreas.Length == 0) ? AreaType.Headquarters : AreaType.Claimed;
@@ -8663,12 +8785,12 @@ namespace Oxide.Plugins
             public static ClaimOptions Default = new ClaimOptions
             {
                 Enabled = true,
-                Costs = new List<int> { 0, 100, 200, 300, 400, 500 },
+                Costs = new List<int> { 50, 100, 200, 300, 400, 500 },
                 MaxClaims = null,
                 MinAreaNameLength = 3,
                 MaxAreaNameLength = 20,
                 MinFactionMembers = 1,
-                RequireContiguousClaims = false
+                RequireContiguousClaims = true
             };
         }
     }
@@ -8716,9 +8838,9 @@ namespace Oxide.Plugins
 
             [JsonProperty("overrideInGameTeamSystem")] public bool OverrideInGameTeamSystem = false;
 
-            [JsonProperty("memberSelfEcoRaidingDamageScale")] public float MemberSelfEcoRaidingDamageScale = 1f;
+            [JsonProperty("memberSelfEcoRaidingDamageScale")] public float MemberOwnLandEcoRaidingDamageScale = 0f;
 
-            [JsonProperty("memberSelfExplosiveRaidingDamageScale")] public float MemberSelfExplosiveRaidingDamageScale = 1f;
+            [JsonProperty("memberSelfExplosiveRaidingDamageScale")] public float MemberOwnLandExplosiveRaidingDamageScale = 0f;
 
             public static FactionOptions Default = new FactionOptions
             {
@@ -8728,8 +8850,8 @@ namespace Oxide.Plugins
                 AllowFactionBadlands = false,
                 CommandCooldownSeconds = 300,
                 OverrideInGameTeamSystem = false,
-                MemberSelfEcoRaidingDamageScale = 0.2f,
-                MemberSelfExplosiveRaidingDamageScale = 0f
+                MemberOwnLandEcoRaidingDamageScale = 0.2f,
+                MemberOwnLandExplosiveRaidingDamageScale = 0f
             };
 
             
@@ -8756,7 +8878,7 @@ namespace Oxide.Plugins
 
             public static UpgradingOptions Default = new UpgradingOptions
             {
-                Enabled = true,
+                Enabled = false,
                 MaxUpgradeLevel = 10,
                 MaxProduceBonus = 0.5f,
                 MaxTaxChestBonus = 1f,
@@ -9935,10 +10057,10 @@ namespace Oxide.Plugins
                 //public const string BackgroundNormal = "1 0.95 0.875 0.075";
                 public const string BackgroundNormal = "0 0 0 0.5";
                 public const string BackgroundDanger = "0.77 0.25 0.17 0.75";
-                public const string BackgroundSafe = "0.31 0.37 0.20 0.75";
+                public const string BackgroundSafe = "0.44 0.54 0.26 1";
                 public const string TextNormal = "0.85 0.85 0.85 1";
                 public const string TextDanger = "0.85 0.65 0.65 1";
-                public const string TextSafe = "0.67 0.89 0.32 1";
+                public const string TextSafe = "1 1 1 1";
             }
 
             public User User { get; }
@@ -10066,18 +10188,24 @@ namespace Oxide.Plugins
                 
 
                 bool claimUpkeepPastDue = Instance.Options.Upkeep.Enabled && User.Faction != null &&
-                                          User.Faction.IsUpkeepPastDue;
+                                          User.Faction.IsUpkeepPastDue && Instance.Areas.GetAllClaimedByFaction(User.Faction.Id).Length > 0;
                 if (User.IsInPvpMode || claimUpkeepPastDue)
                 {
-                    container.Add(new CuiPanel
+                    CuiPanel panel = new CuiPanel
                     {
                         Image = { Color = PanelColor.BackgroundDanger },
                         RectTransform = { AnchorMin = "0.759 0.911", AnchorMax = "0.994 0.944" }
-                    }, UI.Element.Hud, UI.Element.HudPanelWarning);
+                    };
+                    if(!Instance.Options.Map.ShowEventsHUD)
+                    {
+                        panel.RectTransform.AnchorMin = "0.759 0.956";
+                        panel.RectTransform.AnchorMax = "0.994 0.989";
+                    }
+                    container.Add(panel, UI.Element.Hud, UI.Element.HudPanelWarning);
 
                     if (claimUpkeepPastDue)
                         AddWidget(container, UI.Element.HudPanelWarning, UI.HudIcon.Ruins, PanelColor.TextDanger,
-                            "Claim upkeep past due!");
+                            "Claim upkeep past due! (" + User.Faction.GetUpkeepPerPeriod()  + " scrap)");
                     else
                         AddWidget(container, UI.Element.HudPanelWarning, UI.HudIcon.PvpMode, PanelColor.TextDanger,
                             "PVP mode enabled");
@@ -10210,6 +10338,8 @@ namespace Oxide.Plugins
                     case AreaType.Headquarters:
                         return Instance.Options.Pvp.AllowedInClaimedLand
                             ? PanelColor.BackgroundDanger
+                            : area.FactionId == User.Faction.Id
+                            ? PanelColor.BackgroundSafe
                             : PanelColor.BackgroundNormal;
                     default:
                         return Instance.Options.Pvp.AllowedInWilderness
@@ -10235,8 +10365,24 @@ namespace Oxide.Plugins
 
                 if (area.IsWarZone || area.Type == AreaType.Badlands)
                     return PanelColor.TextDanger;
-                else
-                    return PanelColor.TextNormal;
+                switch (area.Type)
+                {
+                    case AreaType.Badlands:
+                        return Instance.Options.Pvp.AllowedInBadlands
+                            ? PanelColor.TextDanger
+                            : PanelColor.TextNormal;
+                    case AreaType.Claimed:
+                    case AreaType.Headquarters:
+                        return Instance.Options.Pvp.AllowedInClaimedLand
+                            ? PanelColor.TextDanger
+                            : area.FactionId == User.Faction.Id
+                            ? PanelColor.TextSafe
+                            : PanelColor.TextNormal;
+                    default:
+                        return Instance.Options.Pvp.AllowedInWilderness
+                            ? PanelColor.TextDanger
+                            : PanelColor.TextNormal;
+                }
             }
 
             void AddWidget(CuiElementContainer container, string parent, string iconName, string textColor, string text,
@@ -10649,7 +10795,8 @@ namespace Oxide.Plugins
                     {
                         category = "war",
                         displayName = "DECLARE WAR",
-                        shortDescription = "Declare war against an enemy faction \nwith a given reason.",
+                        shortDescription = "Declare war against an enemy faction \nwith a given reason.\nCost to declare war is " + 
+                            Instance.Options.War.DeclarationCost + " scrap",
                         command = "war declare",
                         auth = UIChatCommandDef.FactionAuth.Leader,
                         authExclusive = true,
@@ -10664,7 +10811,7 @@ namespace Oxide.Plugins
                             new UIChatCommandArg()
                             {
                                 label = "Reason",
-                                description = "The reason of the war declaration",
+                                description = "The reason behind the war declaration",
                                 isSubstring = true,
                             }
                         }
@@ -10979,7 +11126,6 @@ namespace Oxide.Plugins
                     new UI4(0f, sy, 1f, sy + 0.1f),
                     TextAnchor.UpperLeft);
                 sy += SPACING + 0.1f;
-                Debug.LogWarning(selectedCommand.shortDescription);
 
                 if (selectedCommand.args.Count > 0)
                 {

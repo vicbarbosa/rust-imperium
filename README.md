@@ -1,4 +1,4 @@
-**READ BEFORE UPDATING TO 2.0.0**
+**READ BEFORE UPDATING TO 2.x.x**
 
 Old configs and data are not compatible with this version, do not update mid wipe without backing and then wiping your config and data files.
 
@@ -14,6 +14,8 @@ Imperium is extremely configurable, leading to a wide range of game modes. Here 
 * Create a server similar to PVE-Conflict in Conan Exiles, where player structures can't be raided but PVP is allowed everywhere.
 * Create a more traditional PVP server, but factions can claim land and have to declare war on one another in order to raid.
 
+
+
 ## Permissions
 
 * `imperium.factions.admin`
@@ -23,8 +25,9 @@ Imperium is extremely configurable, leading to a wide range of game modes. Here 
 * `imperium.factions`
 ## Chat Commands
 **Commons**
+*`/i` Opens the Imperium UI with all the actions needed
 * `/help` Show Imperium plugin help
-* `/map` Show Imperium map
+* `/map` Show Imperium map (The territories info also shows on the in-game map so this is not needed)
 * `/pvp` Toggle pvp on and off (Can hurt only other players with pvp mode on)
 
 **Creating and managing factions**
@@ -66,23 +69,22 @@ For players
 * `/war end FACTION_NAME` Ask (or accept) to end the war with the specified faction
 * `/war help` Show help about the war command
 
-## What's new in 2.0.0?
-**Fixes:**
-* Land areas will now correctly align with the in-game map grid
-* Plugin now uses icons from /data/ImperiumImages. Download [this image pack](https://github.com/vicbarbosa/rust-imperium-images/archive/refs/heads/master.zip) and put ImperiumImages folder inside your server's data folder and everything should work.
+## Configuration
+
+* The Plugin uses icons from /data/ImperiumImages folder. Download [this image pack](https://github.com/vicbarbosa/rust-imperium-images/archive/refs/heads/master.zip) and put ImperiumImages folder inside your server's data folder and everything should work.
+
+TODO: Complete configuration documentation and demonstrative video.
+
+## What's new in 2.1.0?
 
 **New features**
-* Claimed areas now show in the in-game map as colored circles.
-* Support for underground badlands (to allow pvp inside tunnels and underwater labs)
-* Option for faction leaders to decide if their own land allows unrestricted pvp with `/faction badlands` command
-* Land upgrading. Leaders and Managers can upgrade land level to increase bonuses in that land with `/upgrade land` command
-* War option to require admins to approve or deny wars with in-game commands `/war admin approve`, `/war admin deny` and `/war admin pending`
-* War option to allow Shop Front peace: If leaders from both enemy factions perform any trade in a shop front, the war will be over
-* War option to require defenders to approve or deny wars with in-game commands  `/war approve`, `/war deny` and `/war pending`
-* War option to require scrap payment to declare war (To discourage pointless wars)
-* War option to protect noob factions from wars. Default value is 24 hours (86400 seconds)
-* War option to require defender members online in order to declare war (To discourage offline raiding)
-* MapGridYOffset parameter to adjust the vertical land grid (This is a hacky solution to fix some cases where the land is generated with a offset of 1 grid). The number you set in this property will be the number of grids to offset upwards
+* Fully functional UI so your players don't have to endlesly type commands anymore! Just type /i in chat. Admin commands are also available in the UI for server admins. (If the buttons don't show for your admins)
+* Option to allow only the owner and managers to deal damage to structures in their own land (while not at war) to prevent members griefing buildings. (Members can still damage any entities they placed themselves)
+* Option to allow Imperium to manage in-game team system. It will automatically update players teams to match the faction's member list. This also increases the max in-game team size to 128 so you can have huge factions.
+* In-game map overlay improved. Now shows a marker for each faction's headquarters tool cupboard.
+* Added sound effects when important actions happen (Create faction, declare war and so on)
+
+Please report any bugs in the support section.
 
 **WORK IN PROGRESS**
 
@@ -95,17 +97,15 @@ Some config options already exists but they don't do anything for now because I'
 *`recruiting enabled`
 
 **Features planned for the future**
-Allied bot recruiting, procedural storytellying, land passive resource produce with specific resources per type of land, optional Faction Karma system to encourage roleplaying and other interesting conflicts.
+Allied bot recruiting, player roles, monument conquest, wipe day world war, faction and player reputation system, integration with Clans Reborn, Friends, Server Rewards, Economics, BotRespawn, Raidable Bases and much more!
 
 **KNOWN ISSUES**
 * Configs from previous versions are not compatible
 * Data from previous versions are not compatible
-* The plugin might spam a OnEntityTakeDamage error when you first start the server. If this happens just run oxide.reload Imperium and everything should work
-
-[Donations ](https://www.paypal.com/donate/?token=kS3ubEttzXAW5nN07ZuubIvdge3i2pj7zSM2YzaCd9mj_oFI6JQikZi72Wtfe1u7HUnKY3DoUsQRjvjH&locale.x=US) are appreciated, but never required.
+* The plugin might spam an OnEntityTakeDamage error when you first start the server. If this happens just run oxide.reload Imperium and everything should go back to normal
 
 ## Credits
 - **chucklenugget**, the original author of this plugin 
 - **Orange**, the previous maintainer
 - Huge thanks to the authors of Zone Manager, Lusty Map and Dynamic PVP, which inspired and guided my work on Imperium. Also a huge thanks to Disconnect and Gamegeared, the admins of The Lost Isles and Rust Factions, who contributed countless ideas to Imperium and were patient as I shook out the bugs.
-- Special thanks to 2022 testers Danilão and AguaRaiss
+- Special thanks to 2.x.x testers Danilão and AguaRaiss

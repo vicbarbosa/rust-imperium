@@ -99,7 +99,7 @@ namespace Oxide.Plugins
     using System.Linq;
 
 
-    [Info("Imperium", "chucklenugget/evict", "2.1.0")]
+    [Info("Imperium", "chucklenugget/evict", "2.1.1")]
     public partial class Imperium : RustPlugin
     {
 
@@ -6837,6 +6837,8 @@ namespace Oxide.Plugins
                     if (Player.currentTeam == Faction.InGameTeamID)
                         return;
                 }
+                if (Player.currentTeam == 0UL && Faction == null)
+                    return;
                 RelationshipManager.PlayerTeam factionTeam;
                 factionTeam = RelationshipManager.ServerInstance.FindTeam(Faction.InGameTeamID);
                 if (factionTeam == null)
@@ -8873,7 +8875,7 @@ namespace Oxide.Plugins
     {
         class UpgradingOptions
         {
-            [JsonProperty("enabled")] public bool Enabled = false;
+            [JsonProperty("enabled [THIS IS NOT AVAILABLE YET]")] public bool Enabled = false;
             [JsonProperty("maxUpgradeLevel")] public int MaxUpgradeLevel = 10;
             [JsonProperty("maxProduceBonus")] public float MaxProduceBonus = 0.5f;
             [JsonProperty("maxTaxChestBonus")] public float MaxTaxChestBonus = 1f;
@@ -8905,7 +8907,6 @@ namespace Oxide.Plugins
     {
         class MapOptions
         {
-            [JsonProperty("showEventsHUD")] public bool ShowEventsHUD;
 
             [JsonProperty("mapGridYOffset")] public int MapGridYOffset;
 
@@ -8928,7 +8929,6 @@ namespace Oxide.Plugins
 
             public static MapOptions Default = new MapOptions
             {
-                ShowEventsHUD = true,
                 MapGridYOffset = 0,
                 PinsEnabled = true,
                 MinPinNameLength = 2,
@@ -8959,6 +8959,8 @@ namespace Oxide.Plugins
 
             [JsonProperty("factions")] public FactionOptions Factions = new FactionOptions();
 
+            [JsonProperty("hud")] public HudOptions Hud = new HudOptions();
+
             [JsonProperty("map")] public MapOptions Map = new MapOptions();
 
             [JsonProperty("pvp")] public PvpOptions Pvp = new PvpOptions();
@@ -8983,6 +8985,7 @@ namespace Oxide.Plugins
                 Claims = ClaimOptions.Default,
                 Decay = DecayOptions.Default,
                 Factions = FactionOptions.Default,
+                Hud = HudOptions.Default,
                 Map = MapOptions.Default,
                 Pvp = PvpOptions.Default,
                 Raiding = RaidingOptions.Default,
@@ -9120,11 +9123,37 @@ namespace Oxide.Plugins
     {
         class RecruitingOptions
         {
-            [JsonProperty("enabled")] public bool Enabled;
+            [JsonProperty("enabled [THIS IS NOT AVAILABLE YET]")] public bool Enabled;
 
             public static RecruitingOptions Default = new RecruitingOptions
             {
                 Enabled = false
+            };
+        }
+    }
+}
+
+namespace Oxide.Plugins
+{
+    using Newtonsoft.Json;
+
+    public partial class Imperium : RustPlugin
+    {
+        class HudOptions
+        {
+            [JsonProperty("showEventsHud")] public bool ShowEventsHUD;
+            [JsonProperty("leftPanelXOffset")] public float LeftPanelXOffset = 0f;
+            [JsonProperty("leftPanelYOffset")] public float LeftPanelYOffset = 0f;
+            [JsonProperty("rightPanelXOffset")] public float RightPanelXOffset = 0f;
+            [JsonProperty("rightPanelYOffset")] public float RightPanelYOffset = 0f;
+
+            public static HudOptions Default = new HudOptions
+            {
+                ShowEventsHUD = true,
+                LeftPanelXOffset = 0f,
+                LeftPanelYOffset = 0f,
+                RightPanelXOffset = 0f,
+                RightPanelYOffset = 0f
             };
         }
     }
@@ -10117,19 +10146,25 @@ namespace Oxide.Plugins
                 var container = new CuiElementContainer();
 
                 Area area = User.CurrentArea;
-
+                float xOff = Instance.Options.Hud.LeftPanelXOffset;
+                float yOff = Instance.Options.Hud.LeftPanelXOffset;
+                UI4 ui4 = new UI4(0.006f + xOff, 0.044f + yOff, 0.241f + xOff, 0.077f + yOff);
                 container.Add(new CuiPanel
                 {
                     Image = { Color = GetLeftPanelBackgroundColor() },
-                    RectTransform = { AnchorMin = "0.006 0.956", AnchorMax = "0.241 0.989" }
+                    RectTransform = { AnchorMin = ui4.GetMin(), AnchorMax = ui4.GetMax() }
                 }, UI.Element.Hud, UI.Element.HudPanelLeft);
 
-                if(Instance.Options.Map.ShowEventsHUD)
+                xOff = Instance.Options.Hud.RightPanelXOffset;
+                yOff = Instance.Options.Hud.RightPanelYOffset;
+                ui4 = new UI4(0.759f + xOff, 0.044f + yOff, 0.994f + xOff, 0.077f + yOff);
+
+                if (Instance.Options.Hud.ShowEventsHUD)
                 {
                     container.Add(new CuiPanel
                     {
                         Image = { Color = PanelColor.BackgroundNormal },
-                        RectTransform = { AnchorMin = "0.759 0.956", AnchorMax = "0.994 0.989" }
+                        RectTransform = { AnchorMin = ui4.GetMin(), AnchorMax = ui4.GetMax() }
                     }, UI.Element.Hud, UI.Element.HudPanelRight);
                 }
                 AddWidget(container, UI.Element.HudPanelLeft, GetLocationIcon(), GetLeftPanelTextColor(),
@@ -10157,7 +10192,7 @@ namespace Oxide.Plugins
                     }
                 }
                 
-                if(Instance.Options.Map.ShowEventsHUD)
+                if(Instance.Options.Hud.ShowEventsHUD)
                 {
                     string planeIcon = Instance.Hud.GameEvents.IsCargoPlaneActive
                     ? UI.HudIcon.CargoPlaneIndicatorOn
@@ -10197,16 +10232,17 @@ namespace Oxide.Plugins
                                           User.Faction.IsUpkeepPastDue && Instance.Areas.GetAllClaimedByFaction(User.Faction.Id).Length > 0;
                 if (User.IsInPvpMode || claimUpkeepPastDue)
                 {
+                    if (Instance.Options.Hud.ShowEventsHUD)
+                    {
+                        ui4.yMin += 0.045f;
+                        ui4.yMax += 0.045f;
+                    }
                     CuiPanel panel = new CuiPanel
                     {
                         Image = { Color = PanelColor.BackgroundDanger },
-                        RectTransform = { AnchorMin = "0.759 0.911", AnchorMax = "0.994 0.944" }
+                        RectTransform = { AnchorMin = ui4.GetMin(), AnchorMax = ui4.GetMax() }
                     };
-                    if(!Instance.Options.Map.ShowEventsHUD)
-                    {
-                        panel.RectTransform.AnchorMin = "0.759 0.956";
-                        panel.RectTransform.AnchorMax = "0.994 0.989";
-                    }
+
                     container.Add(panel, UI.Element.Hud, UI.Element.HudPanelWarning);
 
                     if (claimUpkeepPastDue)

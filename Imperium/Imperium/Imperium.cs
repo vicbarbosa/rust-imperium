@@ -8844,9 +8844,9 @@ namespace Oxide.Plugins
 
             [JsonProperty("overrideInGameTeamSystem")] public bool OverrideInGameTeamSystem = false;
 
-            [JsonProperty("memberOwnLandEcoRaidingDamageScale")] public float MemberOwnLandEcoRaidingDamageScale = 0f;
+            [JsonProperty("memberOwnLandEcoRaidingDamageScale")] public float MemberOwnLandEcoRaidingDamageScale = 1f;
 
-            [JsonProperty("memberOwnLandExplosiveRaidingDamageScale")] public float MemberOwnLandExplosiveRaidingDamageScale = 0f;
+            [JsonProperty("memberOwnLandExplosiveRaidingDamageScale")] public float MemberOwnLandExplosiveRaidingDamageScale = 1f;
 
             public static FactionOptions Default = new FactionOptions
             {
@@ -8854,10 +8854,10 @@ namespace Oxide.Plugins
                 MaxFactionNameLength = 8,
                 MaxMembers = null,
                 AllowFactionBadlands = false,
-                CommandCooldownSeconds = 300,
-                OverrideInGameTeamSystem = false,
-                MemberOwnLandEcoRaidingDamageScale = 0.2f,
-                MemberOwnLandExplosiveRaidingDamageScale = 0f
+                CommandCooldownSeconds = 600,
+                OverrideInGameTeamSystem = true,
+                MemberOwnLandEcoRaidingDamageScale = 1f,
+                MemberOwnLandExplosiveRaidingDamageScale = 1f
             };
 
             

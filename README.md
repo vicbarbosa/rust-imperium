@@ -26,7 +26,7 @@ Imperium is extremely configurable, leading to a wide range of game modes. Here 
 ## Chat Commands
 **Commons**
 
-* `/i` Opens the Imperium UI with all the actions needed
+* `/i` Opens the Imperium UI with all the actions needed by players
 * `/help` Show Imperium plugin help
 * `/map` Show Imperium map (The territories info also shows on the in-game map so this is not needed)
 * `/pvp` Toggle pvp on and off (Can hurt only other players with pvp mode on)

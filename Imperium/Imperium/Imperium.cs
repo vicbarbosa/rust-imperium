@@ -92,22 +92,29 @@ namespace Oxide.Plugins
     using System;
     using System.IO;
     using Oxide.Core;
+    using Oxide.Core.Plugins;
     using Oxide.Core.Configuration;
+    using Oxide.Core.Libraries.Covalence;
     using UnityEngine;
     using Newtonsoft.Json;
     using System.Collections.Generic;
     using System.Linq;
 
 
-    [Info("Imperium", "chucklenugget/evict", "2.1.1")]
+    [Info("Imperium", "chucklenugget/evict", "2.1.2")]
     public partial class Imperium : RustPlugin
     {
+        [PluginReference]
+        private Plugin BetterChat, Clans;
 
         static Imperium Instance;
 
         bool Ready;
 
         public static string dataDirectory = $"file://{Interface.Oxide.DataDirectory}{Path.DirectorySeparatorChar}ImperiumImages{Path.DirectorySeparatorChar}";
+
+
+
         DynamicConfigFile AreasFile;
         DynamicConfigFile FactionsFile;
         DynamicConfigFile PinsFile;
@@ -146,8 +153,8 @@ namespace Oxide.Plugins
             {
                 PrintError($"Error while loading configuration: {ex.ToString()}");
             }
-            RelationshipManager.maxTeamSize = 128;
-            RelationshipManager.maxTeamSize_Internal = 128;
+
+
             Puts("Area claims are " + (Options.Claims.Enabled ? "enabled" : "disabled"));
             Puts("Taxation is " + (Options.Taxes.Enabled ? "enabled" : "disabled"));
             Puts("Badlands are " + (Options.Badlands.Enabled ? "enabled" : "disabled"));
@@ -169,7 +176,16 @@ namespace Oxide.Plugins
                 Options.Recruiting.Enabled = false;
             }
 
+            if(BetterChat != null)
+            {
+                Puts("Using " + BetterChat.Name + " by " + BetterChat.Author);
+                Interface.CallHook("API_RegisterThirdPartyTitle", this, new Func<IPlayer, string>(BetterChat_FormattedFactionTag));
+            }
 
+            if (Clans != null)
+            {
+                Puts("Using " + Clans.Name + " by " + Clans.Author);
+            }
 
             //Puts("Recruiting is " + (Options.Recruiting.Enabled ? "enabled" : "disabled"));
 
@@ -208,9 +224,17 @@ namespace Oxide.Plugins
 
             Hud.GenerateMapOverlayImage();
 
+            if (Options.Factions.OverrideInGameTeamSystem)
+            {
+                RelationshipManager.maxTeamSize = 128;
+                RelationshipManager.maxTeamSize_Internal = 128;
+            }
+
             if (Options.Upkeep.Enabled)
                 UpkeepCollectionTimer =
                     timer.Every(Options.Upkeep.CheckIntervalMinutes * 60, Upkeep.CollectForAllFactions);
+
+
 
             PrintToChat($"{Title} v{Version} initialized.");
             Ready = true;
@@ -237,13 +261,15 @@ namespace Oxide.Plugins
 
         void OnServerSave()
         {
-            timer.Once(Core.Random.Range(10, 30), () =>
-            {
-                AreasFile.WriteObject(Areas.Serialize());
-                FactionsFile.WriteObject(Factions.Serialize());
-                PinsFile.WriteObject(Pins.Serialize());
-                WarsFile.WriteObject(Wars.Serialize());
-            });
+            timer.Once(Core.Random.Range(10, 30), SaveData);
+        }
+
+        void SaveData()
+        {
+            AreasFile.WriteObject(Areas.Serialize());
+            FactionsFile.WriteObject(Factions.Serialize());
+            PinsFile.WriteObject(Pins.Serialize());
+            WarsFile.WriteObject(Wars.Serialize());
         }
 
         DynamicConfigFile GetDataFile(string name)
@@ -422,7 +448,29 @@ namespace Oxide.Plugins
     }
 
 }
+namespace Oxide.Plugins
+{
+    using Oxide.Core.Plugins;
+    using Oxide.Core.Libraries.Covalence;
+    public partial class Imperium
+    {
+        private string BetterChat_FormattedFactionTag(IPlayer player)
+        {
+            if (Clans)
+                return null;
+            Faction faction = Factions.GetByMember(player.Id);
+            if (faction == null)
+                return string.Empty;
+            FactionColorPicker colorPicker = new FactionColorPicker();
+            return "[" + colorPicker.GetHexColorForFaction(faction.Id) +  "][" + faction.Id + "][/#]";
+        }
+
+    }
+}
+
 #endregion
+
+
 
 #region > Console To Chat
 
@@ -583,7 +631,9 @@ namespace Oxide.Plugins
             var sb = new StringBuilder();
 
             sb.AppendLine($"<size=18>Welcome to {ConVar.Server.hostname}!</size>");
-            sb.AppendLine($"Powered by {Name} v{Version} by <color=#ffd479>chucklenugget</color>");
+            sb.AppendLine($"Powered by {Name} v{Version} by <color=#ffd479>chucklenugget</color> and <color=#ffd479>evict</color>");
+            sb.AppendLine(
+                "Do <color=#ffd479>/i</color> to open Imperium UI. You can also do <color=#ffd479>bind i chat.say /i</color> in F1 console to easily toggle Imperium UI");
             sb.AppendLine();
 
             sb.Append(
@@ -1447,12 +1497,6 @@ namespace Oxide.Plugins
                     break;
             }
         }
-
-        [ChatCommand("clan")]
-        void OnClanCommand(BasePlayer player, string command, string[] args)
-        {
-            OnFactionCommand(player, command, args);
-        }
     }
 }
 
@@ -1487,12 +1531,6 @@ namespace Oxide.Plugins
             faction.SendChatMessage("<color=#a1ff46>(FACTION)</color> {0}: {1}", user.UserName, message);
             Puts("[FACTION] {0} - {1}: {2}", faction.Id, user.UserName, message);
         }
-
-        [ChatCommand("c")]
-        void OnClanChatCommand(BasePlayer player, string command, string[] args)
-        {
-            OnFactionChatCommand(player, command, args);
-        }
     }
 }
 
@@ -1502,6 +1540,11 @@ namespace Oxide.Plugins
     {
         void OnFactionCreateCommand(User user, string[] args)
         {
+            if(Clans)
+            {
+                user.SendChatMessage(Messages.CannotManageFactionUseClansInstead);
+                return;
+            }
             if (!user.HasPermission(Permission.ManageFactions))
             {
                 user.SendChatMessage(Messages.NoPermission);
@@ -1659,14 +1702,19 @@ namespace Oxide.Plugins
 {
     public partial class Imperium
     {
-        void OnFactionDisbandCommand(User user, string[] args)
+
+    void OnFactionDisbandCommand(User user, string[] args)
         {
             if (args.Length != 1 || args[0].ToLowerInvariant() != "forever")
             {
                 user.SendChatMessage(Messages.Usage, "/faction disband forever");
                 return;
             }
-
+            if (Clans)
+            {
+                user.SendChatMessage(Messages.CannotManageFactionUseClansInstead);
+                return;
+            }
             Faction faction = user.Faction;
 
             if (faction == null || !faction.HasLeader(user))
@@ -1728,7 +1776,11 @@ namespace Oxide.Plugins
                 user.SendChatMessage(Messages.Usage, "/faction invite \"PLAYER\"");
                 return;
             }
-
+            if (Clans)
+            {
+                user.SendChatMessage(Messages.CannotManageFactionUseClansInstead);
+                return;
+            }
             Faction faction = Factions.GetByMember(user);
 
             if (faction == null || !faction.HasLeader(user))
@@ -1781,7 +1833,11 @@ namespace Oxide.Plugins
                 user.SendChatMessage(Messages.Usage, "/faction join FACTION");
                 return;
             }
-
+            if (Clans)
+            {
+                user.SendChatMessage(Messages.CannotManageFactionUseClansInstead);
+                return;
+            }
             if (user.Faction != null)
             {
                 user.SendChatMessage(Messages.AlreadyMemberOfFaction);
@@ -1823,7 +1879,11 @@ namespace Oxide.Plugins
                 user.SendChatMessage(Messages.Usage, "/faction kick \"PLAYER\"");
                 return;
             }
-
+            if (Clans)
+            {
+                user.SendChatMessage(Messages.CannotManageFactionUseClansInstead);
+                return;
+            }
             Faction faction = user.Faction;
 
             if (faction == null || !faction.HasLeader(user))
@@ -1874,7 +1934,11 @@ namespace Oxide.Plugins
                 user.SendChatMessage(Messages.Usage, "/faction leave");
                 return;
             }
-
+            if (Clans)
+            {
+                user.SendChatMessage(Messages.CannotManageFactionUseClansInstead);
+                return;
+            }
             Faction faction = user.Faction;
 
             if (faction == null)
@@ -1913,7 +1977,11 @@ namespace Oxide.Plugins
                 user.SendChatMessage(Messages.Usage, "/faction promote \"PLAYER\"");
                 return;
             }
-
+            if (Clans)
+            {
+                user.SendChatMessage(Messages.CannotManageFactionUseClansInstead);
+                return;
+            }
             Faction faction = Factions.GetByMember(user);
 
             if (faction == null || !faction.HasLeader(user))
@@ -3623,6 +3691,10 @@ namespace Oxide.Plugins
     using Network;
     using Oxide.Core;
     using UnityEngine;
+    using Newtonsoft.Json;
+    using Newtonsoft.Json.Linq;
+    using Oxide.Core.Libraries.Covalence;
+    using System.Collections.Generic;
 
     public partial class Imperium : RustPlugin
     {
@@ -4038,7 +4110,65 @@ namespace Oxide.Plugins
             Hud.RefreshForAllPlayers();
         }
 
-        
+        #region CLANS by k1lly0u
+
+        void OnClanCreate(string tag)
+        {
+            if(Clans)
+            {
+                Faction faction = Factions.Get(tag);
+                JObject clanInfo = Clans.CallHook("GetClan", tag) as JObject;
+                if(clanInfo != null)
+                {
+                    string ownerid = clanInfo.GetValue("owner").Value<string>();
+                    User owner = Users.Get(ownerid);
+                    faction = Factions.Create(tag, owner);
+                    owner.SetFaction(faction);
+                    SaveData();
+                }
+            }
+        }
+
+        void OnClanDisbanded(string tag, List<string> memberUserIDs)
+        {
+            if (Clans)
+            {
+                Factions.Disband(Factions.Get(tag));
+                SaveData();
+            }
+        }
+
+        void OnClanMemberJoined(string userID, string tag)
+        {
+            if (Clans)
+            {
+                User user = Users.Get(userID);
+                Faction faction = Factions.Get(tag);
+                if (faction != null && user != null)
+                {
+                    faction.AddMember(user);
+                    user.SetFaction(faction);
+                }
+                SaveData();
+            }
+        }
+
+        void OnClanMemberGone(string userID, string tag)
+        {
+            if(Clans)
+            {
+                User user = Users.Get(userID);
+                Faction faction = Factions.Get(tag);
+                if (faction != null && user != null)
+                {
+                    faction.RemoveMember(user);
+                    user.SetFaction(null);
+                }
+                SaveData();
+            }
+        }
+
+        #endregion
     }
 }
 #endregion
@@ -4105,6 +4235,7 @@ namespace Oxide.Plugins
 {
     using System.Linq;
     using System.Reflection;
+    using System.Collections.Generic;
 
     public partial class Imperium : RustPlugin
     {
@@ -4118,7 +4249,7 @@ namespace Oxide.Plugins
             public const string WarDisabled = "War is currently disabled.";
             public const string PinsDisabled = "Map pins are currently disabled.";
             public const string PvpModeDisabled = "PVP Mode is currently not available.";
-            public const string UpgradingDisabled = "Area upgrades are currently disabled.";
+            public const string UpgradingDisabled = "Area upgrading is currently disabled.";
 
             public const string AreaIsBadlands = "<color=#ffd479>{0}</color> is a part of the badlands.";
 
@@ -4209,6 +4340,9 @@ namespace Oxide.Plugins
 
             public const string CannotJoinFactionNotInvited =
                 "You cannot join <color=#ffd479>[{0}]</color>, because you have not been invited.";
+
+            public const string CannotManageFactionUseClansInstead =
+                "This server uses the Clans plugin. Manage your faction through the Clans system instead. Say /clanhelp for more info";
 
             public const string YouJoinedFaction = "You are now a member of <color=#ffd479>[{0}]</color>.";
             public const string YouLeftFaction = "You are no longer a member of <color=#ffd479>[{0}]</color>.";
@@ -4421,16 +4555,16 @@ namespace Oxide.Plugins
                 "<color=#ff0000>WAR DECLARED:</color> <color=#ffd479>[{0}]</color> has declared war on <color=#ffd479>[{1}]</color>! Their reason: <color=#ffd479>{2}</color>";
 
             public const string WarDeclaredAdminApproved =
-                "<color=#ff0000>WAR APPROVED BY AN ADMIN:</color> <color=#ffd479>[{0}]</color> has declared war on <color=#ffd479>[{1}]</color>! Their reason: <color=#ffd479>{2}</color>";
+                "<color=#ff0000>WAR APPROVED BY AN ADMIN:</color> An admin approved the war between <color=#ffd479>[{0}]</color> and <color=#ffd479>[{1}]</color>!";
 
             public const string WarDeclaredAdminDenied =
-                "<color=#ff0000>WAR DENIED BY AN ADMIN:</color> <color=#ffd479>[{0}]</color> has declared war on <color=#ffd479>[{1}]</color>! Their reason: <color=#ffd479>{2}</color>";
+                "<color=#ff0000>WAR DENIED BY AN ADMIN:</color> An admin denied the war between <color=#ffd479>[{0}]</color> and <color=#ffd479>[{1}]</color>!";
 
             public const string WarDeclaredDefenderApproved =
-                "<color=#ff0000>WAR APPROVED BY DEFENDERS:</color> <color=#ffd479>[{0}]</color> has declared war on <color=#ffd479>[{1}]</color>! Their reason: <color=#ffd479>{2}</color>";
+                "<color=#ff0000>WAR APPROVED BY DEFENDERS:</color> <color=#ffd479>[{1}]</color> accepted the war declaration from <color=#ffd479>[{0}]</color>";
 
             public const string WarDeclaredDefenderDenied =
-                "<color=#ff0000>WAR DENIED BY DEFENDERS:</color> <color=#ffd479>[{0}]</color> has declared war on <color=#ffd479>[{1}]</color>! Their reason: <color=#ffd479>{2}</color>";
+                "<color=#ff0000>WAR DENIED BY DEFENDERS:</color>  <color=#ffd479>[{1}]</color> rejected the war declaration from <color=#ffd479>[{0}]</color>";
 
             public const string WarEndedTreatyAcceptedAnnouncement =
                 "<color=#00ff00>WAR ENDED:</color> The war between <color=#ffd479>[{0}]</color> and <color=#ffd479>[{1}]</color> has ended after both sides have agreed to a treaty.";
@@ -4440,15 +4574,24 @@ namespace Oxide.Plugins
 
             public const string PinAddedAnnouncement =
                 "<color=#00ff00>POINT OF INTEREST:</color> <color=#ffd479>[{0}]</color> announces the creation of <color=#ffd479>{1}</color>, a new {2} located in <color=#ffd479>{3}</color>!";
+
+            public static Dictionary<string, string> AsDictionary(BindingFlags bindingAttr = BindingFlags.Public | BindingFlags.DeclaredOnly)
+            {
+                var dict = typeof(Messages).GetFields().Select(f => new { Key = f.Name, Value = (string)f.GetValue(null) }).ToDictionary
+                (
+                    item => item.Key,
+                    item => item.Value
+                );
+                return dict;
+
+            }
         }
 
         void InitLang()
         {
-            var messages = typeof(Messages).GetFields(BindingFlags.Public)
-                .Select(f => (string)f.GetRawConstantValue())
-                .ToDictionary(str => str);
-
+            Dictionary<string,string> messages = Messages.AsDictionary();
             lang.RegisterMessages(messages, this);
+
         }
     }
 }
@@ -10148,7 +10291,7 @@ namespace Oxide.Plugins
                 Area area = User.CurrentArea;
                 float xOff = Instance.Options.Hud.LeftPanelXOffset;
                 float yOff = Instance.Options.Hud.LeftPanelXOffset;
-                UI4 ui4 = new UI4(0.006f + xOff, 0.044f + yOff, 0.241f + xOff, 0.077f + yOff);
+                UI4 ui4 = new UI4(0.006f + xOff, 0.011f + yOff, 0.241f + xOff, 0.044f + yOff);
                 container.Add(new CuiPanel
                 {
                     Image = { Color = GetLeftPanelBackgroundColor() },
@@ -10157,7 +10300,7 @@ namespace Oxide.Plugins
 
                 xOff = Instance.Options.Hud.RightPanelXOffset;
                 yOff = Instance.Options.Hud.RightPanelYOffset;
-                ui4 = new UI4(0.759f + xOff, 0.044f + yOff, 0.994f + xOff, 0.077f + yOff);
+                ui4 = new UI4(0.759f + xOff, 0.011f + yOff, 0.994f + xOff, 0.044f + yOff);
 
                 if (Instance.Options.Hud.ShowEventsHUD)
                 {
@@ -11466,6 +11609,7 @@ namespace Oxide.Plugins
 #region > UI Console Commands
     
 #endregion
+
 #region > User Map
 namespace Oxide.Plugins
 {

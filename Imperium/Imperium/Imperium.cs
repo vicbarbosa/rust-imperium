@@ -113,8 +113,6 @@ namespace Oxide.Plugins
 
         public static string dataDirectory = $"file://{Interface.Oxide.DataDirectory}{Path.DirectorySeparatorChar}ImperiumImages{Path.DirectorySeparatorChar}";
 
-
-
         DynamicConfigFile AreasFile;
         DynamicConfigFile FactionsFile;
         DynamicConfigFile PinsFile;
@@ -230,6 +228,11 @@ namespace Oxide.Plugins
                 RelationshipManager.maxTeamSize_Internal = 128;
             }
 
+            if(Clans)
+            {
+                Factions.SyncAllWithClans();
+            }
+
             if (Options.Upkeep.Enabled)
                 UpkeepCollectionTimer =
                     timer.Every(Options.Upkeep.CheckIntervalMinutes * 60, Upkeep.CollectForAllFactions);
@@ -242,6 +245,7 @@ namespace Oxide.Plugins
 
         void Unload()
         {
+            SaveData();
             Hud.Destroy();
             Zones.Destroy();
             Users.Destroy();
@@ -1977,11 +1981,6 @@ namespace Oxide.Plugins
                 user.SendChatMessage(nameof(Messages.Usage), "/faction promote \"PLAYER\"");
                 return;
             }
-            if (Clans)
-            {
-                user.SendChatMessage(nameof(Messages.CannotManageFactionUseClansInstead));
-                return;
-            }
             Faction faction = Factions.GetByMember(user);
 
             if (faction == null || !faction.HasLeader(user))
@@ -2050,7 +2049,7 @@ namespace Oxide.Plugins
             else
                 sb.Append("a member");
 
-            sb.AppendLine($"of <color=#ffd479>[{faction.Id}]</color>.");
+            sb.AppendLine($" of <color=#ffd479>[{faction.Id}]</color>.");
 
             User[] activeMembers = faction.GetAllActiveMembers();
 
@@ -3691,7 +3690,6 @@ namespace Oxide.Plugins
     using Network;
     using Oxide.Core;
     using UnityEngine;
-    using Newtonsoft.Json;
     using Newtonsoft.Json.Linq;
     using Oxide.Core.Libraries.Covalence;
     using System.Collections.Generic;
@@ -3719,12 +3717,12 @@ namespace Oxide.Plugins
         void OnPlayerSleepEnded(BasePlayer player)
         {
             User user = player.GetComponent<User>();
-            if(user != null && !user.UpdatedMarkers)
+            if (user != null && !user.UpdatedMarkers)
             {
                 Areas.UpdateAreaMarkers();
                 user.UpdatedMarkers = true;
             }
-            
+
         }
 
         void OnPlayerDisconnected(BasePlayer player)
@@ -3738,7 +3736,7 @@ namespace Oxide.Plugins
             if (Instance.Options.Factions.OverrideInGameTeamSystem)
             {
                 User user = Instance.Users.Get(player);
-                if(user)
+                if (user)
                 {
                     user.SendChatMessage("You can't create a team. Say <color=#ffd479>/i</color> to create your faction");
                 }
@@ -3778,7 +3776,7 @@ namespace Oxide.Plugins
         {
             if (Instance.Options.Factions.OverrideInGameTeamSystem)
             {
-               return false;
+                return false;
             }
             return null;
         }
@@ -4018,7 +4016,7 @@ namespace Oxide.Plugins
 
         void OnUserEnteredArea(User user, Area area)
         {
-            
+
             Area previousArea = user.CurrentArea;
 
             user.CurrentArea = area;
@@ -4112,6 +4110,15 @@ namespace Oxide.Plugins
 
         #region CLANS by k1lly0u
 
+        void OnPluginLoaded(CSharpPlugin plugin)
+        {
+            if(plugin == Clans)
+            {
+                if(Instance)
+                    Instance.Factions.SyncAllWithClans();
+            }
+        }
+
         void OnClanCreate(string tag)
         {
             if(Clans)
@@ -4124,7 +4131,6 @@ namespace Oxide.Plugins
                     User owner = Users.Get(ownerid);
                     faction = Factions.Create(tag, owner);
                     owner.SetFaction(faction);
-                    SaveData();
                 }
             }
         }
@@ -4134,7 +4140,6 @@ namespace Oxide.Plugins
             if (Clans)
             {
                 Factions.Disband(Factions.Get(tag));
-                SaveData();
             }
         }
 
@@ -4149,7 +4154,6 @@ namespace Oxide.Plugins
                     faction.AddMember(user);
                     user.SetFaction(faction);
                 }
-                SaveData();
             }
         }
 
@@ -4164,7 +4168,6 @@ namespace Oxide.Plugins
                     faction.RemoveMember(user);
                     user.SetFaction(null);
                 }
-                SaveData();
             }
         }
 
@@ -4578,6 +4581,12 @@ namespace Oxide.Plugins
             public const string PinAddedAnnouncement =
                 "<color=#00ff00>POINT OF INTEREST:</color> <color=#ffd479>[{0}]</color> announces the creation of <color=#ffd479>{1}</color>, a new {2} located in <color=#ffd479>{3}</color>!";
 
+
+            public static string Get(string key, string userId = null)
+            {
+                return Instance.lang.GetMessage(key, Instance, userId);
+            }
+
             public static Dictionary<string, string> AsDictionary(BindingFlags bindingAttr = BindingFlags.Public | BindingFlags.DeclaredOnly)
             {
                 var dict = typeof(Messages).GetFields().Select(f => new { Key = f.Name, Value = (string)f.GetValue(null) }).ToDictionary
@@ -4911,7 +4920,6 @@ namespace Oxide.Plugins
                 }
 
                 DamageResult result = DetermineDamageResult(attacker, area, entity);
-
                 if (EnableTestMode)
                     Instance.Log("Damage from a player to structure with prefab {0}: {1}", entity.ShortPrefabName,
                         result.ToString());
@@ -4923,12 +4931,12 @@ namespace Oxide.Plugins
 
                 if(result == DamageResult.Friendly)
                 {
+                    if (entity.OwnerID == attacker.Player.userID)
+                    {
+                        return null;
+                    }
                     if (!attacker.Faction.HasLeader(attacker) && (!area.IsWarZone && !area.IsHostile))
                     {
-                        if (hit.HitEntity.OwnerID == attacker.Player.userID)
-                        {
-                            return null;
-                        }
                         if(hit.damageTypes.Has(Rust.DamageType.Explosion) || hit.damageTypes.Has(Rust.DamageType.Heat))
                         {
                             hit.damageTypes.ScaleAll(Instance.Options.Factions.MemberOwnLandExplosiveRaidingDamageScale);
@@ -5654,7 +5662,6 @@ namespace Oxide.Plugins
                 return GetRatio(Level,
                     Instance.Options.Upgrading.MaxUpgradeLevel,
                     Instance.Options.Upgrading.MaxDecayExtraReduction);
-
             }
 
             public float GetLevelTaxBonus()
@@ -6507,6 +6514,7 @@ namespace Oxide.Plugins
     using System.Collections.Generic;
     using System.Linq;
     using UnityEngine;
+    using Newtonsoft.Json.Linq;
 
     public partial class Imperium
     {
@@ -6628,6 +6636,45 @@ namespace Oxide.Plugins
             public FactionInfo[] Serialize()
             {
                 return Factions.Values.Select(faction => faction.Serialize()).ToArray();
+            }
+
+            internal void SyncAllWithClans()
+            {
+                if (Instance.Clans)
+                {
+                    Instance.Puts("Syncing factions with Clans");
+                    //Disband all factions that don't have a matching clan
+                    JArray AllClans = (JArray)Instance.Clans.CallHook("GetAllClans");
+                    List<string> clanIds = new List<string>();
+                    if (AllClans.Count > 0)
+                    {
+                        for (int i = 0; i < AllClans.Count; i++)
+                        {
+                            string clanId = AllClans[i].Value<string>();
+                            clanIds.Add(clanId);
+
+                        }
+                    }
+                    List<Faction> allFactions = GetAll().ToList();
+                    if (allFactions.Count > 0)
+                    {
+                        foreach (Faction faction in allFactions)
+                        {
+                            if (!clanIds.Contains(faction.Id))
+                            {
+                                Disband(faction);
+                            }
+                        }
+                    }
+                    List<User> users = Instance.Users.GetAll().ToList();
+                    if(users.Count > 0)
+                    {
+                        foreach (User user in Instance.Users.GetAll())
+                        {
+                            user.SyncWithClan();
+                        }
+                    }
+                }
             }
         }
     }
@@ -6820,6 +6867,7 @@ namespace Oxide.Plugins
     using System.Text;
     using UnityEngine;
     using System.Linq;
+    using Newtonsoft.Json.Linq;
 
     public partial class Imperium
     {
@@ -6888,6 +6936,9 @@ namespace Oxide.Plugins
 
             public void SetFaction(Faction faction)
             {
+                if (Faction == faction)
+                    return;
+                CurrentInteraction = null;
                 Faction = faction;
 
                 if (faction == null)
@@ -6995,6 +7046,74 @@ namespace Oxide.Plugins
                 factionTeam.AddPlayer(Player);
             }
 
+            public void SyncWithClan()
+            {
+                if(!Instance.Clans)
+                    return;
+
+                if (Player == null)
+                    return;
+                string clanId = (string)Instance.Clans.CallHook("GetClanOf", Player);
+                //is in correct faction already
+                if (Faction?.Id == clanId)
+                {
+                    return;
+                }
+                //user is not in a clan
+                if (clanId == null)
+                {
+                    //user is in a faction (Disband if owner, leave if not)
+                    if (Faction != null)
+                    {
+                        if (Faction.HasOwner(this))
+                        {
+                            Instance.Factions.Disband(this.Faction);
+                            SetFaction(null);
+                        }
+                        else
+                        {
+                            Faction.RemoveMember(this);
+                            SetFaction(null);
+                        }
+                           
+                    }
+                    return;
+                }
+                JObject jClan = (JObject)Instance.Clans.CallHook("GetClan", clanId);
+                Faction clanFaction = Instance.Factions.Get(clanId);
+
+                //corresponding clan for faction does not exist yet. If owner, create the correct faction
+                if (clanFaction == null)
+                {
+                    User owner = Instance.Users.Get(jClan.GetValue("owner").Value<string>());
+                    //clan owner is online
+                    if (owner != null)
+                    {
+                        clanFaction = Instance.Factions.Create(clanId, owner);
+                        owner.SetFaction(clanFaction);
+                    }
+                }
+                //if user faction is in a faction and is not in the clanFaction (might be null). Leave the current faction
+                if (Faction != null && Faction != clanFaction)
+                {
+
+                    if (this.Faction.HasOwner(this))
+                    {
+                        Instance.Factions.Disband(this.Faction);
+                        SetFaction(null);
+                    }
+                    else
+                    {
+                        Faction.RemoveMember(this);
+                        SetFaction(null);
+                    }
+                }
+                //set own faction if not equal clan faction
+                if(Faction != clanFaction)
+                    SetFaction(clanFaction);
+
+            }
+
             void CheckZones()
             {
             }
@@ -7068,6 +7187,11 @@ namespace Oxide.Plugins
                     user.SetFaction(null);
 
                 Users[user.Player.UserIDString] = user;
+
+                if(Instance.Clans)
+                {
+                    user.SyncWithClan();
+                }
 
                 return user;
             }
@@ -7370,7 +7494,7 @@ namespace Oxide.Plugins
         class WarManager
         {
             List<War> Wars = new List<War>();
-
+            
             public War[] GetAllActiveWars()
             {
                 return Wars.Where(war => war.IsActive).OrderBy(war => war.StartTime).ToArray();
@@ -7456,7 +7580,7 @@ namespace Oxide.Plugins
                 if (!user1.Faction.HasLeader(user1) || !user2.Faction.HasLeader(user2))
                     return false;
                 EndWar(GetActiveWarBetween(user1.Faction, user2.Faction), WarEndReason.Treaty);
-                Util.PrintToChat(nameof(Messages.WarEndedTreatyAcceptedAnnouncement), user1.Faction, user2.Faction);
+                Util.PrintToChat(nameof(Messages.WarEndedTreatyAcceptedAnnouncement), user1.Faction.Id, user2.Faction.Id);
                 Instance.Log($"{Util.Format(user1)} and {Util.Format(user2)} accepted the peace by trading on a shop front");
                 return true;
             }
@@ -7837,8 +7961,6 @@ namespace Oxide.Plugins
     {
         public class Recruit : MonoBehaviour
         {
-            public ScientistBrain.RoamState roamState = new ScientistBrain.RoamState();
-            //Bot monobehaviour
         }
     }
 }

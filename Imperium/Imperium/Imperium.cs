@@ -303,13 +303,13 @@ namespace Oxide.Plugins
         {
             if (faction == null || !faction.HasLeader(user))
             {
-                user.SendChatMessage(Messages.NotLeaderOfFaction);
+                user.SendChatMessage(nameof(Messages.NotLeaderOfFaction));
                 return false;
             }
 
             if (faction.MemberCount < Options.Claims.MinFactionMembers)
             {
-                user.SendChatMessage(Messages.FactionTooSmallToOwnLand, Options.Claims.MinFactionMembers);
+                user.SendChatMessage(nameof(Messages.FactionTooSmallToOwnLand), Options.Claims.MinFactionMembers);
                 return false;
             }
 
@@ -320,13 +320,13 @@ namespace Oxide.Plugins
         {
             if (area.Type == AreaType.Badlands)
             {
-                user.SendChatMessage(Messages.AreaIsBadlands, area.Id);
+                user.SendChatMessage(nameof(Messages.AreaIsBadlands), area.Id);
                 return false;
             }
 
             if (faction.MemberCount < Instance.Options.Claims.MinFactionMembers)
             {
-                user.SendChatMessage(Messages.FactionTooSmallToOwnLand, Instance.Options.Claims.MinFactionMembers);
+                user.SendChatMessage(nameof(Messages.FactionTooSmallToOwnLand), Instance.Options.Claims.MinFactionMembers);
                 return false;
             }
 
@@ -337,7 +337,7 @@ namespace Oxide.Plugins
                 int contiguousClaims = Areas.GetNumberOfContiguousClaimedAreas(area, faction);
                 if (contiguousClaims == 0)
                 {
-                    user.SendChatMessage(Messages.AreaNotContiguous, area.Id, faction.Id);
+                    user.SendChatMessage(nameof(Messages.AreaNotContiguous), area.Id, faction.Id);
                     return false;
                 }
             }
@@ -345,7 +345,7 @@ namespace Oxide.Plugins
             int? maxClaims = Instance.Options.Claims.MaxClaims;
             if (maxClaims != null && claimedAreas.Length >= maxClaims)
             {
-                user.SendChatMessage(Messages.FactionOwnsTooMuchLand, faction.Id, maxClaims);
+                user.SendChatMessage(nameof(Messages.FactionOwnsTooMuchLand), faction.Id, maxClaims);
                 return false;
             }
 
@@ -356,13 +356,13 @@ namespace Oxide.Plugins
         {
             if (cupboard == null)
             {
-                user.SendChatMessage(Messages.SelectingCupboardFailedInvalidTarget);
+                user.SendChatMessage(nameof(Messages.SelectingCupboardFailedInvalidTarget));
                 return false;
             }
 
             if (!cupboard.IsAuthed(user.Player))
             {
-                user.SendChatMessage(Messages.SelectingCupboardFailedNotAuthorized);
+                user.SendChatMessage(nameof(Messages.SelectingCupboardFailedNotAuthorized));
                 return false;
             }
 
@@ -373,7 +373,7 @@ namespace Oxide.Plugins
         {
             if (area == null || area.FactionId != user.Faction.Id)
             {
-                user.SendChatMessage(Messages.AreaNotOwnedByYourFaction);
+                user.SendChatMessage(nameof(Messages.AreaNotOwnedByYourFaction));
                 return false;
             }
             return true;
@@ -383,19 +383,19 @@ namespace Oxide.Plugins
         {
             if (faction == null)
             {
-                user.SendChatMessage(Messages.NotMemberOfFaction);
+                user.SendChatMessage(nameof(Messages.NotMemberOfFaction));
                 return false;
             }
 
             if (faction.MemberCount < Options.Claims.MinFactionMembers)
             {
-                user.SendChatMessage(Messages.FactionTooSmallToOwnLand);
+                user.SendChatMessage(nameof(Messages.FactionTooSmallToOwnLand));
                 return false;
             }
 
             if (Areas.GetAllClaimedByFaction(faction).Length == 0)
             {
-                user.SendChatMessage(Messages.FactionDoesNotOwnLand);
+                user.SendChatMessage(nameof(Messages.FactionDoesNotOwnLand));
                 return false;
             }
 
@@ -408,7 +408,7 @@ namespace Oxide.Plugins
 
             if (secondsRemaining > 0)
             {
-                user.SendChatMessage(Messages.CommandIsOnCooldown, secondsRemaining);
+                user.SendChatMessage(nameof(Messages.CommandIsOnCooldown), secondsRemaining);
                 return false;
             }
 
@@ -605,11 +605,11 @@ namespace Oxide.Plugins
 
             if (user.CurrentInteraction == null)
             {
-                user.SendChatMessage(Messages.NoInteractionInProgress);
+                user.SendChatMessage(nameof(Messages.NoInteractionInProgress));
                 return;
             }
 
-            user.SendChatMessage(Messages.InteractionCanceled);
+            user.SendChatMessage(nameof(Messages.InteractionCanceled));
             user.CancelInteraction();
         }
 
@@ -692,7 +692,7 @@ namespace Oxide.Plugins
 
             if (!Options.Pvp.EnablePvpCommand)
             {
-                user.SendChatMessage(Messages.PvpModeDisabled);
+                user.SendChatMessage(nameof(Messages.PvpModeDisabled));
                 return;
             }
 
@@ -702,13 +702,13 @@ namespace Oxide.Plugins
             if (user.IsInPvpMode)
             {
                 user.IsInPvpMode = false;
-                user.SendChatMessage(Messages.ExitedPvpMode);
+                user.SendChatMessage(nameof(Messages.ExitedPvpMode));
                 Util.RunEffect(user.transform.position, "assets/prefabs/missions/effects/mission_objective_complete.prefab");
             }
             else
             {
                 user.IsInPvpMode = true;
-                user.SendChatMessage(Messages.EnteredPvpMode);
+                user.SendChatMessage(nameof(Messages.EnteredPvpMode));
                 Util.RunEffect(user.transform.position, "assets/prefabs/missions/effects/mission_objective_complete.prefab");
             }
 
@@ -732,20 +732,20 @@ namespace Oxide.Plugins
 
             if (!Options.Badlands.Enabled)
             {
-                user.SendChatMessage(Messages.BadlandsDisabled);
+                user.SendChatMessage(nameof(Messages.BadlandsDisabled));
                 return;
             }
 
             if (args.Length == 0)
             {
                 var areas = Areas.GetAllByType(AreaType.Badlands).Select(a => a.Id);
-                user.SendChatMessage(Messages.BadlandsList, Util.Format(areas), Options.Taxes.BadlandsGatherBonus);
+                user.SendChatMessage(nameof(Messages.BadlandsList), Util.Format(areas), Options.Taxes.BadlandsGatherBonus);
                 return;
             }
 
             if (!user.HasPermission(Permission.AdminBadlands))
             {
-                user.SendChatMessage(Messages.NoPermission);
+                user.SendChatMessage(nameof(Messages.NoPermission));
                 return;
             }
 
@@ -755,28 +755,28 @@ namespace Oxide.Plugins
             {
                 case "add":
                     if (args.Length < 2)
-                        user.SendChatMessage(Messages.Usage, "/badlands add [XY XY XY...]");
+                        user.SendChatMessage(nameof(Messages.Usage), "/badlands add [XY XY XY...]");
                     else
                         OnAddBadlandsCommand(user, areaIds);
                     break;
 
                 case "remove":
                     if (args.Length < 2)
-                        user.SendChatMessage(Messages.Usage, "/badlands remove [XY XY XY...]");
+                        user.SendChatMessage(nameof(Messages.Usage), "/badlands remove [XY XY XY...]");
                     else
                         OnRemoveBadlandsCommand(user, areaIds);
                     break;
 
                 case "set":
                     if (args.Length < 2)
-                        user.SendChatMessage(Messages.Usage, "/badlands set [XY XY XY...]");
+                        user.SendChatMessage(nameof(Messages.Usage), "/badlands set [XY XY XY...]");
                     else
                         OnSetBadlandsCommand(user, areaIds);
                     break;
 
                 case "clear":
                     if (args.Length != 1)
-                        user.SendChatMessage(Messages.Usage, "/badlands clear");
+                        user.SendChatMessage(nameof(Messages.Usage), "/badlands clear");
                     else
                         OnSetBadlandsCommand(user, new string[0]);
                     break;
@@ -806,13 +806,13 @@ namespace Oxide.Plugins
 
                 if (area == null)
                 {
-                    user.SendChatMessage(Messages.UnknownArea, arg);
+                    user.SendChatMessage(nameof(Messages.UnknownArea), arg);
                     return;
                 }
 
                 if (area.Type != AreaType.Wilderness)
                 {
-                    user.SendChatMessage(Messages.AreaNotWilderness, area.Id);
+                    user.SendChatMessage(nameof(Messages.AreaNotWilderness), area.Id);
                     return;
                 }
 
@@ -821,7 +821,7 @@ namespace Oxide.Plugins
 
             Areas.AddBadlands(areas);
             Util.RunEffect(user.transform.position, "assets/prefabs/missions/effects/mission_objective_complete.prefab");
-            user.SendChatMessage(Messages.BadlandsSet, Util.Format(Areas.GetAllByType(AreaType.Badlands)));
+            user.SendChatMessage(nameof(Messages.BadlandsSet), Util.Format(Areas.GetAllByType(AreaType.Badlands)));
             Log($"{Util.Format(user)} added {Util.Format(areas)} to badlands");
         }
     }
@@ -866,13 +866,13 @@ namespace Oxide.Plugins
 
                 if (area == null)
                 {
-                    user.SendChatMessage(Messages.UnknownArea, arg);
+                    user.SendChatMessage(nameof(Messages.UnknownArea), arg);
                     return;
                 }
 
                 if (area.Type != AreaType.Badlands)
                 {
-                    user.SendChatMessage(Messages.AreaNotBadlands, area.Id);
+                    user.SendChatMessage(nameof(Messages.AreaNotBadlands), area.Id);
                     return;
                 }
 
@@ -881,7 +881,7 @@ namespace Oxide.Plugins
 
             Areas.Unclaim(areas);
             Util.RunEffect(user.transform.position, "assets/prefabs/missions/effects/mission_objective_complete.prefab");
-            user.SendChatMessage(Messages.BadlandsSet, Util.Format(Areas.GetAllByType(AreaType.Badlands)));
+            user.SendChatMessage(nameof(Messages.BadlandsSet), Util.Format(Areas.GetAllByType(AreaType.Badlands)));
             Log($"{Util.Format(user)} removed {Util.Format(areas)} from badlands");
         }
     }
@@ -904,13 +904,13 @@ namespace Oxide.Plugins
 
                 if (area == null)
                 {
-                    user.SendChatMessage(Messages.UnknownArea, arg);
+                    user.SendChatMessage(nameof(Messages.UnknownArea), arg);
                     return;
                 }
 
                 if (area.Type != AreaType.Wilderness)
                 {
-                    user.SendChatMessage(Messages.AreaNotWilderness, area.Id);
+                    user.SendChatMessage(nameof(Messages.AreaNotWilderness), area.Id);
                     return;
                 }
 
@@ -920,7 +920,7 @@ namespace Oxide.Plugins
             Areas.Unclaim(Areas.GetAllByType(AreaType.Badlands));
             Areas.AddBadlands(areas);
             Util.RunEffect(user.transform.position, "assets/prefabs/missions/effects/mission_objective_complete.prefab");
-            user.SendChatMessage(Messages.BadlandsSet, Util.Format(Areas.GetAllByType(AreaType.Badlands)));
+            user.SendChatMessage(nameof(Messages.BadlandsSet), Util.Format(Areas.GetAllByType(AreaType.Badlands)));
             Log($"{Util.Format(user)} set badlands to {Util.Format(areas)}");
         }
     }
@@ -941,7 +941,7 @@ namespace Oxide.Plugins
 
             if (!Options.Claims.Enabled)
             {
-                user.SendChatMessage(Messages.AreaClaimsDisabled);
+                user.SendChatMessage(nameof(Messages.AreaClaimsDisabled));
                 return;
             }
 
@@ -1009,7 +1009,7 @@ namespace Oxide.Plugins
             if (!EnsureUserCanChangeFactionClaims(user, faction))
                 return;
 
-            user.SendChatMessage(Messages.SelectClaimCupboardToAdd);
+            user.SendChatMessage(nameof(Messages.SelectClaimCupboardToAdd));
             user.BeginInteraction(new AddingClaimInteraction(faction));
         }
     }
@@ -1023,13 +1023,13 @@ namespace Oxide.Plugins
         {
             if (!user.HasPermission(Permission.AdminClaims))
             {
-                user.SendChatMessage(Messages.NoPermission);
+                user.SendChatMessage(nameof(Messages.NoPermission));
                 return;
             }
 
             if (args.Length == 0)
             {
-                user.SendChatMessage(Messages.Usage, "/claim assign FACTION");
+                user.SendChatMessage(nameof(Messages.Usage), "/claim assign FACTION");
                 return;
             }
 
@@ -1038,11 +1038,11 @@ namespace Oxide.Plugins
 
             if (faction == null)
             {
-                user.SendChatMessage(Messages.FactionDoesNotExist, factionId);
+                user.SendChatMessage(nameof(Messages.FactionDoesNotExist), factionId);
                 return;
             }
 
-            user.SendChatMessage(Messages.SelectClaimCupboardToAssign);
+            user.SendChatMessage(nameof(Messages.SelectClaimCupboardToAssign));
             user.BeginInteraction(new AssigningClaimInteraction(faction));
         }
     }
@@ -1058,19 +1058,19 @@ namespace Oxide.Plugins
 
             if (faction == null)
             {
-                user.SendChatMessage(Messages.NotMemberOfFaction);
+                user.SendChatMessage(nameof(Messages.NotMemberOfFaction));
                 return;
             }
 
             if (faction.MemberCount < Options.Claims.MinFactionMembers)
             {
-                user.SendChatMessage(Messages.FactionTooSmallToOwnLand, Options.Claims.MinFactionMembers);
+                user.SendChatMessage(nameof(Messages.FactionTooSmallToOwnLand), Options.Claims.MinFactionMembers);
                 return;
             }
 
             if (args.Length > 1)
             {
-                user.SendChatMessage(Messages.Usage, "/claim cost [XY]");
+                user.SendChatMessage(nameof(Messages.Usage), "/claim cost [XY]");
                 return;
             }
 
@@ -1082,23 +1082,23 @@ namespace Oxide.Plugins
 
             if (area == null)
             {
-                user.SendChatMessage(Messages.Usage, "/claim cost [XY]");
+                user.SendChatMessage(nameof(Messages.Usage), "/claim cost [XY]");
                 return;
             }
 
             if (area.Type == AreaType.Badlands)
             {
-                user.SendChatMessage(Messages.AreaIsBadlands, area.Id);
+                user.SendChatMessage(nameof(Messages.AreaIsBadlands), area.Id);
                 return;
             }
             else if (area.Type != AreaType.Wilderness)
             {
-                user.SendChatMessage(Messages.CannotClaimAreaAlreadyClaimed, area.Id, area.FactionId);
+                user.SendChatMessage(nameof(Messages.CannotClaimAreaAlreadyClaimed), area.Id, area.FactionId);
                 return;
             }
 
             int cost = area.GetClaimCost(faction);
-            user.SendChatMessage(Messages.ClaimCost, area.Id, faction.Id, cost);
+            user.SendChatMessage(nameof(Messages.ClaimCost), area.Id, faction.Id, cost);
         }
     }
 }
@@ -1113,13 +1113,13 @@ namespace Oxide.Plugins
         {
             if (args.Length == 0)
             {
-                user.SendChatMessage(Messages.Usage, "/claim delete XY [XY XY...]");
+                user.SendChatMessage(nameof(Messages.Usage), "/claim delete XY [XY XY...]");
                 return;
             }
 
             if (!user.HasPermission(Permission.AdminClaims))
             {
-                user.SendChatMessage(Messages.NoPermission);
+                user.SendChatMessage(nameof(Messages.NoPermission));
                 return;
             }
 
@@ -1130,13 +1130,13 @@ namespace Oxide.Plugins
 
                 if (area.Type == AreaType.Badlands)
                 {
-                    user.SendChatMessage(Messages.AreaIsBadlands, area.Id);
+                    user.SendChatMessage(nameof(Messages.AreaIsBadlands), area.Id);
                     return;
                 }
 
                 if (area.Type == AreaType.Wilderness)
                 {
-                    user.SendChatMessage(Messages.AreaIsWilderness, area.Id);
+                    user.SendChatMessage(nameof(Messages.AreaIsWilderness), area.Id);
                     return;
                 }
 
@@ -1162,7 +1162,7 @@ namespace Oxide.Plugins
         {
             if (args.Length == 0)
             {
-                user.SendChatMessage(Messages.Usage, "/claim give FACTION");
+                user.SendChatMessage(nameof(Messages.Usage), "/claim give FACTION");
                 return;
             }
 
@@ -1176,11 +1176,11 @@ namespace Oxide.Plugins
 
             if (targetFaction == null)
             {
-                user.SendChatMessage(Messages.FactionDoesNotExist, factionId);
+                user.SendChatMessage(nameof(Messages.FactionDoesNotExist), factionId);
                 return;
             }
 
-            user.SendChatMessage(Messages.SelectClaimCupboardToTransfer);
+            user.SendChatMessage(nameof(Messages.SelectClaimCupboardToTransfer));
             user.BeginInteraction(new TransferringClaimInteraction(sourceFaction, targetFaction));
         }
     }
@@ -1197,7 +1197,7 @@ namespace Oxide.Plugins
             if (!EnsureUserCanChangeFactionClaims(user, faction))
                 return;
 
-            user.SendChatMessage(Messages.SelectClaimCupboardForHeadquarters);
+            user.SendChatMessage(nameof(Messages.SelectClaimCupboardForHeadquarters));
             user.BeginInteraction(new SelectingHeadquartersInteraction(faction));
         }
     }
@@ -1256,7 +1256,7 @@ namespace Oxide.Plugins
         {
             if (args.Length != 1)
             {
-                user.SendChatMessage(Messages.Usage, "/claim list FACTION");
+                user.SendChatMessage(nameof(Messages.Usage), "/claim list FACTION");
                 return;
             }
 
@@ -1265,7 +1265,7 @@ namespace Oxide.Plugins
 
             if (faction == null)
             {
-                user.SendChatMessage(Messages.FactionDoesNotExist, factionId);
+                user.SendChatMessage(nameof(Messages.FactionDoesNotExist), factionId);
                 return;
             }
 
@@ -1303,7 +1303,7 @@ namespace Oxide.Plugins
             if (!EnsureUserCanChangeFactionClaims(user, faction))
                 return;
 
-            user.SendChatMessage(Messages.SelectClaimCupboardToRemove);
+            user.SendChatMessage(nameof(Messages.SelectClaimCupboardToRemove));
             user.BeginInteraction(new RemovingClaimInteraction(faction));
         }
     }
@@ -1324,7 +1324,7 @@ namespace Oxide.Plugins
 
             if (args.Length != 2)
             {
-                user.SendChatMessage(Messages.Usage, "/claim rename XY \"NAME\"");
+                user.SendChatMessage(nameof(Messages.Usage), "/claim rename XY \"NAME\"");
                 return;
             }
 
@@ -1334,7 +1334,7 @@ namespace Oxide.Plugins
             if (name == null || name.Length < Options.Claims.MinAreaNameLength ||
                 name.Length > Options.Claims.MaxAreaNameLength)
             {
-                user.SendChatMessage(Messages.InvalidAreaName, Options.Claims.MinAreaNameLength,
+                user.SendChatMessage(nameof(Messages.InvalidAreaName), Options.Claims.MinAreaNameLength,
                     Options.Claims.MaxAreaNameLength);
                 return;
             }
@@ -1343,17 +1343,17 @@ namespace Oxide.Plugins
 
             if (area == null)
             {
-                user.SendChatMessage(Messages.UnknownArea, areaId);
+                user.SendChatMessage(nameof(Messages.UnknownArea), areaId);
                 return;
             }
 
             if (area.FactionId != faction.Id)
             {
-                user.SendChatMessage(Messages.AreaNotOwnedByYourFaction, area.Id);
+                user.SendChatMessage(nameof(Messages.AreaNotOwnedByYourFaction), area.Id);
                 return;
             }
             Util.RunEffect(user.transform.position, "assets/prefabs/missions/effects/mission_objective_complete.prefab");
-            user.SendChatMessage(Messages.AreaRenamed, area.Id, name);
+            user.SendChatMessage(nameof(Messages.AreaRenamed), area.Id, name);
             Log($"{Util.Format(user)} renamed {area.Id} to {name}");
 
             area.Name = name;
@@ -1369,7 +1369,7 @@ namespace Oxide.Plugins
         {
             if (args.Length != 1)
             {
-                user.SendChatMessage(Messages.Usage, "/claim show XY");
+                user.SendChatMessage(nameof(Messages.Usage), "/claim show XY");
                 return;
             }
 
@@ -1378,16 +1378,16 @@ namespace Oxide.Plugins
             switch (area.Type)
             {
                 case AreaType.Badlands:
-                    user.SendChatMessage(Messages.AreaIsBadlands, area.Id);
+                    user.SendChatMessage(nameof(Messages.AreaIsBadlands), area.Id);
                     return;
                 case AreaType.Claimed:
-                    user.SendChatMessage(Messages.AreaIsClaimed, area.Id, area.FactionId);
+                    user.SendChatMessage(nameof(Messages.AreaIsClaimed), area.Id, area.FactionId);
                     return;
                 case AreaType.Headquarters:
-                    user.SendChatMessage(Messages.AreaIsHeadquarters, area.Id, area.FactionId);
+                    user.SendChatMessage(nameof(Messages.AreaIsHeadquarters), area.Id, area.FactionId);
                     return;
                 default:
-                    user.SendChatMessage(Messages.AreaIsWilderness, area.Id);
+                    user.SendChatMessage(nameof(Messages.AreaIsWilderness), area.Id);
                     return;
             }
         }
@@ -1404,7 +1404,7 @@ namespace Oxide.Plugins
         {
             if (!Options.Upkeep.Enabled)
             {
-                user.SendChatMessage(Messages.UpkeepDisabled);
+                user.SendChatMessage(nameof(Messages.UpkeepDisabled));
                 return;
             }
 
@@ -1412,13 +1412,13 @@ namespace Oxide.Plugins
 
             if (faction == null)
             {
-                user.SendChatMessage(Messages.NotMemberOfFaction);
+                user.SendChatMessage(nameof(Messages.NotMemberOfFaction));
                 return;
             }
 
             if (faction.MemberCount < Options.Claims.MinFactionMembers)
             {
-                user.SendChatMessage(Messages.FactionTooSmallToOwnLand, Options.Claims.MinFactionMembers);
+                user.SendChatMessage(nameof(Messages.FactionTooSmallToOwnLand), Options.Claims.MinFactionMembers);
                 return;
             }
 
@@ -1426,7 +1426,7 @@ namespace Oxide.Plugins
 
             if (areas.Length == 0)
             {
-                user.SendChatMessage(Messages.NoAreasClaimed);
+                user.SendChatMessage(nameof(Messages.NoAreasClaimed));
                 return;
             }
 
@@ -1434,9 +1434,9 @@ namespace Oxide.Plugins
             var nextPaymentHours = (int)faction.NextUpkeepPaymentTime.Subtract(DateTime.UtcNow).TotalHours;
 
             if (nextPaymentHours > 0)
-                user.SendChatMessage(Messages.UpkeepCost, upkeep, areas.Length, faction.Id, nextPaymentHours);
+                user.SendChatMessage(nameof(Messages.UpkeepCost), upkeep, areas.Length, faction.Id, nextPaymentHours);
             else
-                user.SendChatMessage(Messages.UpkeepCostOverdue, upkeep, areas.Length, faction.Id, nextPaymentHours);
+                user.SendChatMessage(nameof(Messages.UpkeepCostOverdue), upkeep, areas.Length, faction.Id, nextPaymentHours);
         }
     }
 }
@@ -1516,7 +1516,7 @@ namespace Oxide.Plugins
 
             if (message.Length == 0)
             {
-                user.SendChatMessage(Messages.Usage, "/f MESSAGE...");
+                user.SendChatMessage(nameof(Messages.Usage), "/f MESSAGE...");
                 return;
             }
 
@@ -1524,11 +1524,11 @@ namespace Oxide.Plugins
 
             if (faction == null)
             {
-                user.SendChatMessage(Messages.NotMemberOfFaction);
+                user.SendChatMessage(nameof(Messages.NotMemberOfFaction));
                 return;
             }
 
-            faction.SendChatMessage("<color=#a1ff46>(FACTION)</color> {0}: {1}", user.UserName, message);
+            faction.SendChatMessage(nameof(Messages.FactionChatMessage), user.UserName, message);
             Puts("[FACTION] {0} - {1}: {2}", faction.Id, user.UserName, message);
         }
     }
@@ -1542,24 +1542,24 @@ namespace Oxide.Plugins
         {
             if(Clans)
             {
-                user.SendChatMessage(Messages.CannotManageFactionUseClansInstead);
+                user.SendChatMessage(nameof(Messages.CannotManageFactionUseClansInstead));
                 return;
             }
             if (!user.HasPermission(Permission.ManageFactions))
             {
-                user.SendChatMessage(Messages.NoPermission);
+                user.SendChatMessage(nameof(Messages.NoPermission));
                 return;
             }
 
             if (user.Faction != null)
             {
-                user.SendChatMessage(Messages.AlreadyMemberOfFaction);
+                user.SendChatMessage(nameof(Messages.AlreadyMemberOfFaction));
                 return;
             }
 
             if (args.Length != 1)
             {
-                user.SendChatMessage(Messages.Usage, "/faction create NAME");
+                user.SendChatMessage(nameof(Messages.Usage), "/faction create NAME");
                 return;
             }
 
@@ -1567,14 +1567,14 @@ namespace Oxide.Plugins
 
             if (id.Length < Options.Factions.MinFactionNameLength || id.Length > Options.Factions.MaxFactionNameLength)
             {
-                user.SendChatMessage(Messages.InvalidFactionName, Options.Factions.MinFactionNameLength,
+                user.SendChatMessage(nameof(Messages.InvalidFactionName), Options.Factions.MinFactionNameLength,
                     Options.Factions.MaxFactionNameLength);
                 return;
             }
 
             if (Factions.Exists(id))
             {
-                user.SendChatMessage(Messages.FactionAlreadyExists, id);
+                user.SendChatMessage(nameof(Messages.FactionAlreadyExists), id);
                 return;
             }
 
@@ -1596,7 +1596,7 @@ namespace Oxide.Plugins
         {
             if (args.Length != 1)
             {
-                user.SendChatMessage(Messages.Usage, "/faction demote \"PLAYER\"");
+                user.SendChatMessage(nameof(Messages.Usage), "/faction demote \"PLAYER\"");
                 return;
             }
 
@@ -1604,7 +1604,7 @@ namespace Oxide.Plugins
 
             if (faction == null || !faction.HasLeader(user))
             {
-                user.SendChatMessage(Messages.NotLeaderOfFaction);
+                user.SendChatMessage(nameof(Messages.NotLeaderOfFaction));
                 return;
             }
 
@@ -1612,29 +1612,29 @@ namespace Oxide.Plugins
 
             if (member == null)
             {
-                user.SendChatMessage(Messages.InvalidUser, args[0]);
+                user.SendChatMessage(nameof(Messages.InvalidUser), args[0]);
                 return;
             }
 
             if (!faction.HasMember(member))
             {
-                user.SendChatMessage(Messages.UserIsNotMemberOfFaction, member.UserName, faction.Id);
+                user.SendChatMessage(nameof(Messages.UserIsNotMemberOfFaction), member.UserName, faction.Id);
                 return;
             }
 
             if (faction.HasOwner(member))
             {
-                user.SendChatMessage(Messages.CannotPromoteOrDemoteOwnerOfFaction, member.UserName, faction.Id);
+                user.SendChatMessage(nameof(Messages.CannotPromoteOrDemoteOwnerOfFaction), member.UserName, faction.Id);
                 return;
             }
 
             if (!faction.HasManager(member))
             {
-                user.SendChatMessage(Messages.UserIsNotManagerOfFaction, member.UserName, faction.Id);
+                user.SendChatMessage(nameof(Messages.UserIsNotManagerOfFaction), member.UserName, faction.Id);
                 return;
             }
 
-            user.SendChatMessage(Messages.ManagerRemoved, member.UserName, faction.Id);
+            user.SendChatMessage(nameof(Messages.ManagerRemoved), member.UserName, faction.Id);
             Log($"{Util.Format(user)} demoted {Util.Format(member)} in faction {faction.Id}");
             Util.RunEffect(user.transform.position, "assets/prefabs/missions/effects/mission_failed.prefab");
             faction.Demote(member);
@@ -1651,19 +1651,19 @@ namespace Oxide.Plugins
         {
             if (!Instance.Options.Factions.AllowFactionBadlands)
             {
-                user.SendChatMessage(Messages.NoFactionBadlandsAllowed);
+                user.SendChatMessage(nameof(Messages.NoFactionBadlandsAllowed));
                 return;
             }
             Faction faction = user.Faction;
             if (faction == null || !faction.HasLeader(user))
             {
-                user.SendChatMessage(Messages.NotLeaderOfFaction);
+                user.SendChatMessage(nameof(Messages.NotLeaderOfFaction));
                 return;
             }
 
             if (args.Length != 1)
             {
-                user.SendChatMessage(Messages.Usage, "/faction badlands confirm");
+                user.SendChatMessage(nameof(Messages.Usage), "/faction badlands confirm");
                 return;
             }
             int elapsedSeconds = Instance.Options.Factions.CommandCooldownSeconds;
@@ -1676,20 +1676,20 @@ namespace Oxide.Plugins
             if (elapsedSeconds < Instance.Options.Factions.CommandCooldownSeconds)
             {
                 secondsRemaining = Instance.Options.Factions.CommandCooldownSeconds - elapsedSeconds;
-                user.SendChatMessage(Messages.CommandIsOnCooldown, secondsRemaining);
+                user.SendChatMessage(nameof(Messages.CommandIsOnCooldown), secondsRemaining);
                 return;
             }
             
             if (faction.IsBadlands)
             {
-                user.SendChatMessage(Messages.FactionIsNotBadlands);
+                user.SendChatMessage(nameof(Messages.FactionIsNotBadlands));
                 faction.IsBadlands = false;
                 faction.BadlandsCommandUsedTime = DateTime.Now;
                 Util.RunEffect(user.transform.position, "assets/prefabs/missions/effects/mission_victory.prefab");
             }
             else
             {
-                user.SendChatMessage(Messages.FactionIsBadlands);
+                user.SendChatMessage(nameof(Messages.FactionIsBadlands));
                 faction.IsBadlands = true;
                 faction.BadlandsCommandUsedTime = DateTime.Now;
                 Util.RunEffect(user.transform.position, "assets/prefabs/missions/effects/mission_accept.prefab");
@@ -1707,19 +1707,19 @@ namespace Oxide.Plugins
         {
             if (args.Length != 1 || args[0].ToLowerInvariant() != "forever")
             {
-                user.SendChatMessage(Messages.Usage, "/faction disband forever");
+                user.SendChatMessage(nameof(Messages.Usage), "/faction disband forever");
                 return;
             }
             if (Clans)
             {
-                user.SendChatMessage(Messages.CannotManageFactionUseClansInstead);
+                user.SendChatMessage(nameof(Messages.CannotManageFactionUseClansInstead));
                 return;
             }
             Faction faction = user.Faction;
 
             if (faction == null || !faction.HasLeader(user))
             {
-                user.SendChatMessage(Messages.NotLeaderOfFaction);
+                user.SendChatMessage(nameof(Messages.NotLeaderOfFaction));
                 return;
             }
 
@@ -1773,19 +1773,19 @@ namespace Oxide.Plugins
         {
             if (args.Length != 1)
             {
-                user.SendChatMessage(Messages.Usage, "/faction invite \"PLAYER\"");
+                user.SendChatMessage(nameof(Messages.Usage), "/faction invite \"PLAYER\"");
                 return;
             }
             if (Clans)
             {
-                user.SendChatMessage(Messages.CannotManageFactionUseClansInstead);
+                user.SendChatMessage(nameof(Messages.CannotManageFactionUseClansInstead));
                 return;
             }
             Faction faction = Factions.GetByMember(user);
 
             if (faction == null || !faction.HasLeader(user))
             {
-                user.SendChatMessage(Messages.NotLeaderOfFaction);
+                user.SendChatMessage(nameof(Messages.NotLeaderOfFaction));
                 return;
             }
 
@@ -1793,25 +1793,25 @@ namespace Oxide.Plugins
 
             if (member == null)
             {
-                user.SendChatMessage(Messages.InvalidUser, args[0]);
+                user.SendChatMessage(nameof(Messages.InvalidUser), args[0]);
                 return;
             }
 
             if (faction.HasMember(member))
             {
-                user.SendChatMessage(Messages.UserIsAlreadyMemberOfFaction, member.UserName, faction.Id);
+                user.SendChatMessage(nameof(Messages.UserIsAlreadyMemberOfFaction), member.UserName, faction.Id);
                 return;
             }
 
             int? maxMembers = Options.Factions.MaxMembers;
             if (maxMembers != null && faction.MemberCount >= maxMembers)
             {
-                user.SendChatMessage(Messages.FactionHasTooManyMembers, faction.Id, faction.MemberCount);
+                user.SendChatMessage(nameof(Messages.FactionHasTooManyMembers), faction.Id, faction.MemberCount);
                 return;
             }
 
-            member.SendChatMessage(Messages.InviteReceived, user.UserName, faction.Id);
-            user.SendChatMessage(Messages.InviteAdded, member.UserName, faction.Id);
+            member.SendChatMessage(nameof(Messages.InviteReceived), user.UserName, faction.Id);
+            user.SendChatMessage(nameof(Messages.InviteAdded), member.UserName, faction.Id);
             Util.RunEffect(user.transform.position, "assets/prefabs/missions/effects/mission_objective_complete.prefab");
             Util.RunEffect(user.transform.position, "assets/prefabs/missions/effects/mission_objective_complete.prefab", member.Player);
 
@@ -1830,17 +1830,17 @@ namespace Oxide.Plugins
         {
             if (args.Length != 1)
             {
-                user.SendChatMessage(Messages.Usage, "/faction join FACTION");
+                user.SendChatMessage(nameof(Messages.Usage), "/faction join FACTION");
                 return;
             }
             if (Clans)
             {
-                user.SendChatMessage(Messages.CannotManageFactionUseClansInstead);
+                user.SendChatMessage(nameof(Messages.CannotManageFactionUseClansInstead));
                 return;
             }
             if (user.Faction != null)
             {
-                user.SendChatMessage(Messages.AlreadyMemberOfFaction);
+                user.SendChatMessage(nameof(Messages.AlreadyMemberOfFaction));
                 return;
             }
 
@@ -1848,17 +1848,17 @@ namespace Oxide.Plugins
 
             if (faction == null)
             {
-                user.SendChatMessage(Messages.FactionDoesNotExist, args[0]);
+                user.SendChatMessage(nameof(Messages.FactionDoesNotExist), args[0]);
                 return;
             }
 
             if (!faction.HasInvite(user))
             {
-                user.SendChatMessage(Messages.CannotJoinFactionNotInvited, faction.Id);
+                user.SendChatMessage(nameof(Messages.CannotJoinFactionNotInvited), faction.Id);
                 return;
             }
 
-            user.SendChatMessage(Messages.YouJoinedFaction, faction.Id);
+            user.SendChatMessage(nameof(Messages.YouJoinedFaction), faction.Id);
             PrintToChat(Messages.FactionMemberJoinedAnnouncement, user.UserName, faction.Id);
             Log($"{Util.Format(user)} joined faction {faction.Id}");
             Util.RunEffect(user.transform.position, "assets/prefabs/missions/effects/mission_objective_complete.prefab");
@@ -1876,19 +1876,19 @@ namespace Oxide.Plugins
         {
             if (args.Length != 1)
             {
-                user.SendChatMessage(Messages.Usage, "/faction kick \"PLAYER\"");
+                user.SendChatMessage(nameof(Messages.Usage), "/faction kick \"PLAYER\"");
                 return;
             }
             if (Clans)
             {
-                user.SendChatMessage(Messages.CannotManageFactionUseClansInstead);
+                user.SendChatMessage(nameof(Messages.CannotManageFactionUseClansInstead));
                 return;
             }
             Faction faction = user.Faction;
 
             if (faction == null || !faction.HasLeader(user))
             {
-                user.SendChatMessage(Messages.NotLeaderOfFaction);
+                user.SendChatMessage(nameof(Messages.NotLeaderOfFaction));
                 return;
             }
 
@@ -1896,23 +1896,23 @@ namespace Oxide.Plugins
 
             if (member == null)
             {
-                user.SendChatMessage(Messages.InvalidUser, args[0]);
+                user.SendChatMessage(nameof(Messages.InvalidUser), args[0]);
                 return;
             }
 
             if (!faction.HasMember(member))
             {
-                user.SendChatMessage(Messages.UserIsNotMemberOfFaction, member.UserName, faction.Id);
+                user.SendChatMessage(nameof(Messages.UserIsNotMemberOfFaction), member.UserName, faction.Id);
                 return;
             }
 
             if (faction.HasLeader(member))
             {
-                user.SendChatMessage(Messages.CannotKickLeaderOfFaction, member.UserName, faction.Id);
+                user.SendChatMessage(nameof(Messages.CannotKickLeaderOfFaction), member.UserName, faction.Id);
                 return;
             }
 
-            user.SendChatMessage(Messages.MemberRemoved, member.UserName, faction.Id);
+            user.SendChatMessage(nameof(Messages.MemberRemoved), member.UserName, faction.Id);
             PrintToChat(Messages.FactionMemberLeftAnnouncement, member.UserName, faction.Id);
 
             Log($"{Util.Format(user)} kicked {Util.Format(member)} from faction {faction.Id}");
@@ -1931,19 +1931,19 @@ namespace Oxide.Plugins
         {
             if (args.Length != 0)
             {
-                user.SendChatMessage(Messages.Usage, "/faction leave");
+                user.SendChatMessage(nameof(Messages.Usage), "/faction leave");
                 return;
             }
             if (Clans)
             {
-                user.SendChatMessage(Messages.CannotManageFactionUseClansInstead);
+                user.SendChatMessage(nameof(Messages.CannotManageFactionUseClansInstead));
                 return;
             }
             Faction faction = user.Faction;
 
             if (faction == null)
             {
-                user.SendChatMessage(Messages.NotMemberOfFaction);
+                user.SendChatMessage(nameof(Messages.NotMemberOfFaction));
                 return;
             }
 
@@ -1955,7 +1955,7 @@ namespace Oxide.Plugins
                 return;
             }
 
-            user.SendChatMessage(Messages.YouLeftFaction, faction.Id);
+            user.SendChatMessage(nameof(Messages.YouLeftFaction), faction.Id);
             PrintToChat(Messages.FactionMemberLeftAnnouncement, user.UserName, faction.Id);
 
             Log($"{Util.Format(user)} left faction {faction.Id}");
@@ -1974,19 +1974,19 @@ namespace Oxide.Plugins
         {
             if (args.Length != 1)
             {
-                user.SendChatMessage(Messages.Usage, "/faction promote \"PLAYER\"");
+                user.SendChatMessage(nameof(Messages.Usage), "/faction promote \"PLAYER\"");
                 return;
             }
             if (Clans)
             {
-                user.SendChatMessage(Messages.CannotManageFactionUseClansInstead);
+                user.SendChatMessage(nameof(Messages.CannotManageFactionUseClansInstead));
                 return;
             }
             Faction faction = Factions.GetByMember(user);
 
             if (faction == null || !faction.HasLeader(user))
             {
-                user.SendChatMessage(Messages.NotLeaderOfFaction);
+                user.SendChatMessage(nameof(Messages.NotLeaderOfFaction));
                 return;
             }
 
@@ -1994,29 +1994,29 @@ namespace Oxide.Plugins
 
             if (member == null)
             {
-                user.SendChatMessage(Messages.InvalidUser, args[0]);
+                user.SendChatMessage(nameof(Messages.InvalidUser), args[0]);
                 return;
             }
 
             if (!faction.HasMember(member))
             {
-                user.SendChatMessage(Messages.UserIsNotMemberOfFaction, member.UserName, faction.Id);
+                user.SendChatMessage(nameof(Messages.UserIsNotMemberOfFaction), member.UserName, faction.Id);
                 return;
             }
 
             if (faction.HasOwner(member))
             {
-                user.SendChatMessage(Messages.CannotPromoteOrDemoteOwnerOfFaction, member.UserName, faction.Id);
+                user.SendChatMessage(nameof(Messages.CannotPromoteOrDemoteOwnerOfFaction), member.UserName, faction.Id);
                 return;
             }
 
             if (faction.HasManager(member))
             {
-                user.SendChatMessage(Messages.UserIsAlreadyManagerOfFaction, member.UserName, faction.Id);
+                user.SendChatMessage(nameof(Messages.UserIsAlreadyManagerOfFaction), member.UserName, faction.Id);
                 return;
             }
 
-            user.SendChatMessage(Messages.ManagerAdded, member.UserName, faction.Id);
+            user.SendChatMessage(nameof(Messages.ManagerAdded), member.UserName, faction.Id);
             Log($"{Util.Format(user)} promoted {Util.Format(member)} in faction {faction.Id}");
             Util.RunEffect(user.transform.position, "assets/prefabs/missions/effects/mission_victory.prefab");
             faction.Promote(member);
@@ -2036,7 +2036,7 @@ namespace Oxide.Plugins
 
             if (faction == null)
             {
-                user.SendChatMessage(Messages.NotMemberOfFaction);
+                user.SendChatMessage(nameof(Messages.NotMemberOfFaction));
                 return;
             }
 
@@ -2114,7 +2114,7 @@ namespace Oxide.Plugins
 
             if (!Options.Map.PinsEnabled)
             {
-                user.SendChatMessage(Messages.PinsDisabled);
+                user.SendChatMessage(nameof(Messages.PinsDisabled));
                 return;
             }
 
@@ -2163,13 +2163,13 @@ namespace Oxide.Plugins
         {
             if (args.Length != 2)
             {
-                user.SendChatMessage(Messages.Usage, "/pin add TYPE \"NAME\"");
+                user.SendChatMessage(nameof(Messages.Usage), "/pin add TYPE \"NAME\"");
                 return;
             }
 
             if (user.Faction == null)
             {
-                user.SendChatMessage(Messages.NotMemberOfFaction);
+                user.SendChatMessage(nameof(Messages.NotMemberOfFaction));
                 return;
             }
 
@@ -2177,20 +2177,20 @@ namespace Oxide.Plugins
 
             if (area == null)
             {
-                user.SendChatMessage(Messages.YouAreInTheGreatUnknown);
+                user.SendChatMessage(nameof(Messages.YouAreInTheGreatUnknown));
                 return;
             }
 
             if (area.FactionId == null || area.FactionId != user.Faction.Id)
             {
-                user.SendChatMessage(Messages.AreaNotOwnedByYourFaction, area.Id);
+                user.SendChatMessage(nameof(Messages.AreaNotOwnedByYourFaction), area.Id);
                 return;
             }
             
             PinType type;
             if (!Util.TryParseEnum(args[0], out type))
             {
-                user.SendChatMessage(Messages.InvalidPinType, args[0]);
+                user.SendChatMessage(nameof(Messages.InvalidPinType), args[0]);
                 return;
             }
 
@@ -2198,7 +2198,7 @@ namespace Oxide.Plugins
             if (name == null || name.Length < Options.Map.MinPinNameLength ||
                 name.Length > Options.Map.MaxPinNameLength)
             {
-                user.SendChatMessage(Messages.InvalidPinName, Options.Map.MinPinNameLength,
+                user.SendChatMessage(nameof(Messages.InvalidPinName), Options.Map.MinPinNameLength,
                     Options.Map.MaxPinNameLength);
                 return;
             }
@@ -2206,7 +2206,7 @@ namespace Oxide.Plugins
             Pin existingPin = Pins.Get(name);
             if (existingPin != null)
             {
-                user.SendChatMessage(Messages.CannotCreatePinAlreadyExists, existingPin.Name, existingPin.AreaId);
+                user.SendChatMessage(nameof(Messages.CannotCreatePinAlreadyExists), existingPin.Name, existingPin.AreaId);
                 return;
             }
 
@@ -2217,7 +2217,7 @@ namespace Oxide.Plugins
 
                 if (!Instance.TryCollectFromStacks(scrapDef, stacks, Options.Map.PinCost))
                 {
-                    user.SendChatMessage(Messages.CannotCreatePinCannotAfford, Options.Map.PinCost);
+                    user.SendChatMessage(nameof(Messages.CannotCreatePinCannotAfford), Options.Map.PinCost);
                     return;
                 }
             }
@@ -2242,13 +2242,13 @@ namespace Oxide.Plugins
         {
             if (args.Length != 1)
             {
-                user.SendChatMessage(Messages.Usage, "/pin delete \"NAME\"");
+                user.SendChatMessage(nameof(Messages.Usage), "/pin delete \"NAME\"");
                 return;
             }
 
             if (!user.HasPermission(Permission.AdminPins))
             {
-                user.SendChatMessage(Messages.NoPermission);
+                user.SendChatMessage(nameof(Messages.NoPermission));
                 return;
             }
 
@@ -2257,12 +2257,12 @@ namespace Oxide.Plugins
 
             if (pin == null)
             {
-                user.SendChatMessage(Messages.UnknownPin, name);
+                user.SendChatMessage(nameof(Messages.UnknownPin), name);
                 return;
             }
 
             Pins.Remove(pin);
-            user.SendChatMessage(Messages.PinRemoved, pin.Name);
+            user.SendChatMessage(nameof(Messages.PinRemoved), pin.Name);
         }
     }
 }
@@ -2315,7 +2315,7 @@ namespace Oxide.Plugins
         {
             if (args.Length > 1)
             {
-                user.SendChatMessage(Messages.Usage, "/pin list [TYPE]");
+                user.SendChatMessage(nameof(Messages.Usage), "/pin list [TYPE]");
                 return;
             }
 
@@ -2326,7 +2326,7 @@ namespace Oxide.Plugins
                 PinType type;
                 if (!Util.TryParseEnum(args[0], out type))
                 {
-                    user.SendChatMessage(Messages.InvalidPinType, args[0]);
+                    user.SendChatMessage(nameof(Messages.InvalidPinType), args[0]);
                     return;
                 }
 
@@ -2364,13 +2364,13 @@ namespace Oxide.Plugins
         {
             if (args.Length != 1)
             {
-                user.SendChatMessage(Messages.Usage, "/pin remove \"NAME\"");
+                user.SendChatMessage(nameof(Messages.Usage), "/pin remove \"NAME\"");
                 return;
             }
 
             if (user.Faction == null)
             {
-                user.SendChatMessage(Messages.NotMemberOfFaction);
+                user.SendChatMessage(nameof(Messages.NotMemberOfFaction));
                 return;
             }
 
@@ -2379,19 +2379,19 @@ namespace Oxide.Plugins
 
             if (pin == null)
             {
-                user.SendChatMessage(Messages.UnknownPin, name);
+                user.SendChatMessage(nameof(Messages.UnknownPin), name);
                 return;
             }
 
             Area area = Areas.Get(pin.AreaId);
             if (area.FactionId != user.Faction.Id)
             {
-                user.SendChatMessage(Messages.CannotRemovePinAreaNotOwnedByYourFaction, pin.Name, pin.AreaId);
+                user.SendChatMessage(nameof(Messages.CannotRemovePinAreaNotOwnedByYourFaction), pin.Name, pin.AreaId);
                 return;
             }
 
             Pins.Remove(pin);
-            user.SendChatMessage(Messages.PinRemoved, pin.Name);
+            user.SendChatMessage(nameof(Messages.PinRemoved), pin.Name);
         }
     }
 }
@@ -2411,7 +2411,7 @@ namespace Oxide.Plugins
 
             if (!Options.Taxes.Enabled)
             {
-                user.SendChatMessage(Messages.TaxationDisabled);
+                user.SendChatMessage(nameof(Messages.TaxationDisabled));
                 return;
             }
 
@@ -2452,11 +2452,11 @@ namespace Oxide.Plugins
 
             if (faction == null || !faction.HasLeader(user))
             {
-                user.SendChatMessage(Messages.NotLeaderOfFaction);
+                user.SendChatMessage(nameof(Messages.NotLeaderOfFaction));
                 return;
             }
 
-            user.SendChatMessage(Messages.SelectTaxChest);
+            user.SendChatMessage(nameof(Messages.SelectTaxChest));
             user.BeginInteraction(new SelectingTaxChestInteraction(faction));
         }
     }
@@ -2474,7 +2474,7 @@ namespace Oxide.Plugins
 
             if (faction == null || !faction.HasLeader(user))
             {
-                user.SendChatMessage(Messages.NotLeaderOfFaction);
+                user.SendChatMessage(nameof(Messages.NotLeaderOfFaction));
                 return;
             }
 
@@ -2485,17 +2485,17 @@ namespace Oxide.Plugins
             }
             catch
             {
-                user.SendChatMessage(Messages.CannotSetTaxRateInvalidValue, Options.Taxes.MaxTaxRate * 100);
+                user.SendChatMessage(nameof(Messages.CannotSetTaxRateInvalidValue), Options.Taxes.MaxTaxRate * 100);
                 return;
             }
 
             if (taxRate < 0 || taxRate > Options.Taxes.MaxTaxRate)
             {
-                user.SendChatMessage(Messages.CannotSetTaxRateInvalidValue, Options.Taxes.MaxTaxRate * 100);
+                user.SendChatMessage(nameof(Messages.CannotSetTaxRateInvalidValue), Options.Taxes.MaxTaxRate * 100);
                 return;
             }
 
-            user.SendChatMessage(Messages.SetTaxRateSuccessful, faction.Id, taxRate * 100);
+            user.SendChatMessage(nameof(Messages.SetTaxRateSuccessful), faction.Id, taxRate * 100);
             Log($"{Util.Format(user)} set the tax rate for faction {faction.Id} to {taxRate * 100}%");
             Util.RunEffect(user.transform.position, "assets/prefabs/missions/effects/mission_objective_complete.prefab");
             Factions.SetTaxRate(faction, taxRate);
@@ -2539,7 +2539,7 @@ namespace Oxide.Plugins
 
             if (!Options.Recruiting.Enabled)
             {
-                user.SendChatMessage(Messages.RecruitingDisabled);
+                user.SendChatMessage(nameof(Messages.RecruitingDisabled);
                 return;
             }
 
@@ -2581,11 +2581,11 @@ namespace Oxide.Plugins
 
             if (faction == null || !faction.HasLeader(user))
             {
-                user.SendChatMessage(Messages.NotLeaderOfFaction);
+                user.SendChatMessage(nameof(Messages.NotLeaderOfFaction));
                 return;
             }
 
-            user.SendChatMessage(Messages.SelectArmoryLocker);
+            user.SendChatMessage(nameof(Messages.SelectArmoryLocker));
             user.BeginInteraction(new SelectingArmoryLockerInteraction(faction));
         }
     }
@@ -2601,7 +2601,7 @@ namespace Oxide.Plugins
 
             if (faction == null || !faction.HasLeader(user))
             {
-                user.SendChatMessage(Messages.NotLeaderOfFaction);
+                user.SendChatMessage(nameof(Messages.NotLeaderOfFaction));
                 return;
             }
             var npc = (global::HumanNPC)GameManager.server.CreateEntity("assets/rust.ai/agents/npcplayer/humannpc/scientist/scientistnpc_roam.prefab", user.transform.position, UnityEngine.Quaternion.identity, false);
@@ -2658,7 +2658,7 @@ namespace Oxide.Plugins
             if (user == null) return;
             if (!Instance.Options.Upgrading.Enabled)
             {
-                user.SendChatMessage(Messages.UpgradingDisabled);
+                user.SendChatMessage(nameof(Messages.UpgradingDisabled));
                 return;
             }
             if(args.Length == 0)
@@ -2700,12 +2700,12 @@ namespace Oxide.Plugins
             }
             if (area == null || area.FactionId != user.Faction.Id)
             {
-                user.SendChatMessage(Messages.AreaNotOwnedByYourFaction);
+                user.SendChatMessage(nameof(Messages.AreaNotOwnedByYourFaction));
                 return;
             }
             if (area.Level >= Instance.Options.Upgrading.MaxUpgradeLevel)
             {
-                user.SendChatMessage(Messages.AreaIsMaximumLevel);
+                user.SendChatMessage(nameof(Messages.AreaIsMaximumLevel));
                 return;
             }
             var sb = new StringBuilder();
@@ -2734,12 +2734,12 @@ namespace Oxide.Plugins
             }
             if (area == null || area.FactionId != user.Faction.Id)
             {
-                user.SendChatMessage(Messages.AreaNotOwnedByYourFaction);
+                user.SendChatMessage(nameof(Messages.AreaNotOwnedByYourFaction));
                 return;
             }
             if(area.Level >= Instance.Options.Upgrading.MaxUpgradeLevel)
             {
-                user.SendChatMessage(Messages.AreaIsMaximumLevel);
+                user.SendChatMessage(nameof(Messages.AreaIsMaximumLevel));
                 return;
             }
             if(!Instance.EnsureUserCanChangeFactionClaims(user, user.Faction))
@@ -2755,12 +2755,12 @@ namespace Oxide.Plugins
 
                 if (!Instance.TryCollectFromStacks(scrapDef, stacks, cost))
                 {
-                    user.SendChatMessage(Messages.CannotUpgradeAreaCannotAfford, cost);
+                    user.SendChatMessage(nameof(Messages.CannotUpgradeAreaCannotAfford), cost);
                     return;
                 }
             }
             area.Level++;
-            user.SendChatMessage(Messages.AreaLevelUpgraded, area.Level);
+            user.SendChatMessage(nameof(Messages.AreaLevelUpgraded), area.Level);
             Util.RunEffect(user.transform.position, "assets/bundled/prefabs/fx/item_unlock.prefab");
         }
     }
@@ -2911,7 +2911,7 @@ namespace Oxide.Plugins
 
             if (!Options.War.Enabled)
             {
-                user.SendChatMessage(Messages.WarDisabled);
+                user.SendChatMessage(nameof(Messages.WarDisabled));
                 return;
             }
 
@@ -2974,7 +2974,7 @@ namespace Oxide.Plugins
 
             if (args.Length < 2)
             {
-                user.SendChatMessage(Messages.Usage, "/war declare FACTION \"REASON\"");
+                user.SendChatMessage(nameof(Messages.Usage), "/war declare FACTION \"REASON\"");
                 return;
             }
 
@@ -2990,12 +2990,12 @@ namespace Oxide.Plugins
                     int minutesRemaining = secondsRemaining / 60;
                     if (secondsRemaining >= 60)
                     {
-                        user.SendChatMessage(Messages.CannotDeclareWarNoobAttacker, minutesRemaining, "minutes");
+                        user.SendChatMessage(nameof(Messages.CannotDeclareWarNoobAttacker), minutesRemaining, "minutes");
                         return;
 
                     }
                     
-                    user.SendChatMessage(Messages.CannotDeclareWarNoobAttacker, secondsRemaining, "seconds");
+                    user.SendChatMessage(nameof(Messages.CannotDeclareWarNoobAttacker), secondsRemaining, "seconds");
                     return;
                 }
             }
@@ -3004,13 +3004,13 @@ namespace Oxide.Plugins
 
             if (defender == null)
             {
-                user.SendChatMessage(Messages.FactionDoesNotExist, args[0]);
+                user.SendChatMessage(nameof(Messages.FactionDoesNotExist), args[0]);
                 return;
             }
 
             if (attacker.Id == defender.Id)
             {
-                user.SendChatMessage(Messages.CannotDeclareWarAgainstYourself);
+                user.SendChatMessage(nameof(Messages.CannotDeclareWarAgainstYourself));
                 return;
             }
 
@@ -3018,7 +3018,7 @@ namespace Oxide.Plugins
 
             if (existingWar != null)
             {
-                user.SendChatMessage(Messages.CannotDeclareWarAlreadyAtWar, defender.Id);
+                user.SendChatMessage(nameof(Messages.CannotDeclareWarAlreadyAtWar), defender.Id);
                 return;
             }
 
@@ -3034,10 +3034,10 @@ namespace Oxide.Plugins
                     int minutesRemaining = secondsRemaining / 60;
                     if(secondsRemaining >= 60)
                     {
-                        user.SendChatMessage(Messages.CannotDeclareWarDefenderProtected, defender.Id, secondsRemaining, "minutes");
+                        user.SendChatMessage(nameof(Messages.CannotDeclareWarDefenderProtected), defender.Id, secondsRemaining, "minutes");
                         return;
                     }
-                    user.SendChatMessage(Messages.CannotDeclareWarDefenderProtected, defender.Id, secondsRemaining, "seconds");
+                    user.SendChatMessage(nameof(Messages.CannotDeclareWarDefenderProtected), defender.Id, secondsRemaining, "seconds");
                     return;
                 }
             }
@@ -3047,7 +3047,7 @@ namespace Oxide.Plugins
 
             if (cassusBelli.Length < Options.War.MinCassusBelliLength)
             {
-                user.SendChatMessage(Messages.CannotDeclareWarInvalidCassusBelli, defender.Id);
+                user.SendChatMessage(nameof(Messages.CannotDeclareWarInvalidCassusBelli), defender.Id);
                 return;
             }
 
@@ -3056,7 +3056,7 @@ namespace Oxide.Plugins
                 User[] defenders = Instance.Users.GetAll().Where(u => u.Faction.Id == defender.Id).ToArray();
                 if(defenders.Length < Instance.Options.War.OnlineDefendersRequired)
                 {
-                    user.SendChatMessage(Messages.CannotDeclareWarDefendersNotOnline, Instance.Options.War.OnlineDefendersRequired);
+                    user.SendChatMessage(nameof(Messages.CannotDeclareWarDefendersNotOnline), Instance.Options.War.OnlineDefendersRequired);
                     return;
                 }
             }
@@ -3069,7 +3069,7 @@ namespace Oxide.Plugins
 
                 if (!Instance.TryCollectFromStacks(scrapDef, stacks, cost))
                 {
-                    user.SendChatMessage(Messages.CannotDeclareWarCannotAfford, cost);
+                    user.SendChatMessage(nameof(Messages.CannotDeclareWarCannotAfford), cost);
                     return;
                 }
             }
@@ -3101,7 +3101,7 @@ namespace Oxide.Plugins
 
             if (enemy == null)
             {
-                user.SendChatMessage(Messages.FactionDoesNotExist, args[0]);
+                user.SendChatMessage(nameof(Messages.FactionDoesNotExist), args[0]);
                 return;
             }
 
@@ -3109,13 +3109,13 @@ namespace Oxide.Plugins
 
             if (war == null)
             {
-                user.SendChatMessage(Messages.NotAtWar, enemy.Id);
+                user.SendChatMessage(nameof(Messages.NotAtWar), enemy.Id);
                 return;
             }
 
             if (war.IsOfferingPeace(faction))
             {
-                user.SendChatMessage(Messages.CannotOfferPeaceAlreadyOfferedPeace, enemy.Id);
+                user.SendChatMessage(nameof(Messages.CannotOfferPeaceAlreadyOfferedPeace), enemy.Id);
                 return;
             }
 
@@ -3132,7 +3132,7 @@ namespace Oxide.Plugins
             else
             {
                 Util.RunEffect(user.transform.position, "assets/prefabs/missions/effects/mission_failed.prefab");
-                user.SendChatMessage(Messages.PeaceOffered, enemy.Id);
+                user.SendChatMessage(nameof(Messages.PeaceOffered), enemy.Id);
                 Log($"{Util.Format(user)} offered peace to faction {enemy.Id} on behalf of {faction.Id}");
             }
         }
@@ -3219,7 +3219,7 @@ namespace Oxide.Plugins
 
             if (faction == null)
             {
-                user.SendChatMessage(Messages.NotMemberOfFaction);
+                user.SendChatMessage(nameof(Messages.NotMemberOfFaction));
                 return;
             }
 
@@ -3261,7 +3261,7 @@ namespace Oxide.Plugins
         {
             if (!user.HasPermission("imperium.wars.admin"))
             {
-                user.SendChatMessage(Messages.NoPermission);
+                user.SendChatMessage(nameof(Messages.NoPermission));
                 return;
             }
             var restArgs = args.Skip(1).ToArray();
@@ -3330,7 +3330,7 @@ namespace Oxide.Plugins
         {
             if(args.Length != 2)
             {
-                user.SendChatMessage(Messages.Usage, "/war admin approve FACTION_1 FACTION_2");
+                user.SendChatMessage(nameof(Messages.Usage), "/war admin approve FACTION_1 FACTION_2");
                 return;
             }
             War[] wars = Wars.GetAllAdminUnnaprovedWars();
@@ -3343,19 +3343,19 @@ namespace Oxide.Plugins
             }
             if(f1 == null)
             {
-                user.SendChatMessage(Messages.FactionDoesNotExist, args[0]);
+                user.SendChatMessage(nameof(Messages.FactionDoesNotExist), args[0]);
                 return;
             }
             if (f2 == null)
             {
-                user.SendChatMessage(Messages.FactionDoesNotExist, args[1]);
+                user.SendChatMessage(nameof(Messages.FactionDoesNotExist), args[1]);
                 return;
             }
             var war = wars.SingleOrDefault(w => w.AttackerId == f1.Id && w.DefenderId == f2.Id ||
             w.AttackerId == f2.Id && w.DefenderId == f1.Id);
             if(war == null)
             {
-                user.SendChatMessage(Messages.NoWarBetweenFactions,f1.Id,f2.Id);
+                user.SendChatMessage(nameof(Messages.NoWarBetweenFactions), f1.Id,f2.Id);
                 return;
             }
             Instance.Wars.AdminApproveWar(war);
@@ -3378,7 +3378,7 @@ namespace Oxide.Plugins
         {
             if (args.Length != 2)
             {
-                user.SendChatMessage(Messages.Usage, "/war admin deny FACTION_1 FACTION_2");
+                user.SendChatMessage(nameof(Messages.Usage), "/war admin deny FACTION_1 FACTION_2");
                 return;
             }
             War[] wars = Wars.GetAllAdminUnnaprovedWars();
@@ -3391,19 +3391,19 @@ namespace Oxide.Plugins
             }
             if (f1 == null)
             {
-                user.SendChatMessage(Messages.FactionDoesNotExist, args[0]);
+                user.SendChatMessage(nameof(Messages.FactionDoesNotExist), args[0]);
                 return;
             }
             if (f2 == null)
             {
-                user.SendChatMessage(Messages.FactionDoesNotExist, args[1]);
+                user.SendChatMessage(nameof(Messages.FactionDoesNotExist), args[1]);
                 return;
             }
             var war = wars.SingleOrDefault(w => w.AttackerId == f1.Id && w.DefenderId == f2.Id ||
             w.AttackerId == f2.Id && w.DefenderId == f1.Id);
             if (war == null)
             {
-                user.SendChatMessage(Messages.NoWarBetweenFactions, f1.Id, f2.Id);
+                user.SendChatMessage(nameof(Messages.NoWarBetweenFactions), f1.Id, f2.Id);
                 return;
             }
             Instance.Wars.AdminDenyeWar(war);
@@ -3426,13 +3426,13 @@ namespace Oxide.Plugins
         {
             if (args.Length != 1)
             {
-                user.SendChatMessage(Messages.Usage, "/war approve FACTION");
+                user.SendChatMessage(nameof(Messages.Usage), "/war approve FACTION");
                 return;
             }
             Faction faction = Factions.GetByMember(user);
             if (faction == null || !faction.HasLeader(user))
             {
-                user.SendChatMessage(Messages.NotLeaderOfFaction);
+                user.SendChatMessage(nameof(Messages.NotLeaderOfFaction));
                 return;
             }
             War[] wars = Wars.GetAllUnapprovedWarsByFaction(faction);
@@ -3444,13 +3444,13 @@ namespace Oxide.Plugins
             }
             if (f1 == null)
             {
-                user.SendChatMessage(Messages.FactionDoesNotExist, args[0]);
+                user.SendChatMessage(nameof(Messages.FactionDoesNotExist), args[0]);
                 return;
             }
             var war = wars.SingleOrDefault(w => w.AttackerId == f1.Id && w.DefenderId == faction.Id);
             if (war == null)
             {
-                user.SendChatMessage(Messages.NoWarBetweenFactions, f1.Id, faction.Id);
+                user.SendChatMessage(nameof(Messages.NoWarBetweenFactions), f1.Id, faction.Id);
                 return;
             }
             Instance.Wars.DefenderApproveWar(war);
@@ -3473,13 +3473,13 @@ namespace Oxide.Plugins
         {
             if (args.Length != 1)
             {
-                user.SendChatMessage(Messages.Usage, "/war deny FACTION");
+                user.SendChatMessage(nameof(Messages.Usage), "/war deny FACTION");
                 return;
             }
             Faction faction = Factions.GetByMember(user);
             if (faction == null || !faction.HasLeader(user))
             {
-                user.SendChatMessage(Messages.NotLeaderOfFaction);
+                user.SendChatMessage(nameof(Messages.NotLeaderOfFaction));
                 return;
             }
             War[] wars = Wars.GetAllUnapprovedWarsByFaction(faction);
@@ -3491,18 +3491,18 @@ namespace Oxide.Plugins
             }
             if (f1 == null)
             {
-                user.SendChatMessage(Messages.FactionDoesNotExist, args[0]);
+                user.SendChatMessage(nameof(Messages.FactionDoesNotExist), args[0]);
                 return;
             }
             if (faction == null)
             {
-                user.SendChatMessage(Messages.FactionDoesNotExist, args[1]);
+                user.SendChatMessage(nameof(Messages.FactionDoesNotExist), args[1]);
                 return;
             }
             var war = wars.SingleOrDefault(w => w.AttackerId == f1.Id && w.DefenderId == faction.Id);
             if (war == null)
             {
-                user.SendChatMessage(Messages.NoWarBetweenFactions, f1.Id, faction.Id);
+                user.SendChatMessage(nameof(Messages.NoWarBetweenFactions), f1.Id, faction.Id);
                 return;
             }
             Instance.Wars.DefenderDenyWar(war);
@@ -3526,7 +3526,7 @@ namespace Oxide.Plugins
 
             if (faction == null)
             {
-                user.SendChatMessage(Messages.NotMemberOfFaction);
+                user.SendChatMessage(nameof(Messages.NotMemberOfFaction));
                 return;
             }
 
@@ -4029,22 +4029,22 @@ namespace Oxide.Plugins
             if (area.Type == AreaType.Badlands && previousArea.Type != AreaType.Badlands)
             {
                 // The player has entered the badlands.
-                user.SendChatMessage(Messages.EnteredBadlands);
+                user.SendChatMessage(nameof(Messages.EnteredBadlands));
             }
             else if (area.Type == AreaType.Wilderness && previousArea.Type != AreaType.Wilderness)
             {
                 // The player has entered the wilderness.
-                user.SendChatMessage(Messages.EnteredWilderness);
+                user.SendChatMessage(nameof(Messages.EnteredWilderness));
             }
             else if (area.IsClaimed && !previousArea.IsClaimed)
             {
                 // The player has entered a faction's territory.
-                user.SendChatMessage(Messages.EnteredClaimedArea, area.FactionId);
+                user.SendChatMessage(nameof(Messages.EnteredClaimedArea), area.FactionId);
             }
             else if (area.IsClaimed && previousArea.IsClaimed && area.FactionId != previousArea.FactionId)
             {
                 // The player has crossed a border between the territory of two factions.
-                user.SendChatMessage(Messages.EnteredClaimedArea, area.FactionId);
+                user.SendChatMessage(nameof(Messages.EnteredClaimedArea), area.FactionId);
             }
         }
 
@@ -4272,6 +4272,9 @@ namespace Oxide.Plugins
             public const string InteractionCanceled = "Command canceled.";
             public const string NoInteractionInProgress = "You aren't currently executing any commands.";
             public const string NoAreasClaimed = "Your faction has not claimed any areas.";
+
+            public const string FactionChatMessage = "<color=#a1ff46>(FACTION)</color> {0}: {1}";
+
             public const string NotMemberOfFaction = "You are not a member of a faction.";
             public const string AlreadyMemberOfFaction = "You are already a member of a faction.";
             public const string NotLeaderOfFaction = "You must be an owner or a manager of a faction.";
@@ -5257,7 +5260,7 @@ namespace Oxide.Plugins
                     lostArea = headquarters;
                 Instance.Log(
                     $"[UPKEEP] {faction.Id}: Upkeep not paid in {hoursSincePaid} hours, seizing claim on {lostArea.Id}");
-                Instance.PrintToChat(Messages.AreaClaimLostUpkeepNotPaidAnnouncement, faction.Id, lostArea.Id);
+                Util.PrintToChat(nameof(Messages.AreaClaimLostUpkeepNotPaidAnnouncement), faction.Id, lostArea.Id);
                 BuildingPrivlidge cupboard = lostArea.ClaimCupboard;
                 Instance.Areas.Unclaim(lostArea);
                 if (cupboard)
@@ -5437,7 +5440,7 @@ namespace Oxide.Plugins
 
                 Instance.Log(
                     $"{FactionId} lost their claim on {Id} because the tool cupboard was destroyed (periodic check)");
-                Instance.PrintToChat(Messages.AreaClaimLostCupboardDestroyedAnnouncement, FactionId, Id);
+                Util.PrintToChat(nameof(Messages.AreaClaimLostCupboardDestroyedAnnouncement), FactionId, Id);
                 Instance.Areas.Unclaim(this);
             }
 
@@ -5448,7 +5451,7 @@ namespace Oxide.Plugins
 
                 Instance.Log(
                     $"{FactionId} lost their armory on {Id} because the locker was destroyed (periodic check)");
-                Instance.PrintToChat(Messages.AreaClaimLostArmoryDestroyedAnnouncement, FactionId, Id);
+                Util.PrintToChat(nameof(Messages.AreaClaimLostArmoryDestroyedAnnouncement), FactionId, Id);
                 Instance.Areas.RemoveArmory(this);
             }
 
@@ -7453,7 +7456,7 @@ namespace Oxide.Plugins
                 if (!user1.Faction.HasLeader(user1) || !user2.Faction.HasLeader(user2))
                     return false;
                 EndWar(GetActiveWarBetween(user1.Faction, user2.Faction), WarEndReason.Treaty);
-                Instance.PrintToChat(Messages.WarEndedTreatyAcceptedAnnouncement, user1.Faction, user2.Faction);
+                Util.PrintToChat(nameof(Messages.WarEndedTreatyAcceptedAnnouncement), user1.Faction, user2.Faction);
                 Instance.Log($"{Util.Format(user1)} and {Util.Format(user2)} accepted the peace by trading on a shop front");
                 return true;
             }
@@ -8471,6 +8474,19 @@ namespace Oxide.Plugins
                 }
             }
 
+            public static void PrintToChat(string format, params object[] args)
+            {
+                foreach(User user in Instance.Users.GetAll())
+                {
+                    if(user.Player)
+                    {
+                        string message = Instance.lang.GetMessage(format, Instance, user.Player.userID.ToString());
+                        user.SendChatMessage(message, args);
+                    }
+                }
+
+            }
+
             public static int GetSecondsBetween(DateTime start, DateTime end)
             {
                 return (int)(start - end).TotalSeconds;
@@ -8538,22 +8554,22 @@ namespace Oxide.Plugins
 
                         if (!Instance.TryCollectFromStacks(scrapDef, stacks, cost))
                         {
-                            User.SendChatMessage(Messages.CannotClaimAreaCannotAfford, cost);
+                            User.SendChatMessage(nameof(Messages.CannotClaimAreaCannotAfford), cost);
                             return false;
                         }
                     }
 
-                    User.SendChatMessage(Messages.ClaimAdded, area.Id);
+                    User.SendChatMessage(nameof(Messages.ClaimAdded), area.Id);
 
                     if (type == AreaType.Headquarters)
                     {
-                        Instance.PrintToChat(Messages.AreaClaimedAsHeadquartersAnnouncement, Faction.Id, area.Id);
+                        Util.PrintToChat(nameof(Messages.AreaClaimedAsHeadquartersAnnouncement), Faction.Id, area.Id);
                         Faction.NextUpkeepPaymentTime =
                             DateTime.UtcNow.AddHours(Instance.Options.Upkeep.CollectionPeriodHours);
                     }
                     else
                     {
-                        Instance.PrintToChat(Messages.AreaClaimedAnnouncement, Faction.Id, area.Id);
+                        Util.PrintToChat(nameof(Messages.AreaClaimedAnnouncement), Faction.Id, area.Id);
                     }
                     Util.RunEffect(User.transform.position, "assets/prefabs/missions/effects/mission_objective_complete.prefab");
                     Instance.Log($"{Util.Format(User)} claimed {area.Id} on behalf of {Faction.Id}");
@@ -8566,13 +8582,13 @@ namespace Oxide.Plugins
                 {
                     if (area.ClaimCupboard.net.ID == cupboard.net.ID)
                     {
-                        User.SendChatMessage(Messages.CannotClaimAreaAlreadyOwned, area.Id);
+                        User.SendChatMessage(nameof(Messages.CannotClaimAreaAlreadyOwned), area.Id);
                         return false;
                     }
                     else
                     {
                         // If the same faction claims a new cupboard within the same area, move the claim to the new cupboard.
-                        User.SendChatMessage(Messages.ClaimCupboardMoved, area.Id);
+                        User.SendChatMessage(nameof(Messages.ClaimCupboardMoved), area.Id);
                         Instance.Log(
                             $"{Util.Format(User)} moved {area.FactionId}'s claim on {area.Id} from cupboard {Util.Format(area.ClaimCupboard)} to cupboard {Util.Format(cupboard)}");
                         area.ClaimantId = User.Id;
@@ -8587,15 +8603,15 @@ namespace Oxide.Plugins
                     if (area.ClaimCupboard.net.ID != cupboard.net.ID)
                     {
                         // A new faction can't make a claim on a new cabinet within an area that is already claimed by another faction.
-                        User.SendChatMessage(Messages.CannotClaimAreaAlreadyClaimed, area.Id, area.FactionId);
+                        User.SendChatMessage(nameof(Messages.CannotClaimAreaAlreadyClaimed), area.Id, area.FactionId);
                         return false;
                     }
 
                     string previousFactionId = area.FactionId;
 
                     // If a new faction claims the claim cabinet for an area, they take control of that area.
-                    User.SendChatMessage(Messages.ClaimCaptured, area.Id, area.FactionId);
-                    Instance.PrintToChat(Messages.AreaCapturedAnnouncement, Faction.Id, area.Id, area.FactionId);
+                    User.SendChatMessage(nameof(Messages.ClaimCaptured), area.Id, area.FactionId);
+                    Util.PrintToChat(nameof(Messages.AreaCapturedAnnouncement), Faction.Id, area.Id, area.FactionId);
                     Instance.Log(
                         $"{Util.Format(User)} captured the claim on {area.Id} from {area.FactionId} on behalf of {Faction.Id}");
 
@@ -8633,20 +8649,20 @@ namespace Oxide.Plugins
 
                 if (area == null)
                 {
-                    User.SendChatMessage(Messages.YouAreInTheGreatUnknown);
+                    User.SendChatMessage(nameof(Messages.YouAreInTheGreatUnknown));
                     return false;
                 }
 
                 if (area.Type == AreaType.Badlands)
                 {
-                    User.SendChatMessage(Messages.AreaIsBadlands, area.Id);
+                    User.SendChatMessage(nameof(Messages.AreaIsBadlands), area.Id);
                     return false;
                 }
 
                 Area[] ownedAreas = Instance.Areas.GetAllClaimedByFaction(Faction);
                 AreaType type = (ownedAreas.Length == 0) ? AreaType.Headquarters : AreaType.Claimed;
 
-                Instance.PrintToChat(Messages.AreaClaimAssignedAnnouncement, Faction.Id, area.Id);
+                Util.PrintToChat(nameof(Messages.AreaClaimAssignedAnnouncement), Faction.Id, area.Id);
                 Instance.Log($"{Util.Format(User)} assigned {area.Id} to {Faction.Id}");
 
                 Instance.Areas.Claim(area, type, Faction, User, cupboard);
@@ -8695,7 +8711,7 @@ namespace Oxide.Plugins
 
                 if (area == null)
                 {
-                    User.SendChatMessage(Messages.SelectingCupboardFailedNotClaimCupboard);
+                    User.SendChatMessage(nameof(Messages.SelectingCupboardFailedNotClaimCupboard));
                     return false;
                 }
 
@@ -8703,11 +8719,11 @@ namespace Oxide.Plugins
 
                 if (fAreas.Count > 1 && area.Type == AreaType.Headquarters)
                 {
-                    User.SendChatMessage(Messages.SelectingCupboardFailedCantUnclaimHeadquarters);
+                    User.SendChatMessage(nameof(Messages.SelectingCupboardFailedCantUnclaimHeadquarters));
                     return false;
                 }
 
-                Instance.PrintToChat(Messages.AreaClaimRemovedAnnouncement, Faction.Id, area.Id);
+                Util.PrintToChat(nameof(Messages.AreaClaimRemovedAnnouncement), Faction.Id, area.Id);
                 Instance.Log($"{Util.Format(User)} removed {Faction.Id}'s claim on {area.Id}");
 
                 Instance.Areas.Unclaim(area);
@@ -8742,11 +8758,11 @@ namespace Oxide.Plugins
                 Area area = Instance.Areas.GetByClaimCupboard(cupboard);
                 if (area == null)
                 {
-                    User.SendChatMessage(Messages.SelectingCupboardFailedNotClaimCupboard);
+                    User.SendChatMessage(nameof(Messages.SelectingCupboardFailedNotClaimCupboard));
                     return false;
                 }
 
-                Instance.PrintToChat(Messages.HeadquartersChangedAnnouncement, Faction.Id, area.Id);
+                Util.PrintToChat(nameof(Messages.HeadquartersChangedAnnouncement), Faction.Id, area.Id);
                 Instance.Log($"{Util.Format(User)} set {Faction.Id}'s headquarters to {area.Id}");
 
                 Instance.Areas.SetHeadquarters(area, Faction);
@@ -8776,11 +8792,11 @@ namespace Oxide.Plugins
 
                 if (container == null)
                 {
-                    User.SendChatMessage(Messages.SelectingTaxChestFailedInvalidTarget);
+                    User.SendChatMessage(nameof(Messages.SelectingTaxChestFailedInvalidTarget));
                     return false;
                 }
 
-                User.SendChatMessage(Messages.SelectingTaxChestSucceeded, Faction.TaxRate * 100, Faction.Id);
+                User.SendChatMessage(nameof(Messages.SelectingTaxChestSucceeded), Faction.TaxRate * 100, Faction.Id);
                 Instance.Log($"{Util.Format(User)} set {Faction.Id}'s tax chest to entity {Util.Format(container)}");
                 Instance.Factions.SetTaxChest(Faction, container);
                 Util.RunEffect(User.transform.position, "assets/prefabs/missions/effects/mission_objective_complete.prefab");
@@ -8808,13 +8824,13 @@ namespace Oxide.Plugins
                 var container = hit.HitEntity as Locker;
                 if (container == null)
                 {
-                    User.SendChatMessage(Messages.SelectingArmoryLockerFailedInvalidTarget);
+                    User.SendChatMessage(nameof(Messages.SelectingArmoryLockerFailedInvalidTarget));
                     return false;
                 }
                 var area = Instance.Areas.GetByEntityPosition(container);
                 if (!Instance.EnsureLockerCanBeUsedForArmory(User, container, area))
                     return false;
-                User.SendChatMessage(Messages.SelectingArmoryLockerSucceeded, area.Id);
+                User.SendChatMessage(nameof(Messages.SelectingArmoryLockerSucceeded), area.Id);
                 Instance.Log($"{Util.Format(User)} set {Faction.Id}'s armory locker to entity {Util.Format(container)} at {area.Id}");
                 Instance.Areas.SetArmory(area, container);
                 Util.RunEffect(User.transform.position, "assets/prefabs/missions/effects/mission_objective_complete.prefab");
@@ -8852,13 +8868,13 @@ namespace Oxide.Plugins
 
                 if (area == null)
                 {
-                    User.SendChatMessage(Messages.SelectingCupboardFailedNotClaimCupboard);
+                    User.SendChatMessage(nameof(Messages.SelectingCupboardFailedNotClaimCupboard));
                     return false;
                 }
 
                 if (area.FactionId != SourceFaction.Id)
                 {
-                    User.SendChatMessage(Messages.AreaNotOwnedByYourFaction, area.Id);
+                    User.SendChatMessage(nameof(Messages.AreaNotOwnedByYourFaction), area.Id);
                     return false;
                 }
 
@@ -8869,14 +8885,14 @@ namespace Oxide.Plugins
 
                 if (fAreas.Count > 1 && area.Type == AreaType.Headquarters)
                 {
-                    User.SendChatMessage(Messages.SelectingCupboardFailedCantUnclaimHeadquarters);
+                    User.SendChatMessage(nameof(Messages.SelectingCupboardFailedCantUnclaimHeadquarters));
                     return false;
                 }
 
                 Area[] claimedAreas = Instance.Areas.GetAllClaimedByFaction(TargetFaction);
                 AreaType type = (claimedAreas.Length == 0) ? AreaType.Headquarters : AreaType.Claimed;
 
-                Instance.PrintToChat(Messages.AreaClaimTransferredAnnouncement, SourceFaction.Id, area.Id,
+                Util.PrintToChat(nameof(Messages.AreaClaimTransferredAnnouncement), SourceFaction.Id, area.Id,
                     TargetFaction.Id);
                 Instance.Log(
                     $"{Util.Format(User)} transferred {SourceFaction.Id}'s claim on {area.Id} to {TargetFaction.Id}");

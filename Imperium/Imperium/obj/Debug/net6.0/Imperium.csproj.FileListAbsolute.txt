@@ -13,8 +13,6 @@ D:\SourceTree\rust-imperium-github\Imperium\Imperium\bin\Debug\net6.0\Assembly-C
 D:\SourceTree\rust-imperium-github\Imperium\Imperium\bin\Debug\net6.0\Assembly-CSharp.dll
 D:\SourceTree\rust-imperium-github\Imperium\Imperium\bin\Debug\net6.0\CurvedTextMeshPro.dll
 D:\SourceTree\rust-imperium-github\Imperium\Imperium\bin\Debug\net6.0\DelaunayER.dll
-D:\SourceTree\rust-imperium-github\Imperium\Imperium\bin\Debug\net6.0\EasyAntiCheat.Client.dll
-D:\SourceTree\rust-imperium-github\Imperium\Imperium\bin\Debug\net6.0\EasyAntiCheat.Server.dll
 D:\SourceTree\rust-imperium-github\Imperium\Imperium\bin\Debug\net6.0\EasyRoads3Dv3.dll
 D:\SourceTree\rust-imperium-github\Imperium\Imperium\bin\Debug\net6.0\EZhex1991.EZSoftBone.dll
 D:\SourceTree\rust-imperium-github\Imperium\Imperium\bin\Debug\net6.0\Facepunch.BurstCloth.dll
@@ -51,11 +49,9 @@ D:\SourceTree\rust-imperium-github\Imperium\Imperium\bin\Debug\net6.0\Mono.Secur
 D:\SourceTree\rust-imperium-github\Imperium\Imperium\bin\Debug\net6.0\Mono.WebBrowser.dll
 D:\SourceTree\rust-imperium-github\Imperium\Imperium\bin\Debug\net6.0\MP3Sharp.dll
 D:\SourceTree\rust-imperium-github\Imperium\Imperium\bin\Debug\net6.0\MySql.Data.dll
-D:\SourceTree\rust-imperium-github\Imperium\Imperium\bin\Debug\net6.0\NewAssembly.dll
 D:\SourceTree\rust-imperium-github\Imperium\Imperium\bin\Debug\net6.0\Novell.Directory.Ldap.dll
 D:\SourceTree\rust-imperium-github\Imperium\Imperium\bin\Debug\net6.0\Oxide.Core.dll
 D:\SourceTree\rust-imperium-github\Imperium\Imperium\bin\Debug\net6.0\Oxide.CSharp.dll
-D:\SourceTree\rust-imperium-github\Imperium\Imperium\bin\Debug\net6.0\Oxide.Ext.RustEdit.dll
 D:\SourceTree\rust-imperium-github\Imperium\Imperium\bin\Debug\net6.0\Oxide.MySql.dll
 D:\SourceTree\rust-imperium-github\Imperium\Imperium\bin\Debug\net6.0\Oxide.References.dll
 D:\SourceTree\rust-imperium-github\Imperium\Imperium\bin\Debug\net6.0\Oxide.Rust.dll
@@ -154,3 +150,8 @@ D:\SourceTree\rust-imperium-github\Imperium\Imperium\obj\Debug\net6.0\Imperium.c
 D:\SourceTree\rust-imperium-github\Imperium\Imperium\obj\Debug\net6.0\Imperium.dll
 D:\SourceTree\rust-imperium-github\Imperium\Imperium\obj\Debug\net6.0\ref\Imperium.dll
 D:\SourceTree\rust-imperium-github\Imperium\Imperium\obj\Debug\net6.0\Imperium.pdb
+D:\SourceTree\rust-imperium-github\Imperium\Imperium\bin\Debug\net6.0\Facepunch.UnwrapBaker.Settings.dll
+D:\SourceTree\rust-imperium-github\Imperium\Imperium\bin\Debug\net6.0\Rust.FileSystem.dll
+D:\SourceTree\rust-imperium-github\Imperium\Imperium\bin\Debug\net6.0\Unity.Timeline.dll
+D:\SourceTree\rust-imperium-github\Imperium\Imperium\bin\Debug\net6.0\Mono.Cecil.dll
+D:\SourceTree\rust-imperium-github\Imperium\Imperium\bin\Debug\net6.0\Facepunch.Flexbox.dll

@@ -4165,6 +4165,15 @@ namespace Oxide.Plugins
                 Faction faction = Factions.Get(tag);
                 if (faction != null && user != null)
                 {
+                    if(faction.HasOwner(user))
+                    {
+                        JObject jClan = (JObject)Clans.CallHook("GetClan", tag);
+                        string clanOwnerId = jClan["owner"].Value<string>();
+                        if(clanOwnerId != null)
+                        {
+                            faction.OwnerId = clanOwnerId;
+                        }
+                    }
                     faction.RemoveMember(user);
                     user.SetFaction(null);
                 }
@@ -6106,7 +6115,7 @@ namespace Oxide.Plugins
         class Faction
         {
             public string Id { get; private set; }
-            public string OwnerId { get; private set; }
+            public string OwnerId { get; set; }
             public HashSet<string> MemberIds { get; }
             public HashSet<string> ManagerIds { get; }
             public HashSet<string> InviteIds { get; }
@@ -6946,7 +6955,11 @@ namespace Oxide.Plugins
                 else
                     Player.displayName = $"[{faction.Id}] {Player.displayName}";
                 if(Instance.Options.Factions.OverrideInGameTeamSystem)
-                    Invoke("EnsureIsInFactionTeam",3f);
+                {
+                    CancelInvoke("EnsureIsInFactionTeam");
+                    Invoke("EnsureIsInFactionTeam", 3f);
+                }
+                    
                 Player.SendNetworkUpdate();
             }
 
@@ -7090,7 +7103,13 @@ namespace Oxide.Plugins
                     if (owner != null)
                     {
                         clanFaction = Instance.Factions.Create(clanId, owner);
+                        if(owner.Faction != null)
+                        {
+                            Instance.Factions.Disband(owner.Faction);
+                        }
                         owner.SetFaction(clanFaction);
+                        if (this == owner)
+                            return;
                     }
                 }
                 //if user faction is in a faction and is not in the clanFaction (might be null). Leave the current faction

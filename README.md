@@ -1,7 +1,3 @@
-**READ BEFORE UPDATING TO 2.x.x**
-
-Old configs and data are not compatible with this version, do not update mid wipe without backing and then wiping your config and data files.
-
 Imperium creates a unique new way to play Rust, first used on servers such as Rust Factions and The Lost Isles. Claim land, fight wars, and battle for supremacy!
 
 At its heart, Imperium adds the idea of "territory" to Rust. The game is divided into a grid of tiles matching those displayed on the in-game map. Players can create factions, and these factions can claim these tiles of land and levy taxes on resources harvested therein. Factions can declare war on one another and battle for control of the territory.
@@ -13,7 +9,6 @@ Imperium is extremely configurable, leading to a wide range of game modes. Here 
 * Create a RP/PVE server where players can claim land to avoid being raided, and PVP is restricted to monuments and events.
 * Create a server similar to PVE-Conflict in Conan Exiles, where player structures can't be raided but PVP is allowed everywhere.
 * Create a more traditional PVP server, but factions can claim land and have to declare war on one another in order to raid.
-
 
 
 ## Permissions
@@ -76,14 +71,18 @@ For players
 
 TODO: Complete configuration documentation and demonstrative video.
 
-## What's new in 2.1.x?
+## What's new in 2.2.x?
 
 **New features**
-* Fully functional UI so your players don't have to endlesly type commands anymore! Just type /i in chat. Admin commands are also available in the UI for server admins. (If the buttons don't show for your admins)
+* Fully functional UI so your players don't have to endlesly type commands anymore! Just type /i in chat. Admin commands are also available in the UI for server admins. (If the buttons don't show for your server admin/mods, let me know in the support forum)
 * Option to allow only the owner and managers to deal damage to structures in their own land (while not at war) to prevent members griefing buildings. (Members can still damage any entities they placed themselves)
 * Option to allow Imperium to manage in-game team system. It will automatically update players teams to match the faction's member list. This also increases the max in-game team size to 128 so you can have huge factions.
 * In-game map overlay improved. Now shows a marker for each faction's headquarters tool cupboard.
 * Added sound effects when important actions happen (Create faction, declare war and so on)
+* Better Chat support (Now shows faction tag in chat)
+* Clans support (Imperium factions will mirror all existing Clans. Note: this disables some Imperium commands since Clans takes control of faction management. Always run your server with both Clans and Imperium loaded to avoid faction desync bugs)
+* Fixed some NullReferenceException bugs from 2.1.x
+* Localization support for almost all chat messages (Still working on UI text localization)
 
 Please report any bugs in the support section.
 
@@ -102,8 +101,7 @@ Allied bot recruiting, player roles, monument conquest, wipe day world war, fact
 
 **KNOWN ISSUES**
 * Configs from previous versions are not compatible
-* Data from previous versions are not compatible
-* The plugin might spam an OnEntityTakeDamage error when you first start the server. If this happens just run oxide.reload Imperium and everything should go back to normal
+* Data files from previous versions are not compatible
 
 ## Credits
 - **chucklenugget**, the original author of this plugin 

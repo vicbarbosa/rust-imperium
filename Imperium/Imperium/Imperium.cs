@@ -101,7 +101,7 @@ namespace Oxide.Plugins
     using System.Linq;
 
 
-    [Info("Imperium", "chucklenugget/evict", "2.2.0")]
+    [Info("Imperium", "chucklenugget/evict", "2.2.1")]
     public partial class Imperium : RustPlugin
     {
         [PluginReference]
@@ -180,10 +180,7 @@ namespace Oxide.Plugins
                 Interface.CallHook("API_RegisterThirdPartyTitle", this, new Func<IPlayer, string>(BetterChat_FormattedFactionTag));
             }
 
-            if (Clans != null)
-            {
-                Puts("Using " + Clans.Name + " by " + Clans.Author);
-            }
+
 
             //Puts("Recruiting is " + (Options.Recruiting.Enabled ? "enabled" : "disabled"));
 
@@ -228,7 +225,7 @@ namespace Oxide.Plugins
                 RelationshipManager.maxTeamSize_Internal = 128;
             }
 
-            if(Clans)
+            if(Instance.Options.Factions.UseClansPlugin)
             {
                 Factions.SyncAllWithClans();
             }
@@ -236,7 +233,6 @@ namespace Oxide.Plugins
             if (Options.Upkeep.Enabled)
                 UpkeepCollectionTimer =
                     timer.Every(Options.Upkeep.CheckIntervalMinutes * 60, Upkeep.CollectForAllFactions);
-
 
 
             PrintToChat($"{Title} v{Version} initialized.");
@@ -1544,7 +1540,7 @@ namespace Oxide.Plugins
     {
         void OnFactionCreateCommand(User user, string[] args)
         {
-            if(Clans)
+            if(Instance.Options.Factions.UseClansPlugin)
             {
                 user.SendChatMessage(nameof(Messages.CannotManageFactionUseClansInstead));
                 return;
@@ -4121,7 +4117,7 @@ namespace Oxide.Plugins
 
         void OnClanCreate(string tag)
         {
-            if(Clans)
+            if(Instance.Options.Factions.UseClansPlugin)
             {
                 Faction faction = Factions.Get(tag);
                 JObject clanInfo = Clans.CallHook("GetClan", tag) as JObject;
@@ -4159,7 +4155,7 @@ namespace Oxide.Plugins
 
         void OnClanMemberGone(string userID, string tag)
         {
-            if(Clans)
+            if(Instance.Options.Factions.UseClansPlugin)
             {
                 User user = Users.Get(userID);
                 Faction faction = Factions.Get(tag);
@@ -6649,9 +6645,9 @@ namespace Oxide.Plugins
 
             internal void SyncAllWithClans()
             {
-                if (Instance.Clans)
+                if (Instance.Options.Factions.UseClansPlugin)
                 {
-                    Instance.Puts("Syncing factions with Clans");
+                    Instance.Puts("Syncing factions with Clans!");
                     //Disband all factions that don't have a matching clan
                     JArray AllClans = (JArray)Instance.Clans.CallHook("GetAllClans");
                     List<string> clanIds = new List<string>();
@@ -7061,7 +7057,7 @@ namespace Oxide.Plugins
 
             public void SyncWithClan()
             {
-                if(!Instance.Clans)
+                if(!Instance.Options.Factions.UseClansPlugin)
                     return;
 
                 if (Player == null)
@@ -7207,7 +7203,7 @@ namespace Oxide.Plugins
 
                 Users[user.Player.UserIDString] = user;
 
-                if(Instance.Clans)
+                if(Instance.Options.Factions.UseClansPlugin)
                 {
                     user.SyncWithClan();
                 }
@@ -9150,6 +9146,11 @@ namespace Oxide.Plugins
 
             [JsonProperty("memberOwnLandExplosiveRaidingDamageScale")] public float MemberOwnLandExplosiveRaidingDamageScale = 1f;
 
+            [JsonProperty("useClansPlugin")] private bool _UseClansPlugin = false;
+
+            [JsonIgnore]
+            public bool UseClansPlugin { get { return (_UseClansPlugin && Instance.Clans != null); } }
+
             public static FactionOptions Default = new FactionOptions
             {
                 MinFactionNameLength = 1,
@@ -9159,7 +9160,8 @@ namespace Oxide.Plugins
                 CommandCooldownSeconds = 600,
                 OverrideInGameTeamSystem = true,
                 MemberOwnLandEcoRaidingDamageScale = 1f,
-                MemberOwnLandExplosiveRaidingDamageScale = 1f
+                MemberOwnLandExplosiveRaidingDamageScale = 1f,
+                _UseClansPlugin = false
             };
 
             

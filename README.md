@@ -1,7 +1,3 @@
-**READ BEFORE UPDATING TO 2.x.x**
-
-Old configs and data are not compatible with this version, do not update mid wipe without backing and then wiping your config and data files.
-
 Imperium creates a unique new way to play Rust, first used on servers such as Rust Factions and The Lost Isles. Claim land, fight wars, and battle for supremacy!
 
 At its heart, Imperium adds the idea of "territory" to Rust. The game is divided into a grid of tiles matching those displayed on the in-game map. Players can create factions, and these factions can claim these tiles of land and levy taxes on resources harvested therein. Factions can declare war on one another and battle for control of the territory.
@@ -78,7 +74,7 @@ TODO: Complete configuration documentation and demonstrative video.
 ## What's new in 2.2.x?
 
 **New features**
-* Fully functional UI so your players don't have to endlesly type commands anymore! Just type /i in chat. Admin commands are also available in the UI for server admins. (If the buttons don't show for your admins)
+* Fully functional UI so your players don't have to endlesly type commands anymore! Just type /i in chat. Admin commands are also available in the UI for server admins. (If the buttons don't show for your server admin/mods, let me know in the support forum)
 * Option to allow only the owner and managers to deal damage to structures in their own land (while not at war) to prevent members griefing buildings. (Members can still damage any entities they placed themselves)
 * Option to allow Imperium to manage in-game team system. It will automatically update players teams to match the faction's member list. This also increases the max in-game team size to 128 so you can have huge factions.
 * In-game map overlay improved. Now shows a marker for each faction's headquarters tool cupboard.

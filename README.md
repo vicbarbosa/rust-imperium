@@ -15,7 +15,6 @@ Imperium is extremely configurable, leading to a wide range of game modes. Here 
 * Create a more traditional PVP server, but factions can claim land and have to declare war on one another in order to raid.
 
 
-
 ## Permissions
 
 * `imperium.factions.admin`
@@ -76,7 +75,7 @@ For players
 
 TODO: Complete configuration documentation and demonstrative video.
 
-## What's new in 2.1.x?
+## What's new in 2.2.x?
 
 **New features**
 * Fully functional UI so your players don't have to endlesly type commands anymore! Just type /i in chat. Admin commands are also available in the UI for server admins. (If the buttons don't show for your admins)
@@ -84,6 +83,10 @@ TODO: Complete configuration documentation and demonstrative video.
 * Option to allow Imperium to manage in-game team system. It will automatically update players teams to match the faction's member list. This also increases the max in-game team size to 128 so you can have huge factions.
 * In-game map overlay improved. Now shows a marker for each faction's headquarters tool cupboard.
 * Added sound effects when important actions happen (Create faction, declare war and so on)
+* Better Chat support (Now shows faction tag in chat)
+* Clans support (Imperium factions will mirror all existing Clans. Note: this disables some Imperium commands since Clans takes control of faction management. Always run your server with both Clans and Imperium loaded to avoid faction desync bugs)
+* Fixed some NullReferenceException bugs from 2.1.x
+* Localization support for almost all chat messages (Still working on UI text localization)
 
 Please report any bugs in the support section.
 
@@ -102,8 +105,7 @@ Allied bot recruiting, player roles, monument conquest, wipe day world war, fact
 
 **KNOWN ISSUES**
 * Configs from previous versions are not compatible
-* Data from previous versions are not compatible
-* The plugin might spam an OnEntityTakeDamage error when you first start the server. If this happens just run oxide.reload Imperium and everything should go back to normal
+* Data files from previous versions are not compatible
 
 ## Credits
 - **chucklenugget**, the original author of this plugin 

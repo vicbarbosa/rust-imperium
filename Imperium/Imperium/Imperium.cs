@@ -101,11 +101,33 @@ namespace Oxide.Plugins
     using System.Linq;
 
 
-    [Info("Imperium", "chucklenugget/evict", "2.2.1")]
+    [Info("Imperium", "chucklenugget/evict", "2.2.2")]
     public partial class Imperium : RustPlugin
     {
+        //Optional Dependencies
         [PluginReference]
         private Plugin BetterChat, Clans;
+        private List<HookDeferral> HookDeferralRegistry = new List<HookDeferral>();
+        public class HookDeferral
+        {
+            public string hookName;
+            public Plugin plugin;
+
+            public HookDeferral(string HookName, Plugin Plugin)
+            {
+                hookName = HookName;
+                plugin = Plugin;
+            }
+        }
+
+        //Hook Deferrals
+        [PluginReference]
+        private Plugin NpcSpawn, AirEvent;
+        void InitDeferList()
+        {
+            //RegisterHookDeferral("OnEntityTakeDamage", NpcSpawn);
+            //RegisterHookDeferral("OnEntityTakeDamage", AirEvent);
+        }
 
         static Imperium Instance;
 
@@ -139,9 +161,34 @@ namespace Oxide.Plugins
             WarsFile = GetDataFile("wars");
         }
 
+        void RegisterHookDeferral(string hook, Plugin plugin)
+        {
+            if (plugin == null)
+                return;
+            HookDeferralRegistry.Add(new HookDeferral(hook, plugin));
+        }
+
+        object GetExternalHookResult(string hook, params object[] args)
+        {
+            List<HookDeferral> filtered = HookDeferralRegistry.FindAll(r => r.hookName == hook && r.plugin != null);
+            if (filtered.Count == 0)
+                return null;
+            object result = null;
+            foreach(HookDeferral def in filtered)
+            {
+                if (def.plugin == null)
+                    continue;
+                result = def.plugin.Call(hook, args);
+                if (result != null)
+                    return result;
+            }
+            return null;
+        }
+
         void Loaded()
         {
             InitLang();
+            InitDeferList();
             Permission.RegisterAll(this);
             try
             {
@@ -3692,6 +3739,7 @@ namespace Oxide.Plugins
 
     public partial class Imperium : RustPlugin
     {
+        
         void OnUserApprove(Connection connection)
         {
             Users.SetOriginalName(connection.userid.ToString(), connection.username);
@@ -3736,7 +3784,7 @@ namespace Oxide.Plugins
                 {
                     user.SendChatMessage("You can't create a team. Say <color=#ffd479>/i</color> to create your faction");
                 }
-                return false;
+                return true;
             }
             return null;
         }
@@ -3745,7 +3793,7 @@ namespace Oxide.Plugins
         {
             if (Instance.Options.Factions.OverrideInGameTeamSystem)
             {
-                return false;
+                return true;
             }
             return null;
         }
@@ -3754,7 +3802,7 @@ namespace Oxide.Plugins
         {
             if (Instance.Options.Factions.OverrideInGameTeamSystem)
             {
-                return false;
+                return true;
             }
             return null;
         }
@@ -3763,7 +3811,7 @@ namespace Oxide.Plugins
         {
             if (Instance.Options.Factions.OverrideInGameTeamSystem)
             {
-                return false;
+                return true;
             }
             return null;
         }
@@ -3772,7 +3820,7 @@ namespace Oxide.Plugins
         {
             if (Instance.Options.Factions.OverrideInGameTeamSystem)
             {
-                return false;
+                return true;
             }
             return null;
         }
@@ -3781,7 +3829,7 @@ namespace Oxide.Plugins
         {
             if (Instance.Options.Factions.OverrideInGameTeamSystem)
             {
-                return false;
+                return true;
             }
             return null;
         }
@@ -3793,6 +3841,7 @@ namespace Oxide.Plugins
                 user.CompleteInteraction(hit);
         }
 
+        
         object OnEntityTakeDamage(BaseCombatEntity entity, HitInfo hit)
         {
             if (entity == null || hit == null)
@@ -3803,10 +3852,13 @@ namespace Oxide.Plugins
             if (externalResult != null)
             {
                 if ((bool)externalResult == false)
-                    return false;
+                    return true;
 
                 return null;
             }
+            externalResult = GetExternalHookResult("OnEntityTakeDamage", new object[] { entity, hit });
+            if(externalResult != null)
+                return externalResult;
 
             if (hit.damageTypes.Has(Rust.DamageType.Decay))
                 return Decay.AlterDecayDamage(entity, hit);
@@ -4001,7 +4053,8 @@ namespace Oxide.Plugins
             if (user1.Faction.HasLeader(user1) && user2.Faction.HasLeader(user2))
                 return null;
             user1.SendChatMessage("Only owners or managers of both enemy factions can trade right now. Trading will end the war");
-            return false;
+            user2.SendChatMessage("Only owners or managers of both enemy factions can trade right now. Trading will end the war");
+            return true;
         }
 
         object OnShopCompleteTrade(ShopFront entity)
@@ -4210,7 +4263,7 @@ namespace Oxide.Plugins
                     reduction += area.GetLevelDecayReduction();
 
                 if (reduction >= 1)
-                    return false;
+                    return true;
 
                 if (reduction > 0)
                     hit.damageTypes.Scale(Rust.DamageType.Decay, reduction);
@@ -4652,7 +4705,7 @@ namespace Oxide.Plugins
                     return null;
 
                 // Stop the damage.
-                return false;
+                return true;
             }
 
             public static object HandleIncidentalDamage(User defender, HitInfo hit)
@@ -4671,7 +4724,7 @@ namespace Oxide.Plugins
                 if (IsUserInDanger(defender))
                     return null;
 
-                return false;
+                return true;
             }
 
             public static object HandleTrapTrigger(BaseTrap trap, User defender)
@@ -4696,7 +4749,7 @@ namespace Oxide.Plugins
                     return null;
 
                 // Stop the trap from triggering.
-                return false;
+                return true;
             }
 
             public static object HandleTurretTarget(BaseCombatEntity turret, User defender)
@@ -4954,12 +5007,12 @@ namespace Oxide.Plugins
                 }
 
                 if (result == DamageResult.Prevent)
-                    return false;
+                    return true;
 
                 float reduction = area.GetDefensiveBonus();
 
                 if (reduction >= 1)
-                    return false;
+                    return true;
 
                 if (reduction > 0)
                     hit.damageTypes.ScaleAll(reduction);
@@ -5064,7 +5117,7 @@ namespace Oxide.Plugins
                     Instance.Log("Incidental damage to {0} caused by {1}, stopping since it is a blocked prefab",
                         entity.ShortPrefabName, hit.Initiator.ShortPrefabName);
 
-                return false;
+                return true;
             }
 
             static bool IsProtectedEntity(BaseEntity entity)

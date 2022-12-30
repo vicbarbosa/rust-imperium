@@ -125,8 +125,8 @@ namespace Oxide.Plugins
         private Plugin NpcSpawn, AirEvent;
         void InitDeferList()
         {
-            //RegisterHookDeferral("OnEntityTakeDamage", NpcSpawn);
-            //RegisterHookDeferral("OnEntityTakeDamage", AirEvent);
+            RegisterHookDeferral("OnEntityTakeDamage", NpcSpawn);
+            RegisterHookDeferral("OnEntityTakeDamage", AirEvent);
         }
 
         static Imperium Instance;
@@ -4246,6 +4246,10 @@ namespace Oxide.Plugins
                 if (!Instance.Options.Decay.Enabled)
                     return null;
 
+                if (entity == null || hit == null)
+                    return null;
+
+
                 Area area = GetAreaForDecayCalculation(entity);
 
                 if (area == null)
@@ -4691,6 +4695,10 @@ namespace Oxide.Plugins
                 if (!Instance.Options.Pvp.RestrictPvp)
                     return null;
 
+                if (attacker == null || defender == null || hit == null)
+                    return null;
+
+
                 // Allow players to take the easy way out.
                 if (hit.damageTypes.Has(Rust.DamageType.Suicide))
                     return null;
@@ -4710,6 +4718,9 @@ namespace Oxide.Plugins
 
             public static object HandleIncidentalDamage(User defender, HitInfo hit)
             {
+                if (defender == null || hit == null)
+                    return null;
+
                 if (!Instance.Options.Pvp.RestrictPvp)
                     return null;
 
@@ -4969,6 +4980,9 @@ namespace Oxide.Plugins
 
             public static object HandleDamageAgainstStructure(User attacker, BaseEntity entity, HitInfo hit)
             {
+                if (attacker == null || entity == null || hit == null)
+                    return null;
+
                 Area area = Instance.Areas.GetByEntityPosition(entity);
 
                 if (area == null && entity.gameObject.GetComponent<BaseCombatEntity>() == null)

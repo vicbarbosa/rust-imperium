@@ -170,6 +170,8 @@ namespace Oxide.Plugins
 
         object GetExternalHookResult(string hook, params object[] args)
         {
+            if (HookDeferralRegistry.Count == 0)
+                return null;
             List<HookDeferral> filtered = HookDeferralRegistry.FindAll(r => r.hookName == hook && r.plugin != null);
             if (filtered.Count == 0)
                 return null;

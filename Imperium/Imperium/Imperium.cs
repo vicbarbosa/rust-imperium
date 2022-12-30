@@ -170,8 +170,8 @@ namespace Oxide.Plugins
 
             if (Options.Recruiting.Enabled)
             {
-                PrintWarning("Recruiting is not available in this Imperium version yet! Disabling it");
-                Options.Recruiting.Enabled = false;
+                //PrintWarning("Recruiting is not available in this Imperium version yet! Disabling it");
+                //Options.Recruiting.Enabled = false;
             }
 
             if(BetterChat != null)
@@ -2519,7 +2519,6 @@ namespace Oxide.Plugins
 }
 #endregion
 #region /recruit
-/*
 namespace Oxide.Plugins
 {
     using System.Linq;
@@ -2534,11 +2533,9 @@ namespace Oxide.Plugins
 
             if (!Options.Recruiting.Enabled)
             {
-                user.SendChatMessage(nameof(Messages.RecruitingDisabled);
+                user.SendChatMessage(nameof(Messages.RecruitingDisabled));
                 return;
-            }
-
-            ;
+            };
 
             if (args.Length == 0)
             {
@@ -2564,7 +2561,6 @@ namespace Oxide.Plugins
         }
     }
 }
-*/
 
 namespace Oxide.Plugins
 {
@@ -2588,6 +2584,7 @@ namespace Oxide.Plugins
 
 namespace Oxide.Plugins
 {
+    using UnityEngine;
     public partial class Imperium
     {
         void OnRecruitHereCommand(User user)
@@ -2599,12 +2596,17 @@ namespace Oxide.Plugins
                 user.SendChatMessage(nameof(Messages.NotLeaderOfFaction));
                 return;
             }
-            var npc = (global::HumanNPC)GameManager.server.CreateEntity("assets/rust.ai/agents/npcplayer/humannpc/scientist/scientistnpc_roam.prefab", user.transform.position, UnityEngine.Quaternion.identity, false);
+            var npc = (global::ScientistNPC)GameManager.server.CreateEntity("assets/rust.ai/agents/npcplayer/humannpc/scientist/scientistnpc_roam.prefab", user.transform.position, UnityEngine.Quaternion.identity, false);
             if(npc)
             {
+
                 npc.gameObject.AwakeFromInstantiate();
                 npc.Spawn();
                 Recruit recruit = npc.gameObject.AddComponent<Recruit>();
+                Debug.LogWarning(recruit == null);
+                Debug.LogWarning(npc == null);
+                Debug.LogWarning(user.Faction == null);
+                recruit.Init(npc, user.transform.position, user.Faction);
                 var nav = npc.GetComponent<BaseNavigator>();
                 if (nav == null)
                     return;
@@ -2615,6 +2617,11 @@ namespace Oxide.Plugins
                 npc.NavAgent.autoRepath = true;
                 npc.NavAgent.enabled = true;
                 nav.CanUseCustomNav = true;
+                npc.enableSaving = false;
+                npc.IsDormant = true;
+
+              
+
             }
 
         }
@@ -7970,12 +7977,158 @@ namespace Oxide.Plugins
 #region > Recruit
 namespace Oxide.Plugins
 {
-    using Rust;
+    using Rust.AI;
     using UnityEngine;
     public partial class Imperium
     {
-        public class Recruit : MonoBehaviour
+        class Recruit : MonoBehaviour
         {
+            public enum MovementState
+            {
+                Idle,
+                Roam,
+                Follow,
+                GoTo
+
+            }
+            public enum AggroState
+            {
+                Idle,
+                Protect,
+                Attack
+            }
+
+            public class AIRecruitSenses : IAISenses
+            {
+                Recruit owner;
+                public bool IsThreat(BaseEntity entity)
+                {
+                    Debug.Log("Check is threat");
+                    return IsTarget(entity);
+                }
+
+                public bool IsTarget(BaseEntity entity)
+                {
+                    Debug.Log("Check is threat");
+                    if (entity is BasePet)
+                    {
+                        return true;
+                    }
+
+                    if (entity is ScarecrowNPC)
+                    {
+                        return true;
+                    }
+
+                    if (entity is NPCMissionProvider)
+                    {
+                        return false;
+                    }
+
+                    if (entity is VehicleVendor)
+                    {
+                        return false;
+                    }
+
+                    if (entity is BanditGuard)
+                    {
+                        return false;
+                    }
+
+                    if (entity is BasePlayer)
+                    {
+                        Debug.Log("Return inverse friendly");
+                        return !IsFriendly(entity);
+                    }
+
+                    return false;
+                }
+
+                public bool IsFriendly(BaseEntity entity)
+                {
+                    Debug.Log("Check is threat");
+                    if (entity == null)
+                    {
+                        return false;
+                    }
+                    Recruit r = entity.GetComponent<Recruit>();
+                    if(r != null)
+                    {
+                        if(r.faction == owner.faction)
+                        {
+                            return true;
+                        }
+                    }
+                    User u = entity.GetComponent<User>();
+                    if(u != null)
+                    {
+                        if (u.Faction == owner.faction)
+                        {
+                            Debug.Log("Friendly since it is same faction");
+                            return true;
+                        }
+                        else if (u.Player.IsHostile() || Pvp.IsUserInDanger(u) || Instance.Wars.AreFactionsAtWar(owner.faction, u.Faction))
+                        {
+                            return false;
+                        }
+                    }
+                    return false;
+                    
+                }
+
+                public AIRecruitSenses(Recruit r)
+                {
+                    owner = r;
+                }
+            }
+            
+            private BasePlayer recruiter;
+            private Faction faction;
+            private Vector3 spawnPoint;
+            private ScientistNPC npc;
+            private ScientistBrain brain;
+            private AIBrainSenses senses;
+            private SimpleAIMemory memory;
+            private AIEvents events;
+            private MovementState moveState = MovementState.Idle;
+            private AggroState aggroState = AggroState.Protect;
+
+            public void Init(ScientistNPC Npc, Vector3 SpawnPoint, Faction Faction)
+            {
+                npc = Npc;
+                spawnPoint = SpawnPoint;
+                faction = Faction;
+                brain = Npc.Brain;
+                senses = Npc.Brain.Senses;
+                memory = Npc.Brain.Senses.Memory;
+                events = Npc.Brain.Events;
+                senses.ownerSenses = new AIRecruitSenses(this);
+            }
+
+            public void Update()
+            {
+                
+                if (!(senses.ownerSenses is AIRecruitSenses))
+                {
+                    Debug.LogWarning("Updating IAISenses");
+                    senses.ownerSenses = new AIRecruitSenses(this);
+                    memory.Players.Clear();
+                    memory.Friendlies.Clear();
+                    memory.Threats.Clear();
+                    memory.Targets.Clear();
+                    events.events.Clear();
+
+                }
+                    
+            }
+
+            public void LogAIState()
+            {
+                
+            }
+
+
+
         }
     }
 }
@@ -9425,7 +9578,7 @@ namespace Oxide.Plugins
     {
         class RecruitingOptions
         {
-            [JsonProperty("enabled [THIS IS NOT AVAILABLE YET]")] public bool Enabled;
+            [JsonProperty("enabled")] public bool Enabled;
 
             public static RecruitingOptions Default = new RecruitingOptions
             {
@@ -12095,6 +12248,7 @@ namespace Oxide.Plugins
     }
 }
 #endregion
+
 
 #region > DEPRECATED
 namespace Oxide.Plugins

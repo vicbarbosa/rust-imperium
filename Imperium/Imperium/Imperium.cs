@@ -125,8 +125,8 @@ namespace Oxide.Plugins
         private Plugin NpcSpawn, AirEvent;
         void InitDeferList()
         {
-            RegisterHookDeferral("OnEntityTakeDamage", NpcSpawn);
-            RegisterHookDeferral("OnEntityTakeDamage", AirEvent);
+            //RegisterHookDeferral("OnEntityTakeDamage", NpcSpawn);
+            //RegisterHookDeferral("OnEntityTakeDamage", AirEvent);
         }
 
         static Imperium Instance;

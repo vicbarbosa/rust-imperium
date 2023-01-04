@@ -1,5 +1,5 @@
 ﻿/* LICENSE
- * Copyright (C) 2017-2018 chucklenugget
+ * Copyright (C) 2017-2023 evict
  * 
  * Permission is hereby granted, free of charge, to any person obtaining a copy
  * of this software and associated documentation files (the "Software"), to deal
@@ -228,7 +228,7 @@ namespace Oxide.Plugins
                 Puts("Using " + BetterChat.Name + " by " + BetterChat.Author);
                 Interface.CallHook("API_RegisterThirdPartyTitle", this, new Func<IPlayer, string>(BetterChat_FormattedFactionTag));
             }
-
+            Instance = this;
 
 
             //Puts("Recruiting is " + (Options.Recruiting.Enabled ? "enabled" : "disabled"));
@@ -238,15 +238,14 @@ namespace Oxide.Plugins
             if (TerrainMeta.Size.x > 0) Setup();
         }
 
-        object OnSaveLoad(Dictionary<BaseEntity, ProtoBuf.Entity> entities)
+        void OnServerInitialized(bool initial)
         {
-            Setup();
-            return null;
+            if (initial)
+                Setup();
         }
 
         void Setup()
         {
-            Instance = this;
             GameObject = new GameObject();
 
             Areas = new AreaManager();
@@ -3928,6 +3927,12 @@ namespace Oxide.Plugins
 
         void OnEntitySpawned(BaseNetworkable entity)
         {
+            if (entity == null)
+                return;
+            if (Hud == null)
+                return;
+            if (Options == null)
+                return;
             var plane = entity as CargoPlane;
             if (plane != null)
                 Hud.GameEvents.BeginEvent(plane);
@@ -5088,6 +5093,8 @@ namespace Oxide.Plugins
 
             public static object HandleIncidentalDamage(BaseEntity entity, HitInfo hit)
             {
+                if (entity == null || hit == null)
+                    return null;
                 if (!Instance.Options.Raiding.RestrictRaiding)
                     return null;
 
@@ -5110,15 +5117,18 @@ namespace Oxide.Plugins
                 // If the damage is coming from something other than a blocked prefab, allow it.
                 if (!BlockedPrefabs.Contains(hit.Initiator.ShortPrefabName))
                 {
+                    
                     if (EnableTestMode)
+                    {
                         Instance.Log("Incidental damage to {0} caused by {1}, allowing since it isn't a blocked prefab",
                             entity.ShortPrefabName, hit.Initiator.ShortPrefabName);
+                    }
+                        
 
                     return null;
                 }
 
                 // If the player is in a PVP area or in PVP mode, allow the damage.
-
                 if (IsRaidableArea(area))
                 {
                     if (EnableTestMode)

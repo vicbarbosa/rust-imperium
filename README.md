@@ -1,3 +1,5 @@
+**Important: If you have an error spam on your first server start up, just do oxide.reload Imperium and it will be fixed. This bug will be fixed in the next patch soon.**
+
 Imperium creates a unique new way to play Rust, first used on servers such as Rust Factions and The Lost Isles. Claim land, fight wars, and battle for supremacy!
 
 At its heart, Imperium adds the idea of "territory" to Rust. The game is divided into a grid of tiles matching those displayed on the in-game map. Players can create factions, and these factions can claim these tiles of land and levy taxes on resources harvested therein. Factions can declare war on one another and battle for control of the territory.

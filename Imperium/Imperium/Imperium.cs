@@ -1,5 +1,5 @@
 ﻿/* LICENSE
- * Copyright (C) 2017-2023 evict
+ * Copyright (C) 2022-2023 evict
  * 
  * Permission is hereby granted, free of charge, to any person obtaining a copy
  * of this software and associated documentation files (the "Software"), to deal
@@ -20,72 +20,6 @@
  * SOFTWARE.
  */
 
-/* TO DO
- * THE FIXES UPDATE [All done!]
- * 
- * THE QOL UPDATE
- * Integration with Clans Reborn
- * Integration with Friends
- * 
- * THE WAR UPDATE:
- * War option to require prior aggression
- * War option to prevent war spam (Cooldown after treaty)
- * War option to skip restrictions against any attacker faction currently at war
- * War duration option
- * 
- * THE ECONOMY UPDATE:
- * Land produce mechanic to generate different types of resources depending on each land topology map
- * 
- * THE SOCIETY UPDATE:
- * Faction reputation and Citizen reputation
- * Imperium points 
- * Faction tags (town, comercial, hostile, raider)
- * Leader tags (warlord)
- * Player roles
- * Faction missions
- * 
- * THE PVP UPDATE
- * Monument Control (King of the Hill mechanic to all pvp enabled monuments)
- * - Spawn a flag in the monument with a zone around it
- * - If a player uses the Start Capture command it starts the capture.
- * - If no attacker member is inside the sphere, the capture process is cancelled
- * - Attackers must stay inside the circle for 10 minutes
- * - Global chat is notified when a faction starts and stops a capture interaction
- * - While a capture interaction is happening, if members of different factions are inside the circle, the flag is contested and progress is halted
- * - When controlling a monument, the controlling faction receives periodic items in its tax chest (Configurable per monument)
- * Bounty Hunters System
- * 
- * THE ARMY UPDATE:
- * Allow factions to recruit bots to fight for them
- * 
- * THE LORE UPDATE:
- * Cobalt Daily Report: Auto-generate small stories that can be read in an interface based on factions interactions
- * 
- */
-
-/* PENDING TESTS
-
-*/
-
-/* DONE
- * War option to require war acceptance from defenders (Must say /war accept FACTION_NAME
- * War option to require admin approval (Must say /war approve ATTACKER DEFENDER)
- * War option to end war by leaders trading in any shopfront
- * War option to pay scrap to declare war (Configurable cost)
- * Land levels that affects passive resource income, raid resistance bonus and better recruits
- * War option to require war acknowlegment from defenders (Must have online members)
- * War option to prevent war being initiated from/against noob factions
- * Vertical grid offset option
- * Provide default icon pack
- * Load icons from own server directory instead of external website
- * Debug and fix area geneartion with strange offset. Should match actual map grid
- * Generate visible areas on in-game map
- * Add deny feedback
- * Add approval feedback
- * Change noob protection to minutes if > than 60
- * UI with all essential commands
- */
-
 #region > Singleton
 namespace Oxide.Plugins
 {
@@ -101,7 +35,7 @@ namespace Oxide.Plugins
     using System.Linq;
 
 
-    [Info("Imperium", "chucklenugget/evict", "2.2.2")]
+    [Info("Imperium", "chucklenugget/evict", "2.2.3")]
     public partial class Imperium : RustPlugin
     {
         //Optional Dependencies
@@ -517,8 +451,6 @@ namespace Oxide.Plugins
 }
 
 #endregion
-
-
 
 #region > Console To Chat
 

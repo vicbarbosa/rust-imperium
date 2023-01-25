@@ -2944,8 +2944,14 @@ namespace Oxide.Plugins
         {
             Faction attacker = Factions.GetByMember(user);
 
+
             if (!EnsureUserAndFactionCanEngageInDiplomacy(user, attacker))
                 return;
+
+            if(!attacker.HasLeader(user))
+            {
+                return;
+            }
 
             if (args.Length < 2)
             {
@@ -3028,15 +3034,15 @@ namespace Oxide.Plugins
 
             if(Instance.Options.War.OnlineDefendersRequired > 0)
             {
-                User[] defenders = Instance.Users.GetAll().Where(u => u.Faction.Id == defender.Id).ToArray();
-                if(defenders.Length < Instance.Options.War.OnlineDefendersRequired)
+                User[] onlineDefenders = Instance.Users.GetAll().Where(u => u.Faction.Id == defender.Id).ToArray();
+                if(onlineDefenders.Length < Instance.Options.War.OnlineDefendersRequired)
                 {
                     user.SendChatMessage(nameof(Messages.CannotDeclareWarDefendersNotOnline), Instance.Options.War.OnlineDefendersRequired);
                     return;
                 }
             }
 
-            var cost = Instance.Options.War.DeclarationCost;
+            var cost = Instance.Wars.GetWarCostBetween(attacker, defender);
             if (cost > 0)
             {
                 ItemDefinition scrapDef = ItemManager.FindItemDefinition("scrap");
@@ -3048,14 +3054,44 @@ namespace Oxide.Plugins
                     return;
                 }
             }
-            War war = Wars.DeclareWar(attacker, defender, user, cassusBelli);
-            PrintToChat(Messages.WarDeclaredAnnouncement, war.AttackerId, war.DefenderId, war.CassusBelli);
-            if(!war.IsActive)
-                Util.RunEffect(user.transform.position, "assets/prefabs/missions/effects/mission_accept.prefab");
-            Log(
-                $"{Util.Format(user)} declared war on faction {war.DefenderId} on behalf of {war.AttackerId} for reason: {war.CassusBelli}");
+            Faction[] attackers = Wars.GetAllies(attacker);
+            Faction[] defenders = Wars.GetAllies(defender);
+            bool isAttackerAlliance = attackers.Length > 1;
+            bool isDefenderAlliance = defenders.Length > 1;
+            Alliance attackerAlliance = Wars.GetAlliance(attacker.Id);
+            Alliance defenderAlliance = Wars.GetAlliance(defender.Id);
+            War[] wars = Wars.DeclareWars(Wars.GetAllies(attacker), Wars.GetAllies(defender), user, cassusBelli);
+            if(!isAttackerAlliance && !isDefenderAlliance)
+            {
+                PrintToChat(Messages.WarDeclaredAnnouncement, attacker.Id, defender.Id, cassusBelli);
+                Log(
+                    $"{Util.Format(user)} declared war on faction {defender.Id} on behalf of faction {attacker.Id} for reason: {cassusBelli}");
+                return;
+            }
 
+            if (isAttackerAlliance && !isDefenderAlliance)
+            {
+                PrintToChat(Messages.WarDeclaredAnnouncement, attackerAlliance.Name, defender.Id, cassusBelli);
+                Log(
+                    $"{Util.Format(user)} declared war on faction {defender.Id} on behalf of alliance {attackerAlliance.Name} for reason: {cassusBelli}");
+                return;
+            }
 
+            if (!isAttackerAlliance && isDefenderAlliance)
+            {
+                PrintToChat(Messages.WarDeclaredAnnouncement, attacker.Id, defenderAlliance.Name, cassusBelli);
+                Log(
+                    $"{Util.Format(user)} declared war on alliance {defenderAlliance.Name} on behalf of faction {attacker.Id} for reason: {cassusBelli}");
+                return;
+            }
+
+            if (isAttackerAlliance && isDefenderAlliance)
+            {
+                PrintToChat(Messages.WarDeclaredAnnouncement, attackerAlliance.Name, defenderAlliance.Name, cassusBelli);
+                Log(
+                    $"{Util.Format(user)} declared war on alliance {defenderAlliance.Name} on behalf of alliance {attackerAlliance.Name} for reason: {cassusBelli}");
+                return;
+            }
         }
     }
 }
@@ -3525,6 +3561,297 @@ namespace Oxide.Plugins
                         sb.AppendFormat(": <color=#ffd479>admin approval pending</color>");
                     if (!war.DefenderApproved)
                         sb.AppendFormat(": defender <color=#ffd479>{0}</color> approval pending", war.DefenderId);
+                    sb.AppendLine();
+                }
+            }
+
+            user.SendChatMessage(sb);
+        }
+    }
+}
+#endregion
+
+#region /alliance
+namespace Oxide.Plugins
+{
+    using System.Linq;
+
+    public partial class Imperium
+    {
+        [ChatCommand("alliance")]
+        void OnAllianceCommand(BasePlayer player, string command, string[] args)
+        {
+            User user = Users.Get(player);
+            if (user == null) return;
+
+            if (!Options.War.Enabled)
+            {
+                user.SendChatMessage(nameof(Messages.WarDisabled));
+                return;
+            }
+
+            if (args.Length == 0)
+            {
+                OnAllianceHelpCommand(user);
+                return;
+            }
+
+            var restArgs = args.Skip(1).ToArray();
+
+            switch (args[0].ToLower())
+            {
+                case "list":
+                    OnAllianceListCommand(user);
+                    break;
+                case "status":
+                    OnAllianceStatusCommand(user);
+                    break;
+                case "create":
+                    OnAllianceCreateCommand(user, restArgs);
+                    break;
+                case "invite":
+                    OnAllianceInviteCommand(user, restArgs);
+                    break;
+                case "join":
+                    OnAllianceJoinCommand(user, restArgs);
+                    break;
+                case "votekick":
+                    OnAllianceVoteKickCommand(user, restArgs);
+                    break;
+                case "leave":
+                    OnAllianceLeaveCommand(user);
+                    break;
+                default:
+                    OnAllianceHelpCommand(user);
+                    break;
+            }
+        }
+    }
+}
+
+
+namespace Oxide.Plugins
+{
+    using System;
+    using System.Collections.Generic;
+    using System.Linq;
+    public partial class Imperium
+    {
+        void OnAllianceCreateCommand(User user, string[] args)
+        {
+            Faction faction = Factions.GetByMember(user);
+            if (faction == null)
+                return;
+
+            Alliance alliance = Wars.GetAlliance(faction.Id);
+            if (alliance != null)
+            {
+                user.SendChatMessage(nameof(Messages.AlreadyInAlliance));
+                return;
+            }
+                
+            if (!EnsureUserAndFactionCanEngageInDiplomacy(user, faction))
+                return;
+
+            if (!faction.HasLeader(user))
+            {
+                user.SendChatMessage(nameof(Messages.NotLeaderOfFaction));
+                return;
+            }
+                
+            if (args.Length < 2)
+            {
+                user.SendChatMessage(nameof(Messages.Usage), "/alliance create \"NAME\" \"DESCRIPTION\"");
+                return;
+            }
+
+            string name = args[0];
+            string description = args[1];
+            
+        }
+    }
+}
+
+namespace Oxide.Plugins
+{
+    using System.Linq;
+    public partial class Imperium
+    {
+        void OnAllianceInviteCommand(User user, string[] args)
+        {
+            Faction faction = Factions.GetByMember(user);
+            if (faction == null)
+            {
+                user.SendChatMessage(nameof(Messages.NotMemberOfFaction));
+                return;
+            }
+
+            Alliance alliance = Wars.GetAlliance(faction.Id);
+            if (alliance != null)
+            {
+                user.SendChatMessage(nameof(Messages.AlreadyInAlliance));
+                return;
+            }
+
+            if (!EnsureUserAndFactionCanEngageInDiplomacy(user, faction))
+                return;
+
+            if (!faction.HasLeader(user))
+            {
+                user.SendChatMessage(nameof(Messages.NotLeaderOfFaction));
+                return;
+            }
+
+            if (args.Length < 1)
+            {
+                user.SendChatMessage(nameof(Messages.Usage), "/alliance create \"NAME\" \"DESCRIPTION\"");
+                return;
+            }
+        }
+    }
+}
+
+namespace Oxide.Plugins
+{
+    using System.Linq;
+    public partial class Imperium
+    {
+        void OnAllianceJoinCommand(User user, string[] args)
+        {
+
+        }
+    }
+}
+
+namespace Oxide.Plugins
+{
+    using System.Linq;
+    public partial class Imperium
+    {
+        void OnAllianceVoteKickCommand(User user, string[] args)
+        {
+
+        }
+    }
+}
+
+namespace Oxide.Plugins
+{
+    using System.Linq;
+    public partial class Imperium
+    {
+        void OnAllianceLeaveCommand(User user)
+        {
+
+        }
+    }
+}
+
+
+namespace Oxide.Plugins
+{
+    using System.Text;
+
+    public partial class Imperium
+    {
+        void OnAllianceHelpCommand(User user)
+        {
+            var sb = new StringBuilder();
+
+            sb.AppendLine("Available commands:");
+            sb.AppendLine("  <color=#ffd479>/war list</color>: Show all active wars");
+            sb.AppendLine("  <color=#ffd479>/war status</color>: Show all active wars your faction is involved in");
+            sb.AppendLine(
+                "  <color=#ffd479>/war declare FACTION \"REASON\"</color>: Declare war against another faction");
+            sb.AppendLine(
+                "  <color=#ffd479>/war end FACTION</color>: Offer to end a war, or accept an offer made to you");
+            if (user.HasPermission("imperium.admin.wars"))
+            {
+                sb.AppendLine(
+                "  <color=#ffd479>/war admin pending</color>: List all wars waiting for admin approval");
+                sb.AppendLine(
+                "  <color=#ffd479>/war admin approve FACTION_1 FACTION_2</color>: Approve a war between two factions");
+                sb.AppendLine(
+               "  <color=#ffd479>/war admin deny FACTION_1 FACTION_2</color>: Deny a pending war between two factions");
+            }
+            sb.AppendLine("  <color=#ffd479>/war help</color>: Show this message");
+
+            user.SendChatMessage(sb);
+        }
+    }
+}
+
+namespace Oxide.Plugins
+{
+    using System;
+    using System.Text;
+
+    public partial class Imperium
+    {
+        void OnAllianceListCommand(User user)
+        {
+            var sb = new StringBuilder();
+            War[] wars = Wars.GetAllActiveWars();
+
+            if (wars.Length == 0)
+            {
+                sb.Append("The island is at peace... for now. No wars have been declared.");
+            }
+            else
+            {
+                sb.AppendLine(String.Format("<color=#ffd479>The island is at war! {0} wars have been declared:</color>",
+                    wars.Length));
+                for (var idx = 0; idx < wars.Length; idx++)
+                {
+                    War war = wars[idx];
+                    sb.AppendFormat("{0}. <color=#ffd479>{1}</color> vs <color=#ffd479>{2}</color>: {2}", (idx + 1),
+                        war.AttackerId, war.DefenderId, war.CassusBelli);
+                    sb.AppendLine();
+                }
+            }
+
+            user.SendChatMessage(sb);
+        }
+    }
+}
+
+namespace Oxide.Plugins
+{
+    using System;
+    using System.Text;
+
+    public partial class Imperium
+    {
+        void OnAllianceStatusCommand(User user)
+        {
+            Faction faction = Factions.GetByMember(user);
+
+            if (faction == null)
+            {
+                user.SendChatMessage(nameof(Messages.NotMemberOfFaction));
+                return;
+            }
+
+            var sb = new StringBuilder();
+            War[] wars = Wars.GetAllActiveWarsByFaction(faction);
+
+            if (wars.Length == 0)
+            {
+                sb.AppendLine("Your faction is not involved in any wars.");
+            }
+            else
+            {
+                sb.AppendLine(
+                    String.Format("<color=#ffd479>Your faction is involved in {0} wars:</color>", wars.Length));
+                for (var idx = 0; idx < wars.Length; idx++)
+                {
+                    War war = wars[idx];
+                    sb.AppendFormat("{0}. <color=#ffd479>{1}</color> vs <color=#ffd479>{2}</color>", (idx + 1),
+                        war.AttackerId, war.DefenderId);
+                    if (war.IsAttackerOfferingPeace)
+                        sb.AppendFormat(": <color=#ffd479>{0}</color> is offering peace!", war.AttackerId);
+                    if (war.IsDefenderOfferingPeace)
+                        sb.AppendFormat(": <color=#ffd479>{0}</color> is offering peace!", war.DefenderId);
                     sb.AppendLine();
                 }
             }
@@ -4578,6 +4905,9 @@ namespace Oxide.Plugins
 
             public const string WarEndedFactionEliminatedAnnouncement =
                 "<color=#00ff00>WAR ENDED:</color> The war between <color=#ffd479>[{0}]</color> and <color=#ffd479>[{1}]</color> has ended, since <color=#ffd479>[{2}]</color> no longer holds any land.";
+
+            public const string AlreadyInAlliance =
+                "<color=#00ff00>ALLIANCE:</color> Your faction is already part of an alliance";
 
             public const string PinAddedAnnouncement =
                 "<color=#00ff00>POINT OF INTEREST:</color> <color=#ffd479>[{0}]</color> announces the creation of <color=#ffd479>{1}</color>, a new {2} located in <color=#ffd479>{3}</color>!";
@@ -6128,7 +6458,6 @@ namespace Oxide.Plugins
             public HashSet<string> InviteIds { get; }
             public HashSet<string> Aggressors { get; }
             public ulong InGameTeamID { get; set; }
-
             public float TaxRate { get; set; }
             public StorageContainer TaxChest { get; set; }
             public DateTime NextUpkeepPaymentTime { get; set; }
@@ -6153,7 +6482,6 @@ namespace Oxide.Plugins
             public Faction(string id, User owner)
             {
                 Id = id;
-
                 OwnerId = owner.Id;
                 MemberIds = new HashSet<string> { owner.Id };
                 ManagerIds = new HashSet<string>();
@@ -6519,8 +6847,6 @@ namespace Oxide.Plugins
             [JsonProperty("creationTime"), JsonConverter(typeof(IsoDateTimeConverter))]
             public DateTime CreationTime;
         }
-
-
     }
 }
 
@@ -7439,6 +7765,95 @@ namespace Oxide.Plugins
 
 namespace Oxide.Plugins
 {
+    using System;
+    using System.Collections.Generic;
+    public partial class Imperium
+    {
+        class Alliance
+        {
+            public string Name { get; set; }
+            public string Description { get; set; }
+            public HashSet<string> Factions { get; set; }
+            public HashSet<string> Invites { get; set; }
+
+            public List<FactionPollInfo> JoinPolls;
+
+            public List<FactionPollInfo> KickPolls;
+
+            public Alliance(Faction creator, string name, string description)
+            {
+                Name = name;
+                Description = description;
+                Factions = new HashSet<string>();
+                Factions.Add(creator.Id);
+                Invites = new HashSet<string>();
+                KickPolls = new List<FactionPollInfo>();
+            }
+
+            public Alliance(AllianceInfo info)
+            {
+                Name = info.name;
+                Description = info.description;
+                Factions = info.factions;
+                Invites = info.invites;
+                KickPolls = info.kickPolls;
+            }
+
+            public AllianceInfo Serialize()
+            {
+                return new AllianceInfo
+                {
+                    name = Name,
+                    description = Description,
+                    factions = Factions,
+                    invites = Invites,
+                    kickPolls = KickPolls
+                };
+            }
+
+            public void InviteFaction(Faction faction)
+            {
+                if (Invites.Contains(faction.Id))
+                    return;
+                Invites.Add(faction.Id);
+            }
+
+            public void JoinAlliance(Faction faction)
+            {
+                if (!Invites.Contains(faction.Id))
+                    return;
+                Invites.Remove(faction.Id);
+                Factions.Add(faction.Id);
+            }
+
+            public int GetMemberCount()
+            {
+                int result = 0;
+                foreach(string faction in Factions)
+                {
+                    Faction f = Instance.Factions.Get(faction);
+                    if (f != null)
+                        result += f.MemberCount;
+                }
+                return result;
+            }
+            public int GetLandCount()
+            {
+                int result = 0;
+                foreach (string faction in Factions)
+                {
+                    Faction f = Instance.Factions.Get(faction);
+                    if (f != null)
+                        result += Instance.Areas.GetAllClaimedByFaction(f).Length;
+                }
+                return result;
+            }
+        }
+    }
+}
+
+namespace Oxide.Plugins
+{
     public partial class Imperium : RustPlugin
     {
         enum WarEndReason
@@ -7512,6 +7927,65 @@ namespace Oxide.Plugins
 namespace Oxide.Plugins
 {
     using System;
+
+    public partial class Imperium
+    {
+        enum PollResult
+        {
+            Pending,
+            Approved,
+            Denied
+        }
+    }
+}
+
+namespace Oxide.Plugins
+{
+    using System;
+    using System.Collections.Generic;
+    using Newtonsoft.Json;
+    using Newtonsoft.Json.Converters;
+    using Newtonsoft.Json.Linq;
+
+    public partial class Imperium : RustPlugin
+    {
+        class AllianceInfo
+        {
+            [JsonProperty("name")] public string name;
+
+            [JsonProperty("description")] public string description;
+
+            [JsonProperty("factions")] public HashSet<string> factions;
+
+            [JsonProperty("invited")] public HashSet<string> invites;
+
+            [JsonProperty("joinPolls")] public List<FactionPollInfo> joinPolls;
+
+            [JsonProperty("kickPoll")] public List<FactionPollInfo> kickPolls;
+        }
+    }
+
+    public partial class Imperium : RustPlugin
+    {
+        [Serializable]
+        class FactionPollInfo
+        {
+            [JsonProperty("targetFaction")] public string targetFaction;
+
+            [JsonProperty("positiveVotes")] public HashSet<string> positiveVotes;
+
+            [JsonProperty("negativeVotes")] public HashSet<string> negativeVotes;
+
+            [JsonProperty("result"), JsonConverter(typeof(StringEnumConverter))]
+            public PollResult? result;
+
+        }
+    }
+}
+
+namespace Oxide.Plugins
+{
+    using System;
     using System.Collections.Generic;
     using System.Linq;
 
@@ -7520,10 +7994,16 @@ namespace Oxide.Plugins
         class WarManager
         {
             List<War> Wars = new List<War>();
-            
+            List<Alliance> Alliances = new List<Alliance>();
+
             public War[] GetAllActiveWars()
             {
                 return Wars.Where(war => war.IsActive).OrderBy(war => war.StartTime).ToArray();
+            }
+
+            public Alliance[] GetAllAlliances()
+            {
+                return Alliances.ToArray();
             }
 
             public War[] GetAllInactiveWars()
@@ -7567,6 +8047,19 @@ namespace Oxide.Plugins
                 );
             }
 
+            public War GetUnapprovedWarBetween(Faction firstFaction, Faction secondFaction)
+            {
+                return GetUnapprovedWarBetween(firstFaction.Id, secondFaction.Id);
+            }
+
+            public War GetUnapprovedWarBetween(string firstFactionId, string secondFactionId)
+            {
+                return GetAllInactiveWars().SingleOrDefault(war =>
+                    (war.AttackerId == firstFactionId && war.DefenderId == secondFactionId) ||
+                    (war.DefenderId == firstFactionId && war.AttackerId == secondFactionId)
+                );
+            }
+
             public bool AreFactionsAtWar(Faction firstFaction, Faction secondFaction)
             {
                 return AreFactionsAtWar(firstFaction.Id, secondFaction.Id);
@@ -7577,16 +8070,117 @@ namespace Oxide.Plugins
                 return GetActiveWarBetween(firstFactionId, secondFactionId) != null;
             }
 
-            public War DeclareWar(Faction attacker, Faction defender, User user, string cassusBelli)
+            public Alliance GetAllianceBetween(string firstFactionId, string secondFactionId)
             {
-                var war = new War(attacker, defender, user, cassusBelli);
-                Wars.Add(war);
-                Instance.OnDiplomacyChanged();
-                if(war.IsActive)
+                return GetAllAlliances().SingleOrDefault(a =>
+                    (a.Factions.Contains(firstFactionId) && a.Factions.Contains(firstFactionId))
+                );
+            }
+
+            public Alliance GetAlliance(string firstFactionId)
+            {
+                return GetAllAlliances().SingleOrDefault(a =>
+                    (a.Factions.Contains(firstFactionId))
+                );
+            }
+
+            public Faction[] GetAllianceMembers(Alliance alliance)
+            {
+                List<Faction> result = new List<Faction>();
+                foreach(string id in alliance.Factions)
                 {
-                    Util.BroadcastEffect("assets/prefabs/missions/effects/mission_accept.prefab");
+                    Faction f = Instance.Factions.Get(id);
+                    if (f != null)
+                        result.Add(f);
                 }
-                return war;
+                return result.ToArray();
+            }
+
+            public Faction[] GetAllies(Faction faction)
+            {
+                List<Faction> result = new List<Faction>();
+                Alliance alliance = GetAlliance(faction.Id);
+                if(alliance != null)
+                {
+                    result.Add(faction);
+                    return result.ToArray();
+                }
+                foreach (string id in alliance.Factions)
+                {
+                    Faction f = Instance.Factions.Get(id);
+                    if (f != null)
+                        result.Add(f);
+                }
+                return result.ToArray();
+            }
+
+            public bool AreFactionsAllied(Faction firstFaction, Faction secondFaction)
+            {
+                return AreFactionsAllied(firstFaction.Id, secondFaction.Id);
+            }
+
+            public bool AreFactionsAllied(string firstFactionId, string secondFactionId)
+            {
+                return GetAllianceBetween(firstFactionId, secondFactionId) != null;
+            }
+
+            public int GetWarCostBetween(Faction attacker, Faction defender)
+            {
+                int result = 0;
+                Alliance atkAlliance = GetAlliance(attacker.Id);
+                Alliance defAlliance = GetAlliance(defender.Id);
+                if(atkAlliance != null)
+                {
+                    result += Instance.Options.War.DeclarationCostPerAttacker * atkAlliance.GetMemberCount();
+                }
+                else
+                {
+                    result += Instance.Options.War.DeclarationCostPerAttacker * attacker.MemberCount;
+                }
+
+                if(defAlliance != null)
+                {
+                    result += Instance.Options.War.DeclarationCostPerDefenderLand * defAlliance.GetLandCount();
+                    result += Instance.Options.War.DeclarationCost * defAlliance.Factions.Count;
+                }
+                else
+                {
+                    result += Instance.Options.War.DeclarationCostPerDefenderLand * Instance.Areas.GetAllClaimedByFaction(defender.Id).Length;
+                    result += Instance.Options.War.DeclarationCost;
+                }
+                return result;
+            }
+
+            public War[] DeclareWars(Faction[] attackers, Faction[] defenders, User user, string cassusBelli)
+            {
+                List<War> result = new List<War>();
+                foreach(Faction attacker in attackers)
+                {
+                    foreach(Faction defender in defenders)
+                    {
+                        if (attacker == defender)
+                            continue;
+                        if (AreFactionsAllied(attacker, defender))
+                            continue;
+                        if (GetActiveWarBetween(attacker, defender) != null)
+                            continue;
+                        if (GetUnapprovedWarBetween(attacker, defender) != null)
+                            continue;
+                        var war = new War(attacker, defender, user, cassusBelli);
+                        Wars.Add(war);
+                        result.Add(war);
+                    }
+                }
+                Instance.OnDiplomacyChanged();
+                foreach(War war in result)
+                {
+                    if(war.IsActive)
+                    {
+                        Util.BroadcastEffect("assets/prefabs/missions/effects/mission_accept.prefab");
+                        break;
+                    }
+                }
+                return result.ToArray();
             }
 
             public bool TryShopfrontTreaty(BasePlayer player1, BasePlayer player2)
@@ -9518,7 +10112,19 @@ namespace Oxide.Plugins
 
             [JsonProperty("noobFactionProtectionInSeconds")] public int NoobFactionProtectionInSeconds;
 
-            [JsonProperty("declarationCost")] public int DeclarationCost;
+            [JsonProperty("declarationCostPerDefenderFaction")] public int DeclarationCost;
+
+            [JsonProperty("declarationCostPerDefenderLands")] public int DeclarationCostPerDefenderLand;
+
+            [JsonProperty("declarationCostPerAttackerMember")] public int DeclarationCostPerAttacker;
+
+            [JsonProperty("allianceCreateCost")] public int AllianceCreateCost;
+
+            [JsonProperty("allianceInviteCost")] public int AllianceInviteCost;
+
+            [JsonProperty("allianceVoteKickCost")] public int AllianceVoteKickCost;
+
+            [JsonProperty("allianceLeaveCost")] public int AllianceLeaveCost;
 
             [JsonProperty("onlineDefendersRequired")] public int OnlineDefendersRequired;
 
@@ -9540,7 +10146,13 @@ namespace Oxide.Plugins
             {
                 Enabled = true,
                 NoobFactionProtectionInSeconds = 0,
-                DeclarationCost = 0,
+                DeclarationCost = 1000,
+                DeclarationCostPerDefenderLand = 250,
+                DeclarationCostPerAttacker = 50,
+                AllianceCreateCost = 100,
+                AllianceInviteCost = 50,
+                AllianceVoteKickCost = 50,
+                AllianceLeaveCost = 1000,
                 OnlineDefendersRequired = 0,
                 AdminApprovalRequired = false,
                 DefenderApprovalRequired = false,

@@ -3854,22 +3854,16 @@ namespace Oxide.Plugins
             var sb = new StringBuilder();
 
             sb.AppendLine("Available commands:");
-            sb.AppendLine("  <color=#ffd479>/war list</color>: Show all active wars");
-            sb.AppendLine("  <color=#ffd479>/war status</color>: Show all active wars your faction is involved in");
+            sb.AppendLine("  <color=#ffd479>/alliance list</color>: Show all alliances");
+            sb.AppendLine("  <color=#ffd479>/alliance status</color>: Show details about the alliance your faction is part of");
             sb.AppendLine(
-                "  <color=#ffd479>/war declare FACTION \"REASON\"</color>: Declare war against another faction");
+                "  <color=#ffd479>/alliance create NAME \"DESCRIPTION\"</color>: Create a new alliance");
             sb.AppendLine(
-                "  <color=#ffd479>/war end FACTION</color>: Offer to end a war, or accept an offer made to you");
-            if (user.HasPermission("imperium.admin.wars"))
-            {
-                sb.AppendLine(
-                "  <color=#ffd479>/war admin pending</color>: List all wars waiting for admin approval");
-                sb.AppendLine(
-                "  <color=#ffd479>/war admin approve FACTION_1 FACTION_2</color>: Approve a war between two factions");
-                sb.AppendLine(
-               "  <color=#ffd479>/war admin deny FACTION_1 FACTION_2</color>: Deny a pending war between two factions");
-            }
-            sb.AppendLine("  <color=#ffd479>/war help</color>: Show this message");
+                "  <color=#ffd479>/alliance invite FACTION</color>: Invite another faction to your alliance");
+            sb.AppendLine(
+                "  <color=#ffd479>/alliance join ALLIANCE</color>: Join a given alliance");
+
+            sb.AppendLine("  <color=#ffd479>/alliance help</color>: Show this message");
 
             user.SendChatMessage(sb);
         }

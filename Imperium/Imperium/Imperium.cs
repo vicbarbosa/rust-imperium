@@ -3639,6 +3639,12 @@ namespace Oxide.Plugins
     {
         void OnAllianceCreateCommand(User user, string[] args)
         {
+            if (args.Length < 2)
+            {
+                user.SendChatMessage(nameof(Messages.Usage), "/alliance create NAME \"DESCRIPTION\"");
+                return;
+            }
+
             Faction faction = Factions.GetByMember(user);
             if (faction == null)
                 return;
@@ -3658,15 +3664,32 @@ namespace Oxide.Plugins
                 user.SendChatMessage(nameof(Messages.NotLeaderOfFaction));
                 return;
             }
-                
-            if (args.Length < 2)
+
+
+            string name = args[0];
+            if (name.Length > 8)
             {
-                user.SendChatMessage(nameof(Messages.Usage), "/alliance create \"NAME\" \"DESCRIPTION\"");
+                user.SendChatMessage(nameof(Messages.InvalidFactionName), Instance.Options.Factions.MinFactionNameLength, Instance.Options.Factions.MaxFactionNameLength);
                 return;
             }
 
-            string name = args[0];
+            Alliance existing = Instance.Wars.GetAllianceByName(name);
+            if(existing != null)
+            {
+                user.SendChatMessage(nameof(Messages.FactionAlreadyExists), name);
+                return;
+            }
+
+            if (!Util.TryChargeScrapFromPlayer(user.Player, Instance.Options.War.AllianceCreateCost))
+            {
+                user.SendChatMessage(nameof(Messages.CannotAfford), Instance.Options.War.AllianceCreateCost);
+                return;
+            }
+
             string description = args[1];
+
+            Instance.Wars.CreateAlliance(faction, name, description);
+            
             
         }
     }
@@ -3687,6 +3710,77 @@ namespace Oxide.Plugins
             }
 
             Alliance alliance = Wars.GetAlliance(faction.Id);
+            if (alliance == null)
+            {
+                user.SendChatMessage(nameof(Messages.NotInAlliance));
+                return;
+            }
+
+            if (!EnsureUserAndFactionCanEngageInDiplomacy(user, faction))
+                return;
+
+            if (!faction.HasLeader(user))
+            {
+                user.SendChatMessage(nameof(Messages.NotLeaderOfFaction));
+                return;
+            }
+
+            if (args.Length < 1)
+            {
+                user.SendChatMessage(nameof(Messages.Usage), "/alliance invite FACTION");
+                return;
+            }
+            string id = Util.NormalizeFactionId(args[0]);
+            Faction target = Factions.Get(id);
+            
+            if (target == null)
+            {
+                //TODO MESSAGE
+                user.SendChatMessage(nameof(Messages.FactionDoesNotExist), id);
+                return;
+            }
+            Alliance existing = Instance.Wars.GetAlliance(target.Id);
+
+            if(existing != null)
+            {
+                //TODO MESSAGE
+                user.SendChatMessage(nameof(Messages.UserIsAlreadyMemberOfFaction), target.Id, existing.Name);
+                return;
+            }
+
+            if (alliance.Invites.Contains(id))
+            {
+                user.SendChatMessage(nameof(Messages.FactionAlreadyInvited), id);
+                return;
+            }
+
+            if (!Util.TryChargeScrapFromPlayer(user.Player, Instance.Options.War.AllianceInviteCost))
+            {
+                user.SendChatMessage(nameof(Messages.CannotAfford), Instance.Options.War.AllianceCreateCost);
+                return;
+            }
+            alliance.InviteFaction(faction);
+            //TODO MESSAGE  Broadcast to server
+        }
+    }
+}
+
+namespace Oxide.Plugins
+{
+    using System.Linq;
+    public partial class Imperium
+    {
+        void OnAllianceJoinCommand(User user, string[] args)
+        {
+            Faction faction = Factions.GetByMember(user);
+            if (faction == null)
+            {
+                user.SendChatMessage(nameof(Messages.NotMemberOfFaction));
+                return;
+            }
+                
+
+            Alliance alliance = Wars.GetAlliance(faction.Id);
             if (alliance != null)
             {
                 user.SendChatMessage(nameof(Messages.AlreadyInAlliance));
@@ -3702,22 +3796,23 @@ namespace Oxide.Plugins
                 return;
             }
 
-            if (args.Length < 1)
+            Alliance targetAlliance = Instance.Wars.GetAllianceByName(args[0]);
+            if(targetAlliance == null)
             {
-                user.SendChatMessage(nameof(Messages.Usage), "/alliance create \"NAME\" \"DESCRIPTION\"");
+                //TODO MESSAGE
+                user.SendChatMessage(nameof(Messages.FactionDoesNotExist));
                 return;
             }
-        }
-    }
-}
 
-namespace Oxide.Plugins
-{
-    using System.Linq;
-    public partial class Imperium
-    {
-        void OnAllianceJoinCommand(User user, string[] args)
-        {
+            if (!targetAlliance.Invites.Contains(faction.Id))
+            {
+                //TODO MESSAGE
+                user.SendChatMessage(nameof(Messages.CannotJoinFactionNotInvited));
+                return;
+            }
+
+            targetAlliance.JoinAlliance(faction);
+            //TODO MESSAGE  Broadcast to server
 
         }
     }
@@ -3730,7 +3825,7 @@ namespace Oxide.Plugins
     {
         void OnAllianceVoteKickCommand(User user, string[] args)
         {
-
+            //TODO
         }
     }
 }
@@ -3742,7 +3837,7 @@ namespace Oxide.Plugins
     {
         void OnAllianceLeaveCommand(User user)
         {
-
+            //TODO
         }
     }
 }
@@ -4582,6 +4677,8 @@ namespace Oxide.Plugins
             public const string PvpModeDisabled = "PVP Mode is currently not available.";
             public const string UpgradingDisabled = "Area upgrading is currently disabled.";
 
+            public const string CannotAfford = "You need to have {0} scrap in your inventory to do this.";
+
             public const string AreaIsBadlands = "<color=#ffd479>{0}</color> is a part of the badlands.";
 
             public const string AreaIsClaimed =
@@ -4908,6 +5005,12 @@ namespace Oxide.Plugins
 
             public const string AlreadyInAlliance =
                 "<color=#00ff00>ALLIANCE:</color> Your faction is already part of an alliance";
+
+            public const string NotInAlliance =
+                "<color=#00ff00>ALLIANCE:</color> Your faction is not part of any alliance";
+
+            public const string FactionAlreadyInvited =
+                "<color=#00ff00>ALLIANCE:</color> Faction with name {0} is already invited to your alliance";
 
             public const string PinAddedAnnouncement =
                 "<color=#00ff00>POINT OF INTEREST:</color> <color=#ffd479>[{0}]</color> announces the creation of <color=#ffd479>{1}</color>, a new {2} located in <color=#ffd479>{3}</color>!";
@@ -8070,6 +8173,13 @@ namespace Oxide.Plugins
                 return GetActiveWarBetween(firstFactionId, secondFactionId) != null;
             }
 
+            public Alliance GetAllianceByName(string name)
+            {
+                return GetAllAlliances().SingleOrDefault(a =>
+                    (a.Name == name)
+                );
+            }
+
             public Alliance GetAllianceBetween(string firstFactionId, string secondFactionId)
             {
                 return GetAllAlliances().SingleOrDefault(a =>
@@ -8149,6 +8259,13 @@ namespace Oxide.Plugins
                     result += Instance.Options.War.DeclarationCost;
                 }
                 return result;
+            }
+
+            public Alliance CreateAlliance(Faction creator, string name, string description)
+            {
+                Alliance alliance = new Alliance(creator, name, description);
+                Alliances.Add(alliance);
+                return alliance;
             }
 
             public War[] DeclareWars(Faction[] attackers, Faction[] defenders, User user, string cassusBelli)
@@ -9242,6 +9359,15 @@ namespace Oxide.Plugins
                 result.b = color.B;
                 result.a = 255f;
                 return result;
+            }
+
+            public static bool TryChargeScrapFromPlayer(BasePlayer player, int amount)
+            {
+                ItemDefinition scrapDef = ItemManager.FindItemDefinition("scrap");
+                var stacks = player.inventory.FindItemIDs(scrapDef.itemid);
+                if (amount == 0)
+                    return true;
+                return Instance.TryCollectFromStacks(scrapDef, stacks, amount);
             }
         }
     }

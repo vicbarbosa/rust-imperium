@@ -34,7 +34,7 @@ namespace Oxide.Plugins
     using System.Linq;
 
 
-    [Info("Imperium", "chucklenugget/evict", "2.2.4")]
+    [Info("Imperium", "chucklenugget/evict", "2.2.5")]
     public partial class Imperium : RustPlugin
     {
         //Optional Dependencies
@@ -2187,7 +2187,7 @@ namespace Oxide.Plugins
             if (Options.Map.PinCost > 0)
             {
                 ItemDefinition scrapDef = ItemManager.FindItemDefinition("scrap");
-                List<Item> stacks = user.Player.inventory.FindItemIDs(scrapDef.itemid);
+                List<Item> stacks = user.Player.inventory.FindItemsByItemID(scrapDef.itemid);
 
                 if (!Instance.TryCollectFromStacks(scrapDef, stacks, Options.Map.PinCost))
                 {
@@ -2725,7 +2725,7 @@ namespace Oxide.Plugins
             if (cost > 0)
             {
                 ItemDefinition scrapDef = ItemManager.FindItemDefinition("scrap");
-                List<Item> stacks = user.Player.inventory.FindItemIDs(scrapDef.itemid);
+                List<Item> stacks = user.Player.inventory.FindItemsByItemID(scrapDef.itemid);
 
                 if (!Instance.TryCollectFromStacks(scrapDef, stacks, cost))
                 {
@@ -3039,7 +3039,7 @@ namespace Oxide.Plugins
             if (cost > 0)
             {
                 ItemDefinition scrapDef = ItemManager.FindItemDefinition("scrap");
-                var stacks = user.Player.inventory.FindItemIDs(scrapDef.itemid);
+                var stacks = user.Player.inventory.FindItemsByItemID(scrapDef.itemid);
 
                 if (!Instance.TryCollectFromStacks(scrapDef, stacks, cost))
                 {
@@ -8698,7 +8698,7 @@ namespace Oxide.Plugins
                     if (cost > 0)
                     {
                         ItemDefinition scrapDef = ItemManager.FindItemDefinition("scrap");
-                        List<Item> stacks = User.Player.inventory.FindItemIDs(scrapDef.itemid);
+                        List<Item> stacks = User.Player.inventory.FindItemsByItemID(scrapDef.itemid);
 
                         if (!Instance.TryCollectFromStacks(scrapDef, stacks, cost))
                         {

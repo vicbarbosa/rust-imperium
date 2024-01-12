@@ -138,7 +138,6 @@ namespace Oxide.Plugins
                 PrintError($"Error while loading configuration: {ex.ToString()}");
             }
 
-
             Puts("Area claims are " + (Options.Claims.Enabled ? "enabled" : "disabled"));
             Puts("Taxation is " + (Options.Taxes.Enabled ? "enabled" : "disabled"));
             Puts("Badlands are " + (Options.Badlands.Enabled ? "enabled" : "disabled"));

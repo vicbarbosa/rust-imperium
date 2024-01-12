@@ -1,17 +1,17 @@
 {
   "format": 1,
   "restore": {
-    "D:\\SourceTree\\rust-imperium-github\\Imperium\\Imperium\\Imperium.csproj": {}
+    "C:\\Users\\Victor\\Documents\\rust-imperium\\Imperium\\Imperium\\Imperium.csproj": {}
   },
   "projects": {
-    "D:\\SourceTree\\rust-imperium-github\\Imperium\\Imperium\\Imperium.csproj": {
+    "C:\\Users\\Victor\\Documents\\rust-imperium\\Imperium\\Imperium\\Imperium.csproj": {
       "version": "1.0.0",
       "restore": {
-        "projectUniqueName": "D:\\SourceTree\\rust-imperium-github\\Imperium\\Imperium\\Imperium.csproj",
+        "projectUniqueName": "C:\\Users\\Victor\\Documents\\rust-imperium\\Imperium\\Imperium\\Imperium.csproj",
         "projectName": "Imperium",
-        "projectPath": "D:\\SourceTree\\rust-imperium-github\\Imperium\\Imperium\\Imperium.csproj",
+        "projectPath": "C:\\Users\\Victor\\Documents\\rust-imperium\\Imperium\\Imperium\\Imperium.csproj",
         "packagesPath": "C:\\Users\\Victor\\.nuget\\packages\\",
-        "outputPath": "D:\\SourceTree\\rust-imperium-github\\Imperium\\Imperium\\obj\\",
+        "outputPath": "C:\\Users\\Victor\\Documents\\rust-imperium\\Imperium\\Imperium\\obj\\",
         "projectStyle": "PackageReference",
         "configFilePaths": [
           "C:\\Users\\Victor\\AppData\\Roaming\\NuGet\\NuGet.Config",
@@ -39,12 +39,6 @@
       "frameworks": {
         "net6.0": {
           "targetAlias": "net6.0",
-          "dependencies": {
-            "System.Drawing.Common": {
-              "target": "Package",
-              "version": "[6.0.0, )"
-            }
-          },
           "imports": [
             "net461",
             "net462",
@@ -55,12 +49,7 @@
           ],
           "assetTargetFallback": true,
           "warn": true,
-          "frameworkReferences": {
-            "Microsoft.NETCore.App": {
-              "privateAssets": "all"
-            }
-          },
-          "runtimeIdentifierGraphPath": "C:\\Program Files\\dotnet\\sdk\\6.0.102\\RuntimeIdentifierGraph.json"
+          "runtimeIdentifierGraphPath": "C:\\Program Files\\dotnet\\sdk\\5.0.408\\RuntimeIdentifierGraph.json"
         }
       }
     }

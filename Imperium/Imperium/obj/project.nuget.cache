@@ -1,11 +1,8 @@
 {
   "version": 2,
-  "dgSpecHash": "vhGLVgSyoLruffSuPoOJVngx4zVzvNs9YBQfTUOs+GJCZdnMAcnmWKQ40es1rPtc06QUNw0Re3S6LgrIjnNe0g==",
+  "dgSpecHash": "+UvAgITK4MfiwLbbpbTPcA/h7u0CmjKxfJKD5e4DumEggW/IJB3qkBC0HHSzeyBxGsNzKbQD3J0lcFbDYVYEKA==",
   "success": true,
-  "projectFilePath": "D:\\SourceTree\\rust-imperium-github\\Imperium\\Imperium\\Imperium.csproj",
-  "expectedPackageFiles": [
-    "C:\\Users\\Victor\\.nuget\\packages\\microsoft.win32.systemevents\\6.0.0\\microsoft.win32.systemevents.6.0.0.nupkg.sha512",
-    "C:\\Users\\Victor\\.nuget\\packages\\system.drawing.common\\6.0.0\\system.drawing.common.6.0.0.nupkg.sha512"
-  ],
+  "projectFilePath": "C:\\Users\\Victor\\Documents\\rust-imperium\\Imperium\\Imperium\\Imperium.csproj",
+  "expectedPackageFiles": [],
   "logs": []
 }

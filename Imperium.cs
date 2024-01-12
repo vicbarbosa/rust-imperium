@@ -435,6 +435,8 @@ namespace Oxide.Plugins
 }
 namespace Oxide.Plugins
 {
+    using Oxide.Core.Plugins;
+    using Oxide.Core.Libraries.Covalence;
     public partial class Imperium
     {
         private string BetterChat_FormattedFactionTag(IPlayer player)

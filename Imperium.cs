@@ -32,9 +32,13 @@ namespace Oxide.Plugins
     using UnityEngine;
     using System.Collections.Generic;
     using System.Linq;
+    using Oxide.Core.Plugins;
+    using Oxide.Core.Libraries.Covalence;
+    using Network;
 
 
-    [Info("Imperium", "chucklenugget/evict", "2.2.5")]
+    [Info("Imperium", "chucklenugget/evict", "2.2.6")]
+    [Description("Land Claims for Rust")]
     public partial class Imperium : RustPlugin
     {
         //Optional Dependencies
@@ -73,7 +77,7 @@ namespace Oxide.Plugins
         DynamicConfigFile PinsFile;
         DynamicConfigFile WarsFile;
 
-        GameObject GameObject;
+        GameObject GO;
         ImperiumOptions Options;
         Timer UpkeepCollectionTimer;
 
@@ -179,7 +183,7 @@ namespace Oxide.Plugins
 
         void Setup()
         {
-            GameObject = new GameObject();
+            GO = new GameObject();
 
             Areas = new AreaManager();
             Factions = new FactionManager();
@@ -234,8 +238,8 @@ namespace Oxide.Plugins
             if (UpkeepCollectionTimer != null && !UpkeepCollectionTimer.Destroyed)
                 UpkeepCollectionTimer.Destroy();
 
-            if (GameObject != null)
-                UnityEngine.Object.Destroy(GameObject);
+            if (GO != null)
+                UnityEngine.Object.Destroy(GO);
 
             Instance = null;
         }
@@ -431,8 +435,6 @@ namespace Oxide.Plugins
 }
 namespace Oxide.Plugins
 {
-    using Oxide.Core.Plugins;
-    using Oxide.Core.Libraries.Covalence;
     public partial class Imperium
     {
         private string BetterChat_FormattedFactionTag(IPlayer player)
@@ -4682,13 +4684,13 @@ namespace Oxide.Plugins
                     return null;
 
                 // A player can always trigger their own traps, to prevent exploiting this mechanic.
-                if (defender.Player.userID == trap.OwnerID)
+                if (defender == null || defender.Player == null || defender.Player.userID == trap.OwnerID)
                     return null;
 
                 Area trapArea = Instance.Areas.GetByEntityPosition(trap);
 
                 // If the defender is in a faction, they can trigger traps placed in areas claimed by factions with which they are at war.
-                if (defender.Faction != null && trapArea.FactionId != null &&
+                if (trapArea == null || defender.Faction != null && trapArea.FactionId != null &&
                     Instance.Wars.AreFactionsAtWar(defender.Faction.Id, trapArea.FactionId))
                     return null;
 
@@ -6542,7 +6544,7 @@ namespace Oxide.Plugins
             public FactionManager()
             {
                 Factions = new Dictionary<string, Faction>();
-                EntityMonitor = Instance.GameObject.AddComponent<FactionEntityMonitor>();
+                EntityMonitor = Instance.GO.AddComponent<FactionEntityMonitor>();
             }
 
             public Faction Create(string id, User owner)
@@ -9743,9 +9745,9 @@ namespace Oxide.Plugins
             public HudManager()
             {
                 Images = new Dictionary<string, Image>();
-                GameEvents = Instance.GameObject.AddComponent<GameEventWatcher>();
-                ImageDownloader = Instance.GameObject.AddComponent<ImageDownloader>();
-                MapOverlayGenerator = Instance.GameObject.AddComponent<MapOverlayGenerator>();
+                GameEvents = Instance.GO.AddComponent<GameEventWatcher>();
+                ImageDownloader = Instance.GO.AddComponent<ImageDownloader>();
+                MapOverlayGenerator = Instance.GO.AddComponent<MapOverlayGenerator>();
             }
 
             public void RefreshForAllPlayers()

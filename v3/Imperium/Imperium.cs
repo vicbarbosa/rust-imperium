@@ -32,6 +32,9 @@ namespace Oxide.Plugins
     using UnityEngine;
     using System.Collections.Generic;
     using System.Linq;
+    using Oxide.Core.Plugins;
+    using Oxide.Core.Libraries.Covalence;
+    using Network;
 
 
     [Info("Imperium", "chucklenugget/evict", "2.2.6")]
@@ -134,6 +137,7 @@ namespace Oxide.Plugins
             {
                 PrintError($"Error while loading configuration: {ex.ToString()}");
             }
+
 
             Puts("Area claims are " + (Options.Claims.Enabled ? "enabled" : "disabled"));
             Puts("Taxation is " + (Options.Taxes.Enabled ? "enabled" : "disabled"));
@@ -4186,7 +4190,7 @@ namespace Oxide.Plugins
 
                 if (entity == null || hit == null)
                     return null;
-
+                
 
                 Area area = GetAreaForDecayCalculation(entity);
 
@@ -8072,7 +8076,7 @@ namespace Oxide.Plugins
                     NextColor = (NextColor + 1) % Colors.Length;
                 }
                 hexcolor = $"#{color.R:X2}{color.G:X2}{color.B:X2}";
-
+                
                 return hexcolor;
             }
         }

@@ -37,7 +37,7 @@ namespace Oxide.Plugins
     using Network;
 
 
-    [Info("Imperium", "chucklenugget/evict", "2.2.6")]
+    [Info("Imperium", "chucklenugget/evict", "2.2.7")]
     [Description("Land Claims for Rust")]
     public partial class Imperium : RustPlugin
     {
@@ -4994,7 +4994,7 @@ namespace Oxide.Plugins
                 if (!EnableTestMode && attacker.Player.userID == entity.OwnerID)
                     return DamageResult.Friendly;
 
-                if (!IsProtectedEntity(entity))
+                if (area == null || !IsProtectedEntity(entity))
                     return DamageResult.NotProtected;
 
                 if (attacker.Faction != null)
@@ -10852,7 +10852,7 @@ namespace Oxide.Plugins
                     {
                         category = "faction",
                         displayName = "JOIN",
-                        shortDescription = "Accept a faction invite, as long as you have being invited",
+                        shortDescription = "Accept a faction invite, as long as you have been invited",
                         command = "faction join",
                         auth = UIChatCommandDef.FactionAuth.NotFactionMember,
                         authExclusive = true,

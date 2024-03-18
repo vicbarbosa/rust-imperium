@@ -33,9 +33,7 @@ namespace Oxide.Plugins
     using System.Collections.Generic;
     using System.Linq;
     using Oxide.Core.Plugins;
-    using Oxide.Core.Libraries.Covalence;
     using Network;
-
 
     [Info("Imperium", "chucklenugget/evict", "2.2.7")]
     [Description("Land Claims for Rust")]
@@ -3860,6 +3858,39 @@ namespace Oxide.Plugins
             return Pvp.HandleTurretTarget(entity, defender);
         }
 
+        #region SupplyDrop
+        void OnExplosiveThrown(BasePlayer player, SupplySignal supplySignal, ThrownWeapon thrownWeapon)
+        {
+            supplySignal.OwnerID = player.userID;
+            //debug info
+            //Puts($"Setting supply signal owner id");
+        }
+
+        void OnCargoPlaneSignaled(CargoPlane cargoPlane, SupplySignal supplySignal)
+        {
+            cargoPlane.OwnerID = supplySignal.OwnerID;
+            //debug info
+            //Puts($"Setting cargo plane owner to supply signal's id");
+        }
+
+        void OnSupplyDropDropped(SupplyDrop drop, CargoPlane cargoPlane)
+        {
+            if (cargoPlane.OwnerID == 0)
+            {
+                //debug info
+                //Puts("Cargo plane's ownerID is 0.");
+                //Puts("Either server drop, or code is broken");
+                if (Options.Zones.Enabled && drop != null)
+                    Zones.CreateForSupplyDrop(drop);
+            }
+            else
+            {
+                //debug info
+                //Puts($"Cargo plane had owner ID - Must be a player signalled drop");
+            }
+        }
+        #endregion
+
         void OnEntitySpawned(BaseNetworkable entity)
         {
             if (entity == null)
@@ -3890,6 +3921,41 @@ namespace Oxide.Plugins
             var cargoship = entity as CargoShip;
             if (Options.Zones.Enabled && cargoship != null)
                 Zones.CreateForCargoShip(cargoship);
+        }
+
+        private Dictionary<uint, ulong> helicopterOwners = new Dictionary<uint, ulong>();
+
+        void OnEntityMounted(BaseMountable entity, BasePlayer player)
+        {
+            var miniCopter = entity.GetComponentInParent<Minicopter>();
+            var scrapHeli = entity.GetComponentInParent<ScrapTransportHelicopter>();
+            var attackHeli = entity.GetComponentInParent<AttackHelicopter>();
+            {
+                HandleOwnership((uint)miniCopter.OwnerID, player, "MiniCopter");
+            }
+            if (scrapHeli != null)
+            {
+                HandleOwnership((uint)scrapHeli.OwnerID, player, "ScrapTransportHelicopter");
+            }
+            if (attackHeli != null)
+            {
+                HandleOwnership((uint)attackHeli.OwnerID, player, "ScrapTransportHelicopter");
+            }
+
+        }
+
+        void HandleOwnership(uint vehicleId, BasePlayer player, string vehicleType)
+        {
+            // Check if the vehicle already has an owner and if the current player is not the owner
+            if (!helicopterOwners.TryGetValue(vehicleId, out ulong currentOwnerId) || currentOwnerId != player.userID)
+            {
+                helicopterOwners[vehicleId] = player.userID; // Update or set the owner
+                Instance.Puts($"Player {player.displayName} ({player.userID}) is now the owner of {vehicleType} ID: {vehicleId}");
+            }
+            else if (currentOwnerId == player.userID)
+            {
+                Instance.Puts($"Player {player.displayName} ({player.userID}) is already the owner of {vehicleType} ID: {vehicleId}");
+            }
         }
 
         void OnEntityKill(BaseNetworkable networkable)
@@ -3945,9 +4011,19 @@ namespace Oxide.Plugins
             }
 
             // If a helicopter was destroyed, create an event zone around it.
+            // Make Sure it's not a player Helicopter first unless allowed in config
             var helicopter = entity as BaseHelicopter;
-            if (Options.Zones.Enabled && helicopter != null)
+            if (Options.Zones.Enabled && Options.Zones.DebrisOnOwned && helicopter != null && helicopter.OwnerID == 0)
+            {
+                Instance.Puts($"Debris Zones for Owned Helicopters are disabled");
                 Zones.CreateForDebrisField(helicopter);
+
+            }
+            else if (Options.Zones.Enabled & !Options.Zones.DebrisOnOwned && helicopter != null)
+            {
+                Instance.Puts($"Debris Zones for owned Helicopters are disabled");
+                Zones.CreateForDebrisField(helicopter);
+            };
         }
 
         void OnDispenserGather(ResourceDispenser dispenser, BaseEntity entity, Item item)
@@ -4190,7 +4266,7 @@ namespace Oxide.Plugins
 
                 if (entity == null || hit == null)
                     return null;
-
+                
 
                 Area area = GetAreaForDecayCalculation(entity);
 
@@ -4994,7 +5070,7 @@ namespace Oxide.Plugins
                 if (!EnableTestMode && attacker.Player.userID == entity.OwnerID)
                     return DamageResult.Friendly;
 
-                if (area == null || !IsProtectedEntity(entity))
+                if (!IsProtectedEntity(entity))
                     return DamageResult.NotProtected;
 
                 if (attacker.Faction != null)
@@ -8076,7 +8152,7 @@ namespace Oxide.Plugins
                     NextColor = (NextColor + 1) % Colors.Length;
                 }
                 hexcolor = $"#{color.R:X2}{color.G:X2}{color.B:X2}";
-
+                
                 return hexcolor;
             }
         }
@@ -9571,6 +9647,9 @@ namespace Oxide.Plugins
         {
             [JsonProperty("enabled")] public bool Enabled;
 
+            [JsonProperty("debrisonowned")] public bool DebrisOnOwned;
+
+
             [JsonProperty("domeDarkness")] public int DomeDarkness;
 
             [JsonProperty("eventZoneRadius")] public float EventZoneRadius;
@@ -9584,6 +9663,7 @@ namespace Oxide.Plugins
             public static ZoneOptions Default = new ZoneOptions
             {
                 Enabled = true,
+                DebrisOnOwned = false,
                 DomeDarkness = 3,
                 EventZoneRadius = 150f,
                 EventZoneLifespanSeconds = 600f,
@@ -10852,7 +10932,7 @@ namespace Oxide.Plugins
                     {
                         category = "faction",
                         displayName = "JOIN",
-                        shortDescription = "Accept a faction invite, as long as you have been invited",
+                        shortDescription = "Accept a faction invite, as long as you have being invited",
                         command = "faction join",
                         auth = UIChatCommandDef.FactionAuth.NotFactionMember,
                         authExclusive = true,

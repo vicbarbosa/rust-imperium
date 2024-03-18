@@ -3862,27 +3862,31 @@ namespace Oxide.Plugins
         void OnExplosiveThrown(BasePlayer player, SupplySignal supplySignal, ThrownWeapon thrownWeapon)
         {
             supplySignal.OwnerID = player.userID;
-            Puts($"Setting supply signal owner id");
+            //debug info
+            //Puts($"Setting supply signal owner id");
         }
 
         void OnCargoPlaneSignaled(CargoPlane cargoPlane, SupplySignal supplySignal)
         {
             cargoPlane.OwnerID = supplySignal.OwnerID;
-            Puts($"Setting cargo plane owner to supply signal's id");
+            //debug info
+            //Puts($"Setting cargo plane owner to supply signal's id");
         }
 
         void OnSupplyDropDropped(SupplyDrop drop, CargoPlane cargoPlane)
         {
             if (cargoPlane.OwnerID == 0)
             {
-                Puts("Cargo plane's ownerID is 0.");
-                Puts("Either server drop, or code is broken");
+                //debug info
+                //Puts("Cargo plane's ownerID is 0.");
+                //Puts("Either server drop, or code is broken");
                 if (Options.Zones.Enabled && drop != null)
                     Zones.CreateForSupplyDrop(drop);
             }
             else
             {
-                Puts($"Cargo plane had owner ID - Must be a player signalled drop");
+                //debug info
+                //Puts($"Cargo plane had owner ID - Must be a player signalled drop");
             }
         }
         #endregion

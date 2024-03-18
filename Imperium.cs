@@ -32,6 +32,7 @@ namespace Oxide.Plugins
     using UnityEngine;
     using System.Collections.Generic;
     using System.Linq;
+    using Oxide.Core.Plugins;
     using Network;
 
     [Info("Imperium", "chucklenugget/evict", "2.2.7")]

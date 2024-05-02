@@ -10451,6 +10451,11 @@ namespace Oxide.Plugins
 
             public void Refresh()
             {
+                if(User == null)
+                {
+                    Instance.PrintWarning($"An UserHud is trying to call Refresh() but has no User associated with it. This shouldn't happen");
+                    return;
+                }
                 if (IsDisabled)
                     return;
 

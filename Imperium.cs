@@ -1,5 +1,5 @@
 ﻿/* LICENSE
- * Copyright (C) 2022-2023 evict
+ * Copyright (C) 2022-2024 evict
  * 
  * Permission is hereby granted, free of charge, to any person obtaining a copy
  * of this software and associated documentation files (the "Software"), to deal
@@ -37,7 +37,7 @@ namespace Oxide.Plugins
     using Network;
 
 
-    [Info("Imperium", "chucklenugget/evict", "2.2.7")]
+    [Info("Imperium", "chucklenugget/evict", "2.2.8")]
     [Description("Land Claims for Rust")]
     public partial class Imperium : RustPlugin
     {
@@ -4196,7 +4196,7 @@ namespace Oxide.Plugins
 
                 if (area == null)
                 {
-                    Instance.PrintWarning($"An entity decayed in an unknown area. This shouldn't happen.");
+                    //Instance.PrintWarning($"An entity decayed in an unknown area. This shouldn't happen.");
                     return null;
                 }
 
@@ -10460,6 +10460,12 @@ namespace Oxide.Plugins
 
             CuiElementContainer Build()
             {
+                if (User == null)
+                {
+                    Instance.PrintWarning($"An UserHud is trying to call Build() but has no User associated with it. This shouldn't happen");
+                    return;
+                }
+
                 var container = new CuiElementContainer();
 
                 Area area = User.CurrentArea;
@@ -10671,6 +10677,11 @@ namespace Oxide.Plugins
 
             string GetLeftPanelBackgroundColor()
             {
+                if(User == null)
+                {
+                    Instance.PrintWarning($"An UserHud is trying to update but has no User associated with it. This shouldn't happen");
+                    return;
+                }
                 if (User.CurrentZones.Count > 0)
                     return PanelColor.BackgroundDanger;
 
@@ -10709,6 +10720,12 @@ namespace Oxide.Plugins
 
             string GetLeftPanelTextColor()
             {
+                if (User == null)
+                {
+                    Instance.PrintWarning($"An UserHud is trying to update but has no User associated with it. This shouldn't happen");
+                    return;
+                }
+
                 if (User.CurrentZones.Count > 0)
                     return PanelColor.TextDanger;
 

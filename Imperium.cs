@@ -3895,7 +3895,9 @@ namespace Oxide.Plugins
             Area area = Instance.Areas.GetByClaimCupboard(cupboard);
             if(area == null)
                 return null;
+            //Mark area as changing cupboard skin so the old cupboard Kill() does not trigger Unclaim()
             area.IsCupboardChangingSkin = true;
+            //Remember player that reskinned the cupboard
             area.ClaimReskinningPlayer = player;
             area.ReskinnedCupboardLastPosition = cupboard.transform.position;
             return null;
@@ -3906,7 +3908,11 @@ namespace Oxide.Plugins
             BuildingPrivlidge cupboard = entity as BuildingPrivlidge;
             if(cupboard == null)
                 return null;
-            Area area = Instance.Areas.GetByClaimReskinningPlayer(player);
+            
+            Area area = null;
+
+            if(player != null)
+                area = Instance.Areas.GetByClaimReskinningPlayer(player);
             if(area == null)
                 area = Instance.Areas.GetByReskinnedCupboardLastPosition(cupboard.transform.position);
             if(area == null)
@@ -4131,7 +4137,7 @@ namespace Oxide.Plugins
             Hud.RefreshForAllPlayers();
         }
 
-        #region CLANS by k1lly0u
+        #region CLANS by k1lly0u HOOKS
 
         private void OnPluginLoaded(CSharpPlugin plugin)
         {
@@ -4201,6 +4207,25 @@ namespace Oxide.Plugins
                     user.SetFaction(null);
                 }
             }
+        }
+
+        #endregion
+        #region > Raidable Bases Hooks
+
+        private void OnPlayerEnteredRaidableBase(BasePlayer player, Vector3 raidPos, bool allowPVP, int mode)
+        {
+            User user = Instance.Users.Get(player);
+            if(user == null)
+                return;
+            user.IsInsideRaidableBase = true;
+        }
+        private void OnPlayerExitedRaidableBase(BasePlayer player, Vector3 raidPos, bool allowPVP, int mode)
+        {
+            User user = Instance.Users.Get(player);
+            if(user == null)
+                return;
+            user.IsInsideRaidableBase = false;
+            
         }
 
         #endregion
@@ -4650,7 +4675,6 @@ namespace Oxide.Plugins
 {
     using System;
     using System.Linq;
-    using ProtoBuf;
 
     public partial class Imperium
     {
@@ -4706,6 +4730,20 @@ namespace Oxide.Plugins
                 if (!BlockedPrefabs.Contains(hit.Initiator.ShortPrefabName))
                     return null;
 
+                //If player is inside a Raidable Base and the damage was initiated by a trap or turret, allow it.
+                if(Instance.RaidableBases != null && defender.IsInsideRaidableBase &&
+                     (hit.Initiator is AutoTurret ||
+                      hit.Initiator is GunTrap ||
+                      hit.Initiator is BaseTrap ||
+                      hit.Initiator is FlameTurret ||
+                      hit.Initiator is SamSite ||
+                      hit.Initiator is Barricade || 
+                      hit.Initiator is TeslaCoil))
+                      {
+                         return null;
+                      }
+
+
                 // If the player is in a PVP area or in PVP mode, allow the damage.
                 if (IsUserInDanger(defender))
                     return null;
@@ -4721,6 +4759,10 @@ namespace Oxide.Plugins
                 // A player can always trigger their own traps, to prevent exploiting this mechanic.
                 if (defender == null || defender.Player == null || defender.Player.userID == trap.OwnerID)
                     return null;
+                
+                //Players can always trigger traps when inside a Raidable Base
+                if(Instance.RaidableBases != null && defender.IsInsideRaidableBase)
+                    return null;
 
                 Area trapArea = Instance.Areas.GetByEntityPosition(trap);
 
@@ -4728,6 +4770,7 @@ namespace Oxide.Plugins
                 if (trapArea == null || defender.Faction != null && trapArea.FactionId != null &&
                     Instance.Wars.AreFactionsAtWar(defender.Faction.Id, trapArea.FactionId))
                     return null;
+
 
                 // If the defender is in a PVP area or zone, the trap can trigger.
                 // TODO: Ensure the trap is also in the PVP zone.
@@ -4749,6 +4792,10 @@ namespace Oxide.Plugins
 
                 Area turretArea = Instance.Areas.GetByEntityPosition(turret);
 
+                //Players inside RaidableBases can be targeted by turrets
+                if(defender.IsInsideRaidableBase)
+                    return null;
+
                 if (turretArea == null || defender.CurrentArea == null)
                     return null;
 
@@ -4767,7 +4814,9 @@ namespace Oxide.Plugins
 
             public static bool IsUserInDanger(User user)
             {
-                return user.IsInPvpMode || IsPvpArea(user.CurrentArea) || user.CurrentZones.Any(IsPvpZone);
+                return user.IsInPvpMode || 
+                IsPvpArea(user.CurrentArea) || 
+                user.CurrentZones.Any(IsPvpZone);
             }
 
             public static bool IsPvpZone(Zone zone)
@@ -6964,6 +7013,7 @@ namespace Oxide.Plugins
             public DateTime MapCommandCooldownExpiration { get; set; }
             public DateTime PvpCommandCooldownExpiration { get; set; }
             public bool IsInPvpMode { get; set; }
+            public bool IsInsideRaidableBase { get ; set; }
 
             public bool UpdatedMarkers = false;
 
@@ -6993,6 +7043,8 @@ namespace Oxide.Plugins
                 Map = new UserMap(this);
                 Hud = new UserHud(this);
                 Panel = new UserPanel(this);
+
+                IsInsideRaidableBase = false;
 
                 InvokeRepeating(nameof(UpdateHud), 5f, 5f);
                 InvokeRepeating(nameof(CheckArea), 2f, 2f);

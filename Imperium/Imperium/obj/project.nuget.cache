@@ -1,0 +1,11 @@
+{
+  "version": 2,
+  "dgSpecHash": "z+mLJ5QyWDhponhE3JIV9Ty+1NOSHoHqXThHldklw7SQVCMSbkm6UPenyWE0l7MVRFBWaYOF3V8y14Achf0wRQ==",
+  "success": true,
+  "projectFilePath": "C:\\Users\\Victor\\Documents\\rust-imperium\\Imperium\\Imperium\\Imperium.csproj",
+  "expectedPackageFiles": [
+    "C:\\Users\\Victor\\.nuget\\packages\\microsoft.win32.systemevents\\8.0.0\\microsoft.win32.systemevents.8.0.0.nupkg.sha512",
+    "C:\\Users\\Victor\\.nuget\\packages\\system.drawing.common\\8.0.4\\system.drawing.common.8.0.4.nupkg.sha512"
+  ],
+  "logs": []
+}

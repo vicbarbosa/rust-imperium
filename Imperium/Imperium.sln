@@ -1,25 +1,22 @@
 ﻿
 Microsoft Visual Studio Solution File, Format Version 12.00
-# Visual Studio Version 16
-VisualStudioVersion = 16.0.34407.143
+# Visual Studio Version 17
+VisualStudioVersion = 17.0.31903.59
 MinimumVisualStudioVersion = 10.0.40219.1
-Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "Imperium", "Imperium.csproj", "{5832E117-7509-45E4-991F-2A223B1C12D6}"
+Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "Imperium", "Imperium\Imperium.csproj", "{C435BAE3-FC33-4E11-822E-846DA0B4C004}"
 EndProject
 Global
 	GlobalSection(SolutionConfigurationPlatforms) = preSolution
 		Debug|Any CPU = Debug|Any CPU
 		Release|Any CPU = Release|Any CPU
 	EndGlobalSection
-	GlobalSection(ProjectConfigurationPlatforms) = postSolution
-		{5832E117-7509-45E4-991F-2A223B1C12D6}.Debug|Any CPU.ActiveCfg = Debug|Any CPU
-		{5832E117-7509-45E4-991F-2A223B1C12D6}.Debug|Any CPU.Build.0 = Debug|Any CPU
-		{5832E117-7509-45E4-991F-2A223B1C12D6}.Release|Any CPU.ActiveCfg = Release|Any CPU
-		{5832E117-7509-45E4-991F-2A223B1C12D6}.Release|Any CPU.Build.0 = Release|Any CPU
-	EndGlobalSection
 	GlobalSection(SolutionProperties) = preSolution
 		HideSolutionNode = FALSE
 	EndGlobalSection
-	GlobalSection(ExtensibilityGlobals) = postSolution
-		SolutionGuid = {287CAAFF-3A32-4F45-903F-84F3DBC8FA06}
+	GlobalSection(ProjectConfigurationPlatforms) = postSolution
+		{C435BAE3-FC33-4E11-822E-846DA0B4C004}.Debug|Any CPU.ActiveCfg = Debug|Any CPU
+		{C435BAE3-FC33-4E11-822E-846DA0B4C004}.Debug|Any CPU.Build.0 = Debug|Any CPU
+		{C435BAE3-FC33-4E11-822E-846DA0B4C004}.Release|Any CPU.ActiveCfg = Release|Any CPU
+		{C435BAE3-FC33-4E11-822E-846DA0B4C004}.Release|Any CPU.Build.0 = Release|Any CPU
 	EndGlobalSection
 EndGlobal

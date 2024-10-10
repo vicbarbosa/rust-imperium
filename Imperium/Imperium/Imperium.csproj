@@ -1,123 +1,423 @@
-<Project Sdk="Microsoft.NET.Sdk">
+﻿<Project Sdk="Microsoft.NET.Sdk">
   <PropertyGroup>
     <TargetFramework>net8.0</TargetFramework>
     <ImplicitUsings>enable</ImplicitUsings>
     <Nullable>disable</Nullable>
   </PropertyGroup>
   <ItemGroup>
-    <Reference Include="Assembly-CSharp">
-      <HintPath>./bin/Managed/Assembly-CSharp.dll</HintPath>
-    </Reference>
-    <Reference Include="Assembly-CSharp-firstpass">
-      <HintPath>./bin/Managed/Assembly-CSharp-firstpass.dll</HintPath>
-    </Reference>
-    <Reference Include="Facepunch.GoogleSheets">
-      <HintPath>./bin/Managed/Facepunch.GoogleSheets.dll</HintPath>
-    </Reference>
-    <Reference Include="Facepunch.Input">
-      <HintPath>./bin/Managed/Facepunch.Input.dll</HintPath>
-    </Reference>
-    <Reference Include="Facepunch.Network">
-      <HintPath>./bin/Managed/Facepunch.Network.dll</HintPath>
-    </Reference>
-    <Reference Include="Facepunch.Raknet">
-      <HintPath>./bin/Managed/Facepunch.Raknet.dll</HintPath>
-    </Reference>
-    <Reference Include="Facepunch.Rcon">
-      <HintPath>./bin/Managed/Facepunch.Rcon.dll</HintPath>
-    </Reference>
-    <Reference Include="Facepunch.Skeleton">
-      <HintPath>./bin/Managed/Facepunch.Skeleton.dll</HintPath>
-    </Reference>
-    <Reference Include="Facepunch.Sqlite">
-      <HintPath>./bin/Managed/Facepunch.Sqlite.dll</HintPath>
-    </Reference>
-    <Reference Include="Facepunch.SteamNetworking">
-      <HintPath>./bin/Managed/Facepunch.SteamNetworking.dll</HintPath>
-    </Reference>
-    <Reference Include="Facepunch.Steamworks">
-      <HintPath>./bin/Managed/Facepunch.Steamworks.Posix.dll</HintPath>
-    </Reference>
-    <Reference Include="Facepunch.System">
-      <HintPath>./bin/Managed/Facepunch.System.dll</HintPath>
-    </Reference>
-    <Reference Include="Facepunch.Unity">
-      <HintPath>./bin/Managed/Facepunch.Unity.dll</HintPath>
-    </Reference>
-    <Reference Include="Facepunch.UnityEngine">
-      <HintPath>./bin/Managed/Facepunch.UnityEngine.dll</HintPath>
-    </Reference>
-    <Reference Include="Oxide.Core">
-      <HintPath>./bin/Managed/Oxide.Core.dll</HintPath>
-    </Reference>
-    <Reference Include="Oxide.CSharp">
-      <HintPath>./bin/Managed/Oxide.CSharp.dll</HintPath>
-    </Reference>
-    <Reference Include="Oxide.References">
-      <HintPath>./bin/Managed/Oxide.References.dll</HintPath>
-    </Reference>
-    <Reference Include="Oxide.Rust">
-      <HintPath>./bin/Managed/Oxide.Rust.dll</HintPath>
-    </Reference>
-    <Reference Include="Oxide.Unity">
-      <HintPath>./bin/Managed/Oxide.Unity.dll</HintPath>
-    </Reference>
-    <Reference Include="Rust.Data">
-      <HintPath>./bin/Managed/Rust.Data.dll</HintPath>
-    </Reference>
-    <Reference Include="Rust.Demo">
-      <HintPath>./bin/Managed/Rust.Demo.dll</HintPath>
-    </Reference>
-    <Reference Include="Rust.Global">
-      <HintPath>./bin/Managed/Rust.Global.dll</HintPath>
-    </Reference>
-    <Reference Include="Rust.Platform">
-      <HintPath>./bin/Managed/Rust.Platform.dll</HintPath>
-    </Reference>
-    <Reference Include="Rust.Platform.Common">
-      <HintPath>./bin/Managed/Rust.Platform.Common.dll</HintPath>
-    </Reference>
-    <Reference Include="Rust.Platform.Steam">
-      <HintPath>./bin/Managed/Rust.Platform.Steam.dll</HintPath>
-    </Reference>
-    <Reference Include="Rust.UI">
-      <HintPath>./bin/Managed/Rust.UI.dll</HintPath>
-    </Reference>
-    <Reference Include="Rust.World">
-      <HintPath>./bin/Managed/Rust.World.dll</HintPath>
-    </Reference>
-    <Reference Include="Rust.Localization">
-      <HintPath>./bin/Managed/Rust.Localization.dll</HintPath>
-    </Reference>
-    <Reference Include="UnityEngine">
-      <HintPath>./bin/Managed/UnityEngine.dll</HintPath>
-    </Reference>
-    <Reference Include="UnityEngine.CoreModule">
-      <HintPath>./bin/Managed/UnityEngine.CoreModule.dll</HintPath>
-    </Reference>
-    <Reference Include="UnityEngine.UIModule">
-      <HintPath>./bin/Managed/UnityEngine.UIModule.dll</HintPath>
-    </Reference>
-    <Reference Include="UnityEngine.AIModule">
-      <HintPath>./bin/Managed/UnityEngine.AIModule.dll</HintPath>
-    </Reference>
-    <Reference Include="UnityEngine.ImageConversionModule">
-      <HintPath>./bin/Managed/UnityEngine.ImageConversionModule.dll</HintPath>
-    </Reference>
-    <Reference Include="UnityEngine.PhysicsModule">
-      <HintPath>./bin/Managed/UnityEngine.PhysicsModule.dll</HintPath>
-    </Reference>
-    <Reference Include="UnityEngine.TextRenderingModule">
-      <HintPath>./bin/Managed/UnityEngine.TextRenderingModule.dll</HintPath>
-    </Reference>
-    <Reference Include="UnityEngine.UnityWebRequestWWWModule">
-      <HintPath>./bin/Managed/UnityEngine.UnityWebRequestWWWModule.dll</HintPath>
-    </Reference>
-    <Reference Include="Facepunch.Console">
-      <HintPath>./bin/Managed/Facepunch.Console.dll</HintPath>
-    </Reference>
+    <PackageReference Include="System.Drawing.Common" Version="8.0.4" />
   </ItemGroup>
   <ItemGroup>
-    <PackageReference Include="System.Drawing.Common" Version="8.0.4"/>
+    <Reference Include="Assembly-CSharp">
+      <HintPath>bin\Managed\Assembly-CSharp.dll</HintPath>
+    </Reference>
+    <Reference Include="Assembly-CSharp-firstpass">
+      <HintPath>bin\Managed\Assembly-CSharp-firstpass.dll</HintPath>
+    </Reference>
+    <Reference Include="Facepunch.BurstCloth">
+      <HintPath>bin\Managed\Facepunch.BurstCloth.dll</HintPath>
+    </Reference>
+    <Reference Include="Facepunch.Console">
+      <HintPath>bin\Managed\Facepunch.Console.dll</HintPath>
+    </Reference>
+    <Reference Include="Facepunch.Flexbox">
+      <HintPath>bin\Managed\Facepunch.Flexbox.dll</HintPath>
+    </Reference>
+    <Reference Include="Facepunch.GoogleSheets">
+      <HintPath>bin\Managed\Facepunch.GoogleSheets.dll</HintPath>
+    </Reference>
+    <Reference Include="Facepunch.Input">
+      <HintPath>bin\Managed\Facepunch.Input.dll</HintPath>
+    </Reference>
+    <Reference Include="Facepunch.Network">
+      <HintPath>bin\Managed\Facepunch.Network.dll</HintPath>
+    </Reference>
+    <Reference Include="Facepunch.Nexus">
+      <HintPath>bin\Managed\Facepunch.Nexus.dll</HintPath>
+    </Reference>
+    <Reference Include="Facepunch.Ping">
+      <HintPath>bin\Managed\Facepunch.Ping.dll</HintPath>
+    </Reference>
+    <Reference Include="Facepunch.Raknet">
+      <HintPath>bin\Managed\Facepunch.Raknet.dll</HintPath>
+    </Reference>
+    <Reference Include="Facepunch.Rcon">
+      <HintPath>bin\Managed\Facepunch.Rcon.dll</HintPath>
+    </Reference>
+    <Reference Include="Facepunch.Skeleton">
+      <HintPath>bin\Managed\Facepunch.Skeleton.dll</HintPath>
+    </Reference>
+    <Reference Include="Facepunch.Sqlite">
+      <HintPath>bin\Managed\Facepunch.Sqlite.dll</HintPath>
+    </Reference>
+    <Reference Include="Facepunch.SteamNetworking">
+      <HintPath>bin\Managed\Facepunch.SteamNetworking.dll</HintPath>
+    </Reference>
+    <Reference Include="Facepunch.Steamworks.Win64">
+      <HintPath>bin\Managed\Facepunch.Steamworks.Win64.dll</HintPath>
+    </Reference>
+    <Reference Include="Facepunch.System">
+      <HintPath>bin\Managed\Facepunch.System.dll</HintPath>
+    </Reference>
+    <Reference Include="Facepunch.Unity">
+      <HintPath>bin\Managed\Facepunch.Unity.dll</HintPath>
+    </Reference>
+    <Reference Include="Facepunch.UnityEngine">
+      <HintPath>bin\Managed\Facepunch.UnityEngine.dll</HintPath>
+    </Reference>
+    <Reference Include="Facepunch.UnwrapBaker.Settings">
+      <HintPath>bin\Managed\Facepunch.UnwrapBaker.Settings.dll</HintPath>
+    </Reference>
+    <Reference Include="FbxBuildTestAssets">
+      <HintPath>bin\Managed\FbxBuildTestAssets.dll</HintPath>
+    </Reference>
+    <Reference Include="Mono.Data.Tds">
+      <HintPath>bin\Managed\Mono.Data.Tds.dll</HintPath>
+    </Reference>
+    <Reference Include="MySql.Data">
+      <HintPath>bin\Managed\MySql.Data.dll</HintPath>
+    </Reference>
+    <Reference Include="Oxide.Common">
+      <HintPath>bin\Managed\Oxide.Common.dll</HintPath>
+    </Reference>
+    <Reference Include="Oxide.Core">
+      <HintPath>bin\Managed\Oxide.Core.dll</HintPath>
+    </Reference>
+    <Reference Include="Oxide.CSharp">
+      <HintPath>bin\Managed\Oxide.CSharp.dll</HintPath>
+    </Reference>
+    <Reference Include="Oxide.MySql">
+      <HintPath>bin\Managed\Oxide.MySql.dll</HintPath>
+    </Reference>
+    <Reference Include="Oxide.References">
+      <HintPath>bin\Managed\Oxide.References.dll</HintPath>
+    </Reference>
+    <Reference Include="Oxide.Rust">
+      <HintPath>bin\Managed\Oxide.Rust.dll</HintPath>
+    </Reference>
+    <Reference Include="Oxide.SQLite">
+      <HintPath>bin\Managed\Oxide.SQLite.dll</HintPath>
+    </Reference>
+    <Reference Include="Oxide.Unity">
+      <HintPath>bin\Managed\Oxide.Unity.dll</HintPath>
+    </Reference>
+    <Reference Include="RTLTMPro">
+      <HintPath>bin\Managed\RTLTMPro.dll</HintPath>
+    </Reference>
+    <Reference Include="Rust.Clans">
+      <HintPath>bin\Managed\Rust.Clans.dll</HintPath>
+    </Reference>
+    <Reference Include="Rust.Clans.Local">
+      <HintPath>bin\Managed\Rust.Clans.Local.dll</HintPath>
+    </Reference>
+    <Reference Include="Rust.Data">
+      <HintPath>bin\Managed\Rust.Data.dll</HintPath>
+    </Reference>
+    <Reference Include="Rust.Demo">
+      <HintPath>bin\Managed\Rust.Demo.dll</HintPath>
+    </Reference>
+    <Reference Include="Rust.FileSystem">
+      <HintPath>bin\Managed\Rust.FileSystem.dll</HintPath>
+    </Reference>
+    <Reference Include="Rust.Global">
+      <HintPath>bin\Managed\Rust.Global.dll</HintPath>
+    </Reference>
+    <Reference Include="Rust.Harmony">
+      <HintPath>bin\Managed\Rust.Harmony.dll</HintPath>
+    </Reference>
+    <Reference Include="Rust.Localization">
+      <HintPath>bin\Managed\Rust.Localization.dll</HintPath>
+    </Reference>
+    <Reference Include="Rust.Platform">
+      <HintPath>bin\Managed\Rust.Platform.dll</HintPath>
+    </Reference>
+    <Reference Include="Rust.Platform.Common">
+      <HintPath>bin\Managed\Rust.Platform.Common.dll</HintPath>
+    </Reference>
+    <Reference Include="Rust.Platform.Steam">
+      <HintPath>bin\Managed\Rust.Platform.Steam.dll</HintPath>
+    </Reference>
+    <Reference Include="Rust.UI">
+      <HintPath>bin\Managed\Rust.UI.dll</HintPath>
+    </Reference>
+    <Reference Include="Rust.Workshop">
+      <HintPath>bin\Managed\Rust.Workshop.dll</HintPath>
+    </Reference>
+    <Reference Include="Rust.World">
+      <HintPath>bin\Managed\Rust.World.dll</HintPath>
+    </Reference>
+    <Reference Include="SingularityGroup.HotReload.Runtime">
+      <HintPath>bin\Managed\SingularityGroup.HotReload.Runtime.dll</HintPath>
+    </Reference>
+    <Reference Include="SingularityGroup.HotReload.Runtime.Public">
+      <HintPath>bin\Managed\SingularityGroup.HotReload.Runtime.Public.dll</HintPath>
+    </Reference>
+    <Reference Include="System.ComponentModel.Composition">
+      <HintPath>bin\Managed\System.ComponentModel.Composition.dll</HintPath>
+    </Reference>
+    <Reference Include="System.Configuration.Install">
+      <HintPath>bin\Managed\System.Configuration.Install.dll</HintPath>
+    </Reference>
+    <Reference Include="System.Data.SQLite">
+      <HintPath>bin\Managed\System.Data.SQLite.dll</HintPath>
+    </Reference>
+    <Reference Include="System.EnterpriseServices">
+      <HintPath>bin\Managed\System.EnterpriseServices.dll</HintPath>
+    </Reference>
+    <Reference Include="System.IO.Hashing">
+      <HintPath>bin\Managed\System.IO.Hashing.dll</HintPath>
+    </Reference>
+    <Reference Include="System.Memory.Data">
+      <HintPath>bin\Managed\System.Memory.Data.dll</HintPath>
+    </Reference>
+    <Reference Include="System.ServiceModel.Internals">
+      <HintPath>bin\Managed\System.ServiceModel.Internals.dll</HintPath>
+    </Reference>
+    <Reference Include="TimeZoneConverter">
+      <HintPath>bin\Managed\TimeZoneConverter.dll</HintPath>
+    </Reference>
+    <Reference Include="UIEffect">
+      <HintPath>bin\Managed\UIEffect.dll</HintPath>
+    </Reference>
+    <Reference Include="Unity.AI.Navigation">
+      <HintPath>bin\Managed\Unity.AI.Navigation.dll</HintPath>
+    </Reference>
+    <Reference Include="Unity.Burst">
+      <HintPath>bin\Managed\Unity.Burst.dll</HintPath>
+    </Reference>
+    <Reference Include="Unity.Burst.Unsafe">
+      <HintPath>bin\Managed\Unity.Burst.Unsafe.dll</HintPath>
+    </Reference>
+    <Reference Include="Unity.Formats.Fbx.Runtime">
+      <HintPath>bin\Managed\Unity.Formats.Fbx.Runtime.dll</HintPath>
+    </Reference>
+    <Reference Include="Unity.Mathematics">
+      <HintPath>bin\Managed\Unity.Mathematics.dll</HintPath>
+    </Reference>
+    <Reference Include="Unity.MemoryProfiler">
+      <HintPath>bin\Managed\Unity.MemoryProfiler.dll</HintPath>
+    </Reference>
+    <Reference Include="Unity.Recorder">
+      <HintPath>bin\Managed\Unity.Recorder.dll</HintPath>
+    </Reference>
+    <Reference Include="Unity.Recorder.Base">
+      <HintPath>bin\Managed\Unity.Recorder.Base.dll</HintPath>
+    </Reference>
+    <Reference Include="Unity.TerrainTools">
+      <HintPath>bin\Managed\Unity.TerrainTools.dll</HintPath>
+    </Reference>
+    <Reference Include="Unity.TextMeshPro">
+      <HintPath>bin\Managed\Unity.TextMeshPro.dll</HintPath>
+    </Reference>
+    <Reference Include="Unity.Timeline">
+      <HintPath>bin\Managed\Unity.Timeline.dll</HintPath>
+    </Reference>
+    <Reference Include="UnityEngine">
+      <HintPath>bin\Managed\UnityEngine.dll</HintPath>
+    </Reference>
+    <Reference Include="UnityEngine.AccessibilityModule">
+      <HintPath>bin\Managed\UnityEngine.AccessibilityModule.dll</HintPath>
+    </Reference>
+    <Reference Include="UnityEngine.AIModule">
+      <HintPath>bin\Managed\UnityEngine.AIModule.dll</HintPath>
+    </Reference>
+    <Reference Include="UnityEngine.AndroidJNIModule">
+      <HintPath>bin\Managed\UnityEngine.AndroidJNIModule.dll</HintPath>
+    </Reference>
+    <Reference Include="UnityEngine.AnimationModule">
+      <HintPath>bin\Managed\UnityEngine.AnimationModule.dll</HintPath>
+    </Reference>
+    <Reference Include="UnityEngine.ARModule">
+      <HintPath>bin\Managed\UnityEngine.ARModule.dll</HintPath>
+    </Reference>
+    <Reference Include="UnityEngine.AssetBundleModule">
+      <HintPath>bin\Managed\UnityEngine.AssetBundleModule.dll</HintPath>
+    </Reference>
+    <Reference Include="UnityEngine.AudioModule">
+      <HintPath>bin\Managed\UnityEngine.AudioModule.dll</HintPath>
+    </Reference>
+    <Reference Include="UnityEngine.ClothModule">
+      <HintPath>bin\Managed\UnityEngine.ClothModule.dll</HintPath>
+    </Reference>
+    <Reference Include="UnityEngine.ClusterInputModule">
+      <HintPath>bin\Managed\UnityEngine.ClusterInputModule.dll</HintPath>
+    </Reference>
+    <Reference Include="UnityEngine.ClusterRendererModule">
+      <HintPath>bin\Managed\UnityEngine.ClusterRendererModule.dll</HintPath>
+    </Reference>
+    <Reference Include="UnityEngine.ContentLoadModule">
+      <HintPath>bin\Managed\UnityEngine.ContentLoadModule.dll</HintPath>
+    </Reference>
+    <Reference Include="UnityEngine.CoreModule">
+      <HintPath>bin\Managed\UnityEngine.CoreModule.dll</HintPath>
+    </Reference>
+    <Reference Include="UnityEngine.CrashReportingModule">
+      <HintPath>bin\Managed\UnityEngine.CrashReportingModule.dll</HintPath>
+    </Reference>
+    <Reference Include="UnityEngine.DirectorModule">
+      <HintPath>bin\Managed\UnityEngine.DirectorModule.dll</HintPath>
+    </Reference>
+    <Reference Include="UnityEngine.DSPGraphModule">
+      <HintPath>bin\Managed\UnityEngine.DSPGraphModule.dll</HintPath>
+    </Reference>
+    <Reference Include="UnityEngine.GameCenterModule">
+      <HintPath>bin\Managed\UnityEngine.GameCenterModule.dll</HintPath>
+    </Reference>
+    <Reference Include="UnityEngine.GIModule">
+      <HintPath>bin\Managed\UnityEngine.GIModule.dll</HintPath>
+    </Reference>
+    <Reference Include="UnityEngine.GridModule">
+      <HintPath>bin\Managed\UnityEngine.GridModule.dll</HintPath>
+    </Reference>
+    <Reference Include="UnityEngine.HotReloadModule">
+      <HintPath>bin\Managed\UnityEngine.HotReloadModule.dll</HintPath>
+    </Reference>
+    <Reference Include="UnityEngine.ImageConversionModule">
+      <HintPath>bin\Managed\UnityEngine.ImageConversionModule.dll</HintPath>
+    </Reference>
+    <Reference Include="UnityEngine.IMGUIModule">
+      <HintPath>bin\Managed\UnityEngine.IMGUIModule.dll</HintPath>
+    </Reference>
+    <Reference Include="UnityEngine.InputLegacyModule">
+      <HintPath>bin\Managed\UnityEngine.InputLegacyModule.dll</HintPath>
+    </Reference>
+    <Reference Include="UnityEngine.InputModule">
+      <HintPath>bin\Managed\UnityEngine.InputModule.dll</HintPath>
+    </Reference>
+    <Reference Include="UnityEngine.JSONSerializeModule">
+      <HintPath>bin\Managed\UnityEngine.JSONSerializeModule.dll</HintPath>
+    </Reference>
+    <Reference Include="UnityEngine.LocalizationModule">
+      <HintPath>bin\Managed\UnityEngine.LocalizationModule.dll</HintPath>
+    </Reference>
+    <Reference Include="UnityEngine.NVIDIAModule">
+      <HintPath>bin\Managed\UnityEngine.NVIDIAModule.dll</HintPath>
+    </Reference>
+    <Reference Include="UnityEngine.ParticleSystemModule">
+      <HintPath>bin\Managed\UnityEngine.ParticleSystemModule.dll</HintPath>
+    </Reference>
+    <Reference Include="UnityEngine.PerformanceReportingModule">
+      <HintPath>bin\Managed\UnityEngine.PerformanceReportingModule.dll</HintPath>
+    </Reference>
+    <Reference Include="UnityEngine.Physics2DModule">
+      <HintPath>bin\Managed\UnityEngine.Physics2DModule.dll</HintPath>
+    </Reference>
+    <Reference Include="UnityEngine.PhysicsModule">
+      <HintPath>bin\Managed\UnityEngine.PhysicsModule.dll</HintPath>
+    </Reference>
+    <Reference Include="UnityEngine.ProfilerModule">
+      <HintPath>bin\Managed\UnityEngine.ProfilerModule.dll</HintPath>
+    </Reference>
+    <Reference Include="UnityEngine.PropertiesModule">
+      <HintPath>bin\Managed\UnityEngine.PropertiesModule.dll</HintPath>
+    </Reference>
+    <Reference Include="UnityEngine.RuntimeInitializeOnLoadManagerInitializerModule">
+      <HintPath>bin\Managed\UnityEngine.RuntimeInitializeOnLoadManagerInitializerModule.dll</HintPath>
+    </Reference>
+    <Reference Include="UnityEngine.ScreenCaptureModule">
+      <HintPath>bin\Managed\UnityEngine.ScreenCaptureModule.dll</HintPath>
+    </Reference>
+    <Reference Include="UnityEngine.SharedInternalsModule">
+      <HintPath>bin\Managed\UnityEngine.SharedInternalsModule.dll</HintPath>
+    </Reference>
+    <Reference Include="UnityEngine.SpriteMaskModule">
+      <HintPath>bin\Managed\UnityEngine.SpriteMaskModule.dll</HintPath>
+    </Reference>
+    <Reference Include="UnityEngine.SpriteShapeModule">
+      <HintPath>bin\Managed\UnityEngine.SpriteShapeModule.dll</HintPath>
+    </Reference>
+    <Reference Include="UnityEngine.StreamingModule">
+      <HintPath>bin\Managed\UnityEngine.StreamingModule.dll</HintPath>
+    </Reference>
+    <Reference Include="UnityEngine.SubstanceModule">
+      <HintPath>bin\Managed\UnityEngine.SubstanceModule.dll</HintPath>
+    </Reference>
+    <Reference Include="UnityEngine.SubsystemsModule">
+      <HintPath>bin\Managed\UnityEngine.SubsystemsModule.dll</HintPath>
+    </Reference>
+    <Reference Include="UnityEngine.TerrainModule">
+      <HintPath>bin\Managed\UnityEngine.TerrainModule.dll</HintPath>
+    </Reference>
+    <Reference Include="UnityEngine.TerrainPhysicsModule">
+      <HintPath>bin\Managed\UnityEngine.TerrainPhysicsModule.dll</HintPath>
+    </Reference>
+    <Reference Include="UnityEngine.TextCoreFontEngineModule">
+      <HintPath>bin\Managed\UnityEngine.TextCoreFontEngineModule.dll</HintPath>
+    </Reference>
+    <Reference Include="UnityEngine.TextCoreTextEngineModule">
+      <HintPath>bin\Managed\UnityEngine.TextCoreTextEngineModule.dll</HintPath>
+    </Reference>
+    <Reference Include="UnityEngine.TextRenderingModule">
+      <HintPath>bin\Managed\UnityEngine.TextRenderingModule.dll</HintPath>
+    </Reference>
+    <Reference Include="UnityEngine.TilemapModule">
+      <HintPath>bin\Managed\UnityEngine.TilemapModule.dll</HintPath>
+    </Reference>
+    <Reference Include="UnityEngine.TLSModule">
+      <HintPath>bin\Managed\UnityEngine.TLSModule.dll</HintPath>
+    </Reference>
+    <Reference Include="UnityEngine.UI">
+      <HintPath>bin\Managed\UnityEngine.UI.dll</HintPath>
+    </Reference>
+    <Reference Include="UnityEngine.UIElementsModule">
+      <HintPath>bin\Managed\UnityEngine.UIElementsModule.dll</HintPath>
+    </Reference>
+    <Reference Include="UnityEngine.UIModule">
+      <HintPath>bin\Managed\UnityEngine.UIModule.dll</HintPath>
+    </Reference>
+    <Reference Include="UnityEngine.UmbraModule">
+      <HintPath>bin\Managed\UnityEngine.UmbraModule.dll</HintPath>
+    </Reference>
+    <Reference Include="UnityEngine.UnityAnalyticsCommonModule">
+      <HintPath>bin\Managed\UnityEngine.UnityAnalyticsCommonModule.dll</HintPath>
+    </Reference>
+    <Reference Include="UnityEngine.UnityAnalyticsModule">
+      <HintPath>bin\Managed\UnityEngine.UnityAnalyticsModule.dll</HintPath>
+    </Reference>
+    <Reference Include="UnityEngine.UnityConnectModule">
+      <HintPath>bin\Managed\UnityEngine.UnityConnectModule.dll</HintPath>
+    </Reference>
+    <Reference Include="UnityEngine.UnityCurlModule">
+      <HintPath>bin\Managed\UnityEngine.UnityCurlModule.dll</HintPath>
+    </Reference>
+    <Reference Include="UnityEngine.UnityTestProtocolModule">
+      <HintPath>bin\Managed\UnityEngine.UnityTestProtocolModule.dll</HintPath>
+    </Reference>
+    <Reference Include="UnityEngine.UnityWebRequestAssetBundleModule">
+      <HintPath>bin\Managed\UnityEngine.UnityWebRequestAssetBundleModule.dll</HintPath>
+    </Reference>
+    <Reference Include="UnityEngine.UnityWebRequestAudioModule">
+      <HintPath>bin\Managed\UnityEngine.UnityWebRequestAudioModule.dll</HintPath>
+    </Reference>
+    <Reference Include="UnityEngine.UnityWebRequestModule">
+      <HintPath>bin\Managed\UnityEngine.UnityWebRequestModule.dll</HintPath>
+    </Reference>
+    <Reference Include="UnityEngine.UnityWebRequestTextureModule">
+      <HintPath>bin\Managed\UnityEngine.UnityWebRequestTextureModule.dll</HintPath>
+    </Reference>
+    <Reference Include="UnityEngine.UnityWebRequestWWWModule">
+      <HintPath>bin\Managed\UnityEngine.UnityWebRequestWWWModule.dll</HintPath>
+    </Reference>
+    <Reference Include="UnityEngine.VehiclesModule">
+      <HintPath>bin\Managed\UnityEngine.VehiclesModule.dll</HintPath>
+    </Reference>
+    <Reference Include="UnityEngine.VFXModule">
+      <HintPath>bin\Managed\UnityEngine.VFXModule.dll</HintPath>
+    </Reference>
+    <Reference Include="UnityEngine.VideoModule">
+      <HintPath>bin\Managed\UnityEngine.VideoModule.dll</HintPath>
+    </Reference>
+    <Reference Include="UnityEngine.VirtualTexturingModule">
+      <HintPath>bin\Managed\UnityEngine.VirtualTexturingModule.dll</HintPath>
+    </Reference>
+    <Reference Include="UnityEngine.VRModule">
+      <HintPath>bin\Managed\UnityEngine.VRModule.dll</HintPath>
+    </Reference>
+    <Reference Include="UnityEngine.WindModule">
+      <HintPath>bin\Managed\UnityEngine.WindModule.dll</HintPath>
+    </Reference>
+    <Reference Include="UnityEngine.XRModule">
+      <HintPath>bin\Managed\UnityEngine.XRModule.dll</HintPath>
+    </Reference>
   </ItemGroup>
 </Project>

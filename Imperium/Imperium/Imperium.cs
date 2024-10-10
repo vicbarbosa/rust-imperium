@@ -41,7 +41,7 @@ namespace Oxide.Plugins
     {
         //Optional Dependencies
         [PluginReference]
-        private Plugin BetterChat, Clans, RaidableBases;
+        private Plugin BetterChat, Clans, RaidableBases, NPCSpawn;
         private List<HookDeferral> HookDeferralRegistry = new List<HookDeferral>();
         public class HookDeferral
         {
@@ -63,6 +63,7 @@ namespace Oxide.Plugins
         {
             //RegisterHookDeferral("OnEntityTakeDamage", NpcSpawn);
             //RegisterHookDeferral("OnEntityTakeDamage", AirEvent);
+            
         }
 
         private static Imperium Instance;
@@ -152,7 +153,7 @@ namespace Oxide.Plugins
             if (Options.Recruiting.Enabled)
             {
                 PrintWarning("Recruiting is not available in this Imperium version yet! Disabling it");
-                Options.Recruiting.Enabled = false;
+                //Options.Recruiting.Enabled = false;
             }
 
             if (BetterChat != null)
@@ -161,7 +162,7 @@ namespace Oxide.Plugins
                 Interface.CallHook("API_RegisterThirdPartyTitle", this, new Func<IPlayer, string>(BetterChat_FormattedFactionTag));
             }
             Instance = this;
-
+            
 
             //Puts("Recruiting is " + (Options.Recruiting.Enabled ? "enabled" : "disabled"));
 
@@ -4229,6 +4230,15 @@ namespace Oxide.Plugins
         }
 
         #endregion
+
+        #region > NPCSpawn Hooks
+
+        private object OnCustomNpcTarget(BasePlayer npc, BasePlayer target)
+        {
+            return null;
+        }
+
+        #endregion
     }
 }
 #endregion
@@ -4730,13 +4740,12 @@ namespace Oxide.Plugins
                 if (!BlockedPrefabs.Contains(hit.Initiator.ShortPrefabName))
                     return null;
 
-                //If player is inside a Raidable Base and the damage was initiated by a trap, allow it.
-                if(defender.IsInsideRaidableBase &&
+                //If player is inside a Raidable Base and the damage was initiated by a trap or turret, allow it.
+                if(Instance.RaidableBases != null && defender.IsInsideRaidableBase &&
                      (hit.Initiator is AutoTurret ||
                       hit.Initiator is GunTrap ||
                       hit.Initiator is BaseTrap ||
                       hit.Initiator is FlameTurret ||
-                      hit.Initiator is FogMachine ||
                       hit.Initiator is SamSite ||
                       hit.Initiator is Barricade || 
                       hit.Initiator is TeslaCoil))
@@ -4762,7 +4771,7 @@ namespace Oxide.Plugins
                     return null;
                 
                 //Players can always trigger traps when inside a Raidable Base
-                if(defender.IsInsideRaidableBase)
+                if(Instance.RaidableBases != null && defender.IsInsideRaidableBase)
                     return null;
 
                 Area trapArea = Instance.Areas.GetByEntityPosition(trap);
@@ -4771,6 +4780,7 @@ namespace Oxide.Plugins
                 if (trapArea == null || defender.Faction != null && trapArea.FactionId != null &&
                     Instance.Wars.AreFactionsAtWar(defender.Faction.Id, trapArea.FactionId))
                     return null;
+
 
                 // If the defender is in a PVP area or zone, the trap can trigger.
                 // TODO: Ensure the trap is also in the PVP zone.
@@ -4792,7 +4802,7 @@ namespace Oxide.Plugins
 
                 Area turretArea = Instance.Areas.GetByEntityPosition(turret);
 
-                //Players can be targeted by turrets when inside RaidableBases
+                //Players inside RaidableBases can be targeted by turrets
                 if(defender.IsInsideRaidableBase)
                     return null;
 
@@ -5406,6 +5416,9 @@ namespace Oxide.Plugins
             public bool IsCupboardChangingSkin { get; set; }
             public Locker ArmoryLocker { get; set; }
             public int Level { get; set; }
+            public bool HasRecruit = false;
+            public string RecruitSpawnPosition = "0,0,0";
+
             public MapMarkerGenericRadius mapMarker;
             public VendingMachineMapMarker hqMarker;
             public MapMarkerGenericRadius hqMarkerColor;
@@ -5524,6 +5537,8 @@ namespace Oxide.Plugins
                 ClaimantId = info.ClaimantId;
                 ClaimCupboard = cupboard;
                 Level = info.Level;
+                HasRecruit = info.HasRecruit;
+                RecruitSpawnPosition = info.RecruitSpawnPosition;
 
                 if (info.ArmoryId != null)
                 {
@@ -5781,7 +5796,9 @@ namespace Oxide.Plugins
                     ClaimantId = ClaimantId,
                     CupboardId = ClaimCupboard?.net?.ID.Value,
                     ArmoryId = ArmoryLocker?.net?.ID.Value,
-                    Level = Level
+                    Level = Level,
+                    HasRecruit = HasRecruit,
+                    RecruitSpawnPosition = RecruitSpawnPosition
                 };
             }
         }
@@ -5813,6 +5830,10 @@ namespace Oxide.Plugins
             [JsonProperty("armoryId")] public ulong? ArmoryId;
 
             [JsonProperty("level")] public int Level;
+
+            [JsonProperty("hasRecruit")] public bool HasRecruit;
+
+            [JsonProperty("recruitSpawnPosition")] public string RecruitSpawnPosition;
         }
     }
 }

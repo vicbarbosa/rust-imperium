@@ -11986,6 +11986,54 @@ namespace Oxide.Plugins
             }
             return result;
         }
+
+        private HashSet<NpcWear> GetNpcWear(Area area)
+        {
+            HashSet<NpcWear> result = new();
+            Locker locker = area.ArmoryLocker;
+            List<ItemModWearable> wearables = new();
+
+            if (locker == null)
+                return result;
+
+            Locker.RowType rowType;
+            for (int i = 0; i < 14; i++)
+            {
+                rowType = locker.GetRowType(i);
+                Item item = locker.inventory.itemList[i];
+                if (rowType == Locker.RowType.Belt)
+                    continue;
+
+                ItemModWearable wearable = item.info.ItemModWearable;
+
+                if (wearable == null)
+                    continue;
+
+                if (WearableConflictsWithOthers(wearable, wearables))
+                    continue;
+
+                wearables.Add(wearable);
+
+                result.Add(new NpcWear()
+                {
+                    ShortName = item.info.shortname,
+                    SkinID = item.skin
+                }
+
+                );
+            }
+                return result;
+        }
+
+        private bool WearableConflictsWithOthers(ItemModWearable wearable, List<ItemModWearable> others)
+        {
+            foreach(ItemModWearable other in others)
+            {
+                if (!wearable.CanExistWith(other))
+                    return true;
+            }
+            return false;
+        }
     }
 }
 

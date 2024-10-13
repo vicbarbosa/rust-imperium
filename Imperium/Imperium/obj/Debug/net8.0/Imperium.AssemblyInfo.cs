@@ -14,7 +14,7 @@ using System.Reflection;
 [assembly: System.Reflection.AssemblyCompanyAttribute("Imperium")]
 [assembly: System.Reflection.AssemblyConfigurationAttribute("Debug")]
 [assembly: System.Reflection.AssemblyFileVersionAttribute("1.0.0.0")]
-[assembly: System.Reflection.AssemblyInformationalVersionAttribute("1.0.0+47e2bfd11a08fba842350b0a1f4721ca1d3ba335")]
+[assembly: System.Reflection.AssemblyInformationalVersionAttribute("1.0.0+d6624f359383bcdb465dd77a7c4a9051ad0a9726")]
 [assembly: System.Reflection.AssemblyProductAttribute("Imperium")]
 [assembly: System.Reflection.AssemblyTitleAttribute("Imperium")]
 [assembly: System.Reflection.AssemblyVersionAttribute("1.0.0.0")]

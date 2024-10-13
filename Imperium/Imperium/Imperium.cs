@@ -2500,7 +2500,7 @@ namespace Oxide.Plugins
 }
 #endregion
 #region /recruit
-/*
+
 namespace Oxide.Plugins
 {
     using System.Linq;
@@ -2515,11 +2515,9 @@ namespace Oxide.Plugins
 
             if (!Options.Recruiting.Enabled)
             {
-                user.SendChatMessage(nameof(Messages.RecruitingDisabled);
+                user.SendChatMessage(nameof(Messages.RecruitingDisabled));
                 return;
             }
-
-            ;
 
             if (args.Length == 0)
             {
@@ -2545,7 +2543,7 @@ namespace Oxide.Plugins
         }
     }
 }
-*/
+
 
 namespace Oxide.Plugins
 {
@@ -2580,23 +2578,8 @@ namespace Oxide.Plugins
                 user.SendChatMessage(nameof(Messages.NotLeaderOfFaction));
                 return;
             }
-            var npc = (global::HumanNPC)GameManager.server.CreateEntity("assets/rust.ai/agents/npcplayer/humannpc/scientist/scientistnpc_roam.prefab", user.transform.position, UnityEngine.Quaternion.identity, false);
-            if (npc)
-            {
-                npc.gameObject.AwakeFromInstantiate();
-                npc.Spawn();
-                Recruit recruit = npc.gameObject.AddComponent<Recruit>();
-                var nav = npc.GetComponent<BaseNavigator>();
-                if (nav == null)
-                    return;
-                nav.DefaultArea = "Walkable";
-                npc.NavAgent.areaMask = 1;
-                npc.NavAgent.agentTypeID = -1372625422;
-                npc.NavAgent.autoTraverseOffMeshLink = true;
-                npc.NavAgent.autoRepath = true;
-                npc.NavAgent.enabled = true;
-                nav.CanUseCustomNav = true;
-            }
+            
+            
 
         }
     }
@@ -11915,10 +11898,97 @@ namespace Oxide.Plugins
 
                 Hide();
                 Show();
+                
             }
         }
     }
 }
+#endregion
+
+#region > Bot Recruiting Helpers
+namespace Oxide.Plugins
+{
+    using System.Collections.Generic;
+    using System;
+    using System.Linq;
+    using UnityEngine;
+
+    public partial class Imperium
+    {
+        internal class NpcBelt
+        {
+            public string ShortName { get; set; }
+            public int Amount { get; set; }
+            public ulong SkinID { get; set; }
+            public HashSet<string> Mods { get; set; }
+            public string Ammo { get; set; }
+        }
+
+        internal class NpcWear
+        {
+            public string ShortName { get; set; }
+            public ulong SkinID { get; set; }
+        }
+
+        internal class NpcConfig
+        {
+            public string Name { get; set; }
+            public HashSet<NpcWear> WearItems { get; set; }
+            public HashSet<NpcBelt> BeltItems { get; set; }
+            public string Kit { get; set; }
+            public float Health { get; set; }
+            public float RoamRange { get; set; }
+            public float ChaseRange { get; set; }
+            public float SenseRange { get; set; }
+            public float ListenRange { get; set; }
+            public float AttackRangeMultiplier { get; set; }
+            public bool CheckVisionCone { get; set; }
+            public float VisionCone { get; set; }
+            public bool HostileTargetsOnly { get; set; }
+            public float DamageScale { get; set; }
+            public float TurretDamageScale { get; set; }
+            public float AimConeScale { get; set; }
+            public bool DisableRadio { get; set; }
+            public bool CanRunAwayWater { get; set; }
+            public bool CanSleep { get; set; }
+            public float SleepDistance { get; set; }
+            public float Speed { get; set; }
+            public int AreaMask { get; set; }
+            public int AgentTypeID { get; set; }
+            public string HomePosition { get; set; }
+            public float MemoryDuration { get; set; }
+            public HashSet<string> States { get; set; }
+        }
+
+        private HashSet<NpcBelt> GetNpcBelt(Area area)
+        {
+            HashSet<NpcBelt> result = new();
+            Locker locker = area.ArmoryLocker;
+            if (locker == null)
+                return result;
+
+            int itemCount = locker.inventory.itemList.Count;
+            Locker.RowType rowType;
+            for(int i = 0; i < 14; i++)
+            {
+                rowType = locker.GetRowType(i);
+                Item item = locker.inventory.itemList[i];
+                if(rowType == Locker.RowType.Belt)
+                {
+                    result.Add(new NpcBelt()
+                    {
+                        ShortName = item.info.shortname,
+                        SkinID = item.skin
+                    }
+
+                    );
+                }
+            }
+            return result;
+        }
+    }
+}
+
 #endregion
 
 #region > UI Console Commands

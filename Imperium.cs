@@ -35,7 +35,7 @@ namespace Oxide.Plugins
     using Network;
 
 
-    [Info("Imperium", "chucklenugget/evict", "2.2.8")]
+    [Info("Imperium", "chucklenugget/evict", "2.2.9")]
     [Description("Land Claims for Rust")]
     public partial class Imperium : RustPlugin
     {

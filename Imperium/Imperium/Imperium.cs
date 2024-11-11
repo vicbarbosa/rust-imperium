@@ -2954,28 +2954,6 @@ namespace Oxide.Plugins
                 return;
             }
 
-            if (Instance.Options.War.NoobFactionProtectionInSeconds > 0)
-            {
-                int elapsedSeconds = Instance.Options.War.NoobFactionProtectionInSeconds;
-                int secondsRemaining = 1;
-                elapsedSeconds = (int)(DateTime.Now - attacker.CreationTime).TotalSeconds;
-
-                if (elapsedSeconds < Instance.Options.War.NoobFactionProtectionInSeconds)
-                {
-                    secondsRemaining = Instance.Options.War.NoobFactionProtectionInSeconds - elapsedSeconds;
-                    int minutesRemaining = secondsRemaining / 60;
-                    if (secondsRemaining >= 60)
-                    {
-                        user.SendChatMessage(nameof(Messages.CannotDeclareWarNoobAttacker), minutesRemaining, "minutes");
-                        return;
-
-                    }
-
-                    user.SendChatMessage(nameof(Messages.CannotDeclareWarNoobAttacker), secondsRemaining, "seconds");
-                    return;
-                }
-            }
-
             Faction defender = Factions.Get(Util.NormalizeFactionId(args[0]));
 
             if (defender == null)
@@ -3029,7 +3007,7 @@ namespace Oxide.Plugins
 
             if (Instance.Options.War.OnlineDefendersRequired > 0)
             {
-                User[] defenders = Instance.Users.GetAll().Where(u => u.Faction.Id == defender.Id).ToArray();
+                User[] defenders = Instance.Users.GetAll().Where(u => u.Faction != null && u.Faction.Id == defender.Id).ToArray();
                 if (defenders.Length < Instance.Options.War.OnlineDefendersRequired)
                 {
                     user.SendChatMessage(nameof(Messages.CannotDeclareWarDefendersNotOnline), Instance.Options.War.OnlineDefendersRequired);
@@ -4529,7 +4507,7 @@ namespace Oxide.Plugins
                 "You cannot declare war against <color=#ffd479>[{0}]</color>, because your reason doesn't meet the minimum length.";
 
             public const string CannotDeclareWarCannotAfford =
-                "Declaring war <color=#ffd479>{0}</color> scrap. Add this amount to your inventory and try again.";
+                "Declaring war costs <color=#ffd479>{0}</color> scrap. Add this amount to your inventory and try again.";
 
             public const string CannotDeclareWarDefendersNotOnline =
                 "Declaring war requires at least <color=#ffd479>{0}</color> defending member online. Try again when your enemies are online";
@@ -5019,7 +4997,7 @@ namespace Oxide.Plugins
 
                 if (area == null && entity.gameObject.GetComponent<BaseCombatEntity>() == null)
                 {
-                    Instance.PrintWarning("An entity was damaged in an unknown area. This shouldn't happen.");
+                    //Instance.PrintWarning("An entity was damaged in an unknown area. This shouldn't happen.");
                     return null;
                 }
 
@@ -5127,7 +5105,7 @@ namespace Oxide.Plugins
 
                 if (area == null)
                 {
-                    Instance.PrintWarning("An entity was damaged in an unknown area. This shouldn't happen.");
+                    //Instance.PrintWarning("An entity was damaged in an unknown area. This shouldn't happen.");
                     return null;
                 }
 
@@ -8250,7 +8228,7 @@ namespace Oxide.Plugins
 
             public float CellSize
             {
-                get { return GRID_CELL_SIZE; }
+                get; set;
             }
 
             public float CellSizeRatio
@@ -8280,19 +8258,21 @@ namespace Oxide.Plugins
             public MapGrid()
             {
 
-                MapSize = Mathf.Floor(TerrainMeta.Size.x / CellSize) * CellSize;
+                MapSize = TerrainMeta.Size.x;
+
+                NumberOfRows = Mathf.FloorToInt((MapSize * 7) / 1024);
+                NumberOfColumns = Mathf.FloorToInt((MapSize * 7) / 1024);
+
+                CellSize = MapSize / NumberOfRows;
+
                 MapWidth = Mathf.Floor(TerrainMeta.Size.x / CellSize) * CellSize;
                 MapHeight = Mathf.Floor(TerrainMeta.Size.z / CellSize) * CellSize;
-
-
-                NumberOfRows = (int)Math.Floor(MapHeight / (float)CellSize);
-                NumberOfColumns = (int)Math.Floor(MapWidth / (float)CellSize);
 
                 MapWidth = NumberOfColumns * CellSize;
                 MapHeight = NumberOfRows * CellSize;
 
-                MapOffsetX = TerrainMeta.Size.x - (NumberOfColumns * CellSize);
-                MapOffsetZ = TerrainMeta.Size.z - (NumberOfRows * CellSize);
+                MapOffsetX = 0f;
+                MapOffsetZ = 0f;
                 RowIds = new string[NumberOfRows];
                 ColumnIds = new string[NumberOfColumns];
                 AreaIds = new string[NumberOfColumns, NumberOfRows];
@@ -10832,7 +10812,7 @@ namespace Oxide.Plugins
                     case AreaType.Headquarters:
                         return Instance.Options.Pvp.AllowedInClaimedLand
                             ? PanelColor.BackgroundDanger
-                            : area.FactionId == User.Faction.Id
+                            : User.Faction != null && area.FactionId == User.Faction.Id
                             ? PanelColor.BackgroundSafe
                             : PanelColor.BackgroundNormal;
                     default:
@@ -10875,7 +10855,7 @@ namespace Oxide.Plugins
                     case AreaType.Headquarters:
                         return Instance.Options.Pvp.AllowedInClaimedLand
                             ? PanelColor.TextDanger
-                            : area.FactionId == User.Faction.Id
+                            : User.Faction != null && area.FactionId == User.Faction.Id
                             ? PanelColor.TextSafe
                             : PanelColor.TextNormal;
                     default:

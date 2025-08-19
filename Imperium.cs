@@ -1,26 +1,4 @@
-/* LICENSE
- * Copyright (C) 2022-2024 evict
- * 
- * Permission is hereby granted, free of charge, to any person obtaining a copy
- * of this software and associated documentation files (the "Software"), to deal
- * in the Software without restriction, including without limitation the rights
- * to use, copy, modify, merge, publish, distribute, sublicense, and/or sell
- * copies of the Software, and to permit persons to whom the Software is
- * furnished to do so, subject to the following conditions:
- *
- * The above copyright notice and this permission notice shall be included in all
- * copies or substantial portions of the Software.
- *
- * THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR
- * IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY,
- * FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL THE
- * AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER
- * LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,
- * OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
- * SOFTWARE.
- */
-
-#region > Singleton
+#region _Main.cs
 namespace Oxide.Plugins
 {
     using System;
@@ -35,35 +13,21 @@ namespace Oxide.Plugins
     using Network;
 
 
-    [Info("Imperium", "chucklenugget/evict", "2.2.9")]
+    [Info("Imperium", "chucklenugget/evict", "2.3.0")]
     [Description("Land Claims for Rust")]
     public partial class Imperium : RustPlugin
     {
         //Optional Dependencies
         [PluginReference]
-        private Plugin BetterChat, Clans, RaidableBases, NPCSpawn;
-        private List<HookDeferral> HookDeferralRegistry = new List<HookDeferral>();
-        public class HookDeferral
-        {
-            public string hookName;
-            public Plugin plugin;
+        private Plugin BetterChat, Clans, RaidableBases, NpcSpawn;
 
-            public HookDeferral(string HookName, Plugin Plugin)
-            {
-                hookName = HookName;
-                plugin = Plugin;
-            }
-        }
+
 
         //Hook Deferrals
-        [PluginReference]
-        private Plugin NpcSpawn, AirEvent;
 
         private void InitDeferList()
         {
-            //RegisterHookDeferral("OnEntityTakeDamage", NpcSpawn);
-            //RegisterHookDeferral("OnEntityTakeDamage", AirEvent);
-            
+
         }
 
         private static Imperium Instance;
@@ -84,7 +48,6 @@ namespace Oxide.Plugins
         private UserManager Users;
         private WarManager Wars;
         private ZoneManager Zones;
-        private RecruitManager Recruits;
 
         private void Init()
         {
@@ -92,32 +55,6 @@ namespace Oxide.Plugins
             FactionsFile = GetDataFile("factions");
             PinsFile = GetDataFile("pins");
             WarsFile = GetDataFile("wars");
-        }
-
-        private void RegisterHookDeferral(string hook, Plugin plugin)
-        {
-            if (plugin == null)
-                return;
-            HookDeferralRegistry.Add(new HookDeferral(hook, plugin));
-        }
-
-        private object GetExternalHookResult(string hook, params object[] args)
-        {
-            if (HookDeferralRegistry.Count == 0)
-                return null;
-            List<HookDeferral> filtered = HookDeferralRegistry.FindAll(r => r.hookName == hook && r.plugin != null);
-            if (filtered.Count == 0)
-                return null;
-            object result = null;
-            foreach (HookDeferral def in filtered)
-            {
-                if (def.plugin == null)
-                    continue;
-                result = def.plugin.Call(hook, args);
-                if (result != null)
-                    return result;
-            }
-            return null;
         }
 
         private void Loaded()
@@ -133,7 +70,6 @@ namespace Oxide.Plugins
             {
                 PrintError($"Error while loading configuration: {ex.ToString()}");
             }
-
 
             Puts("Area claims are " + (Options.Claims.Enabled ? "enabled" : "disabled"));
             Puts("Taxation is " + (Options.Taxes.Enabled ? "enabled" : "disabled"));
@@ -153,7 +89,7 @@ namespace Oxide.Plugins
             if (Options.Recruiting.Enabled)
             {
                 PrintWarning("Recruiting is not available in this Imperium version yet! Disabling it");
-                //Options.Recruiting.Enabled = false;
+                Options.Recruiting.Enabled = false;
             }
 
             if (BetterChat != null)
@@ -162,7 +98,7 @@ namespace Oxide.Plugins
                 Interface.CallHook("API_RegisterThirdPartyTitle", this, new Func<IPlayer, string>(BetterChat_FormattedFactionTag));
             }
             Instance = this;
-            
+
 
             //Puts("Recruiting is " + (Options.Recruiting.Enabled ? "enabled" : "disabled"));
 
@@ -188,7 +124,6 @@ namespace Oxide.Plugins
             Users = new UserManager();
             Wars = new WarManager();
             Zones = new ZoneManager();
-            Recruits = new RecruitManager();
 
             Factions.Init(TryLoad<FactionInfo>(FactionsFile));
             Areas.Init(TryLoad<AreaInfo>(AreasFile));
@@ -230,6 +165,14 @@ namespace Oxide.Plugins
             Pins.Destroy();
             Areas.Destroy();
             Factions.Destroy();
+
+            for (int i = recruitInstancesList.Count - 1; i >= 0; i--)
+            {
+                Recruit recruit = recruitInstancesList[i];
+                UnregisterRecruitInstance(recruit.npc);
+                recruit.npc.AdminKill();
+            }
+            ClearRecruitRegister();
 
             if (UpkeepCollectionTimer != null && !UpkeepCollectionTimer.Destroyed)
                 UpkeepCollectionTimer.Destroy();
@@ -280,23 +223,10 @@ namespace Oxide.Plugins
             LogToFile("log", String.Format(message, args), this, true);
         }
 
-        private bool EnsureUserCanChangeFactionClaims(User user, Faction faction)
-        {
-            if (faction == null || !faction.HasLeader(user))
-            {
-                user.SendChatMessage(nameof(Messages.NotLeaderOfFaction));
-                return false;
-            }
+        //SHOULD MOVE THIS TO FACTION MANAGER
 
-            if (faction.MemberCount < Options.Claims.MinFactionMembers)
-            {
-                user.SendChatMessage(nameof(Messages.FactionTooSmallToOwnLand), Options.Claims.MinFactionMembers);
-                return false;
-            }
 
-            return true;
-        }
-
+        //SHOULD MOVE THIS TO AREA MANAGER
         private bool EnsureFactionCanClaimArea(User user, Faction faction, Area area)
         {
             if (area.Type == AreaType.Badlands)
@@ -333,6 +263,8 @@ namespace Oxide.Plugins
             return true;
         }
 
+
+        //SHOULD MOVE THIS TO AREA MANAGER
         private bool EnsureCupboardCanBeUsedForClaim(User user, BuildingPrivlidge cupboard)
         {
             if (cupboard == null)
@@ -350,6 +282,8 @@ namespace Oxide.Plugins
             return true;
         }
 
+
+        //SHOULD MOVE THIS TO RECRUIT MANAGER
         private bool EnsureLockerCanBeUsedForArmory(User user, Locker locker, Area area)
         {
             if (area == null || area.FactionId != user.Faction.Id)
@@ -360,6 +294,24 @@ namespace Oxide.Plugins
             return true;
         }
 
+        //SHOULD MOVE THIS TO RECRUIT MANAGER
+        private bool EnsureSleepingBagCanBeUsedForRecruit(User user, SleepingBag sleepingBag, Area area)
+        {
+            Area areaHere = Areas.GetByEntityPosition(sleepingBag);
+            if (areaHere == null || areaHere.FactionId != user.Faction.Id)
+            {
+                user.SendChatMessage(nameof(Messages.AreaNotOwnedByYourFaction));
+                return false;
+            }
+            if (sleepingBag.deployerUserID != (ulong)user.Player.userID)
+            {
+                user.SendChatMessage(nameof(Messages.UserIsNotSleepingBagOwner));
+                return false;
+            }
+            return true;
+        }
+
+        //SHOULD MOVE THIS TO WAR MANAGER
         private bool EnsureUserAndFactionCanEngageInDiplomacy(User user, Faction faction)
         {
             if (faction == null)
@@ -429,276 +381,1105 @@ namespace Oxide.Plugins
     }
 
 }
+#endregion
+
+#region API.Hooks.cs
 namespace Oxide.Plugins
+{
+    using Oxide.Core;
+
+    public partial class Imperium : RustPlugin
+    {
+        private static class Events
+        {
+            public static void OnAreaChanged(Area area)
+            {
+                Interface.CallHook(nameof(OnAreaChanged), area);
+            }
+
+            public static void OnUserEnteredArea(User user, Area area)
+            {
+                Interface.CallHook(nameof(OnUserEnteredArea), user, area);
+            }
+
+            public static void OnUserLeftArea(User user, Area area)
+            {
+                Interface.CallHook(nameof(OnUserLeftArea), user, area);
+            }
+
+            public static void OnUserEnteredZone(User user, Zone zone)
+            {
+                Interface.CallHook(nameof(OnUserEnteredZone), user, zone);
+            }
+
+            public static void OnUserLeftZone(User user, Zone zone)
+            {
+                Interface.CallHook(nameof(OnUserLeftZone), user, zone);
+            }
+
+            public static void OnFactionCreated(Faction faction)
+            {
+                Interface.CallHook(nameof(OnFactionCreated), faction);
+            }
+
+            public static void OnFactionDisbanded(Faction faction)
+            {
+                Interface.CallHook(nameof(OnFactionDisbanded), faction);
+            }
+
+            public static void OnFactionTaxesChanged(Faction faction)
+            {
+                Interface.CallHook(nameof(OnFactionTaxesChanged), faction);
+            }
+
+            public static void OnFactionArmoryChanged(Faction faction)
+            {
+                Interface.CallHook(nameof(OnFactionArmoryChanged), faction);
+            }
+
+            public static void OnFactionBadlandsChanged(Faction faction)
+            {
+                Interface.CallHook(nameof(OnFactionBadlandsChanged), faction);
+            }
+
+            public static void OnPlayerJoinedFaction(Faction faction, User user)
+            {
+                Interface.CallHook(nameof(OnPlayerJoinedFaction), faction, user);
+            }
+
+            public static void OnPlayerLeftFaction(Faction faction, User user)
+            {
+                Interface.CallHook(nameof(OnPlayerLeftFaction), faction, user);
+            }
+
+            public static void OnPlayerInvitedToFaction(Faction faction, User user)
+            {
+                Interface.CallHook(nameof(OnPlayerInvitedToFaction), faction, user);
+            }
+
+            public static void OnPlayerUninvitedFromFaction(Faction faction, User user)
+            {
+                Interface.CallHook(nameof(OnPlayerUninvitedFromFaction), faction, user);
+            }
+
+            public static void OnPlayerPromoted(Faction faction, User user)
+            {
+                Interface.CallHook(nameof(OnPlayerPromoted), faction, user);
+            }
+
+            public static void OnPlayerDemoted(Faction faction, User user)
+            {
+                Interface.CallHook(nameof(OnPlayerDemoted), faction, user);
+            }
+
+            public static void OnPinCreated(Pin pin)
+            {
+                Interface.CallHook(nameof(OnPinCreated), pin);
+            }
+
+            public static void OnPinRemoved(Pin pin)
+            {
+                Interface.CallHook(nameof(OnPinRemoved), pin);
+            }
+        }
+    }
+}
+#endregion
+
+#region API.Methods.cs
+﻿namespace Oxide.Plugins
 {
     using Oxide.Core.Plugins;
-    using Oxide.Core.Libraries.Covalence;
+
     public partial class Imperium
     {
-        private string BetterChat_FormattedFactionTag(IPlayer player)
+        [HookMethod(nameof(GetFactionName))]
+        public object GetFactionName(BasePlayer player)
         {
-            if (Clans)
+            User user = Users.Get(player);
+
+            if (user == null || user.Faction == null)
                 return null;
-            Faction faction = Factions.GetByMember(player.Id);
-            if (faction == null)
-                return string.Empty;
-            FactionColorPicker colorPicker = new FactionColorPicker();
-            return "[" + colorPicker.GetHexColorForFaction(faction.Id) + "][" + faction.Id + "][/#]";
-        }
-
-    }
-}
-
-#endregion
-
-#region > Console To Chat
-
-namespace Oxide.Plugins
-{
-    public partial class Imperium
-    {
-        [ConsoleCommand("imperium.panel.close")]
-        private void ccmdImperiumPanelClose(ConsoleSystem.Arg arg)
-        {
-            BasePlayer player = arg.Connection.player as BasePlayer;
-            if (player == null)
-                return;
-            User user = player.GetComponent<User>();
-            if (user == null)
-                return;
-            user.Panel.Close();
-        }
-    }
-}
-
-namespace Oxide.Plugins
-{
-    using UnityEngine;
-    public partial class Imperium
-    {
-        [ConsoleCommand("imperium.panel.opentab")]
-        private void ccmdImperiumPanelOpenTab(ConsoleSystem.Arg arg)
-        {
-            BasePlayer player = arg.Connection.player as BasePlayer;
-            if (player == null)
-                return;
-            User user = player.GetComponent<User>();
-            if (user == null)
-                return;
-            user.Panel.OpenTab(arg.Args[0]);
-        }
-    }
-}
-
-namespace Oxide.Plugins
-{
-    using UnityEngine;
-    public partial class Imperium
-    {
-        [ConsoleCommand("imperium.panel.opencmd")]
-        private void ccmdImperiumPanelOpenCmd(ConsoleSystem.Arg arg)
-        {
-            BasePlayer player = arg.Connection.player as BasePlayer;
-            if (player == null)
-                return;
-            User user = player.GetComponent<User>();
-            if (user == null)
-                return;
-            user.Panel.OpenCommand(arg.Args[0]);
-        }
-    }
-}
-
-namespace Oxide.Plugins
-{
-    using UnityEngine;
-    using System;
-    using System.Text.RegularExpressions;
-    public partial class Imperium
-    {
-        [ConsoleCommand("imperium.panel.run")]
-        private void ccmdImperiumPanelRun(ConsoleSystem.Arg arg)
-        {
-            BasePlayer player = arg.Connection.player as BasePlayer;
-            if (player == null)
-                return;
-            User user = player.GetComponent<User>();
-            if (user == null)
-                return;
-            string chatCommand = user.Panel.GetFullConsoleCommand();
-            Regex.Replace(chatCommand, @"[\""]", "\\\"", RegexOptions.None);
-            player.SendConsoleCommand("chat.say " + chatCommand);
-            if (Convert.ToBoolean(arg.Args[0]))
-            {
-                user.Panel.Close();
-            }
             else
-            {
-                user.Panel.ClearCurrentCommand();
-                user.Panel.Refresh();
-            }
-
-        }
-    }
-}
-namespace Oxide.Plugins
-{
-    using System;
-    using UnityEngine;
-    public partial class Imperium
-    {
-        [ConsoleCommand("imperium.panel.setarg")]
-        private void ccmdImperiumPanelSetArg(ConsoleSystem.Arg arg)
-        {
-            BasePlayer player = arg.Connection.player as BasePlayer;
-            if (!player)
-                return;
-            User user = player.GetComponent<User>();
-            if (!user)
-                return;
-            if (arg.Args.Length < 3)
-                return;
-            string fullArg = "";
-            for (int i = 2; i < arg.Args.Length; i++)
-            {
-                fullArg = fullArg + arg.Args[i];
-                if (i != arg.Args.Length - 1)
-                    fullArg = fullArg + " ";
-            }
-            user.Panel.SetArg(Convert.ToInt32(arg.Args[0]), fullArg, Convert.ToBoolean(arg.Args[1]));
+                return user.Faction.Id;
         }
     }
 }
 #endregion
 
-#region > Chat Commands
-#region commons
-namespace Oxide.Plugins
+#region Area.cs
+﻿namespace Oxide.Plugins
 {
+    using Rust;
+    using Rust.UI;
+    using UnityEngine;
+
     public partial class Imperium
     {
-        [ChatCommand("cancel")]
-        private void OnCancelCommand(BasePlayer player, string command, string[] args)
+        private class Area : MonoBehaviour
         {
-            User user = Users.Get(player);
+            public Vector3 Position { get; private set; }
+            public Vector3 Size { get; private set; }
 
-            if (user.CurrentInteraction == null)
+            public string Id { get; private set; }
+            public int Row { get; private set; }
+            public int Col { get; private set; }
+
+            public AreaType Type { get; set; }
+            public string Name { get; set; }
+            public string FactionId { get; set; }
+            public string ClaimantId { get; set; }
+            public BuildingPrivlidge ClaimCupboard { get; set; }
+            public BasePlayer ClaimReskinningPlayer { get; set; }
+            public Vector3 ReskinnedCupboardLastPosition { get; set; }
+            public bool IsCupboardChangingSkin { get; set; }
+            public Locker ArmoryLocker { get; set; }
+            public int Level { get; set; }
+            public SleepingBag RecruitSleepingBag { get; set; }
+
+            public BasePlayer recruitInstance = null;
+            public Recruit recruitInfo = null;
+            public int recruitRespawnCooldown = 5;
+
+            public MapMarkerGenericRadius mapMarker;
+            public VendingMachineMapMarker headquartersMarker;
+            public MapMarkerGenericRadius hqMarkerColor;
+            public BaseEntity textMarker;
+            public bool IsClaimed
             {
-                user.SendChatMessage(nameof(Messages.NoInteractionInProgress));
-                return;
+                get { return FactionId != null; }
+            }
+            public bool IsTaxableClaim
+            {
+                get { return Type == AreaType.Claimed || Type == AreaType.Headquarters; }
+            }
+            public bool IsWarZone
+            {
+                get { return GetActiveWars().Length > 0; }
+            }
+            public bool IsHostile
+            {
+                get
+                {
+                    if (FactionId != null)
+                    {
+                        if (Instance.Factions.Get(FactionId) != null)
+                        {
+                            return Instance.Factions.Get(FactionId).IsBadlands;
+                        }
+
+                    }
+                    return false;
+                }
+            }
+            public int UpgradeCost
+            {
+                get
+                {
+                    var costs = Instance.Options.Upgrading.Costs;
+                    return costs[Mathf.Clamp(Level, 0, costs.Count - 1)
+                    ];
+                }
+            }
+            public void Init(string id, int row, int col, Vector3 position, Vector3 size, AreaInfo info)
+            {
+                Id = id;
+                Row = row;
+                Col = col;
+                Position = position;
+                Size = size;
+
+
+                if (info != null)
+                    TryLoadInfo(info);
+                gameObject.layer = (int)Layer.Reserved1;
+                gameObject.name = $"imperium_area_{id}";
+                transform.position = position;
+                transform.rotation = Quaternion.Euler(new Vector3(0, 0, 0));
+
+                var collider = gameObject.AddComponent<BoxCollider>();
+                collider.size = Size;
+                collider.isTrigger = true;
+                collider.enabled = true;
+
+
+                gameObject.SetActive(true);
+                enabled = true;
             }
 
-            user.SendChatMessage(nameof(Messages.InteractionCanceled));
-            user.CancelInteraction();
-            
-        }
-
-    }
-}
-
-namespace Oxide.Plugins
-{
-    using System.Text;
-
-    public partial class Imperium
-    {
-        [ChatCommand("help")]
-        private void OnHelpCommand(BasePlayer player, string command, string[] args)
-        {
-            User user = Users.Get(player);
-            if (user == null) return;
-
-            var sb = new StringBuilder();
-
-            sb.AppendLine($"<size=18>Welcome to {ConVar.Server.hostname}!</size>");
-            sb.AppendLine($"Powered by {Name} v{Version} by <color=#ffd479>chucklenugget</color> and <color=#ffd479>evict</color>");
-            sb.AppendLine(
-                "Do <color=#ffd479>/i</color> to open Imperium UI. You can also do <color=#ffd479>bind i chat.say /i</color> in F1 console to easily toggle Imperium UI");
-            sb.AppendLine();
-
-            sb.Append(
-                "The following commands are available. To learn more about each command, do <color=#ffd479>/command help</color>. ");
-            sb.AppendLine("For example, to learn more about how to claim land, do <color=#ffd479>/claim help</color>.");
-            sb.AppendLine();
-
-            sb.AppendLine("<color=#ffd479>/faction</color> Create or join a faction");
-            sb.AppendLine("<color=#ffd479>/claim</color> Claim areas of land");
-
-            if (Options.Taxes.Enabled)
-                sb.AppendLine("<color=#ffd479>/tax</color> Manage taxation of your land");
-
-            if (Options.Map.PinsEnabled)
-                sb.AppendLine("<color=#ffd479>/pin</color> Add pins (points of interest) to the map");
-
-            if (Options.War.Enabled)
-                sb.AppendLine("<color=#ffd479>/war</color> See active wars, declare war, or offer peace");
-
-            if (Options.Badlands.Enabled)
+            private void Awake()
             {
-                if (user.HasPermission(Permission.AdminBadlands))
-                    sb.AppendLine("<color=#ffd479>/badlands</color> Find or change badlands areas");
+                InvokeRepeating("CheckClaimCupboard", 60f, 60f);
+                InvokeRepeating("CheckArmoryLocker", 60f, 60f);
+                InvokeRepeating("CheckRecruitRespawn", 5f, 5f);
+            }
+
+            private void OnDestroy()
+            {
+                if (recruitInstance != null)
+                    recruitInstance.AdminKill();
+
+                var collider = GetComponent<BoxCollider>();
+
+                if (collider != null)
+                    Destroy(collider);
+
+                if (IsInvoking("CheckClaimCupboard"))
+                    CancelInvoke("CheckClaimCupboard");
+                if (IsInvoking("CheckArmoryLocker"))
+                    CancelInvoke("CheckArmoryLocker");
+                if (IsInvoking("CheckRecruitRespawn"))
+                    CancelInvoke("CheckRecruitRespawn");
+            }
+
+            private void TryLoadInfo(AreaInfo info)
+            {
+                BuildingPrivlidge cupboard = null;
+                Locker locker = null;
+                SleepingBag bag = null;
+
+                if (info.CupboardId != null)
+                {
+                    cupboard = BaseNetworkable.serverEntities.Find(new NetworkableId((ulong)info.CupboardId)) as BuildingPrivlidge;
+                    if (cupboard == null)
+                    {
+                        Instance.Log(
+                            $"[LOAD] Area {Id}: Cupboard entity {info.CupboardId} not found, treating as unclaimed");
+                        return;
+                    }
+                }
+
+                if (info.FactionId != null)
+                {
+                    Faction faction = Instance.Factions.Get(info.FactionId);
+                    if (faction == null)
+                    {
+                        Instance.Log(
+                            $"[LOAD] Area {Id}: Claimed by unknown faction {info.FactionId}, treating as unclaimed");
+                        return;
+                    }
+                }
+
+                Name = info.Name;
+                Type = info.Type;
+                FactionId = info.FactionId;
+                ClaimantId = info.ClaimantId;
+                ClaimCupboard = cupboard;
+                Level = info.Level;
+
+
+
+                if (info.ArmoryId != null)
+                {
+                    locker = BaseNetworkable.serverEntities.Find(new NetworkableId((ulong)info.ArmoryId)) as Locker;
+                    if (locker == null)
+                    {
+                        Instance.Log(
+                            $"[LOAD] Area {Id}: Locker entity {info.ArmoryId} not found");
+                    }
+                }
+
+                ArmoryLocker = locker;
+
+                if (info.RecruitSleepingBagId != null)
+                {
+                    bag = BaseNetworkable.serverEntities.Find(new NetworkableId((ulong)info.RecruitSleepingBagId)) as SleepingBag;
+                    if (bag == null)
+                    {
+                        Instance.Log(
+                            $"[LOAD] Area {Id}: Locker entity {info.ArmoryId} not found");
+                    }
+                }
+
+                RecruitSleepingBag = bag;
+
+                if (FactionId != null)
+                    Instance.Log(
+                        $"[LOAD] Area {Id}: Claimed by {FactionId}, type = {Type}, cupboard = {Util.Format(ClaimCupboard)}");
+            }
+
+            private void CheckClaimCupboard()
+            {
+                if (ClaimCupboard == null || !ClaimCupboard.IsDestroyed)
+                    return;
+
+                Instance.Log(
+                    $"{FactionId} lost their claim on {Id} because the tool cupboard was destroyed (periodic check)");
+                Util.PrintToChat(nameof(Messages.AreaClaimLostCupboardDestroyedAnnouncement), FactionId, Id);
+                Instance.Areas.Unclaim(this);
+            }
+
+            private void CheckArmoryLocker()
+            {
+                if (ArmoryLocker == null || !ArmoryLocker.IsDestroyed)
+                    return;
+
+                Instance.Log(
+                    $"{FactionId} lost their armory on {Id} because the locker was destroyed (periodic check)");
+                Util.PrintToChat(nameof(Messages.AreaClaimLostArmoryDestroyedAnnouncement), FactionId, Id);
+                Instance.Areas.RemoveArmory(this);
+            }
+
+            private void CheckRecruitRespawn()
+            {
+                if (RecruitSleepingBag == null)
+                    return;
+                if (ArmoryLocker == null)
+                {
+                    return;
+                }
+                if (recruitInstance != null)
+                    return;
+
+                if (recruitRespawnCooldown > 0)
+                {
+                    recruitRespawnCooldown -= 5;
+                    return;
+                }
+
+                NpcConfig config = Instance.GetAreaNpcConfig(this);
+
+                if (config == null)
+                    return;
+                Instance.SpawnRecruit(this, RecruitSleepingBag.transform.position, config);
+
+                recruitRespawnCooldown = 5;
+            }
+
+            private void CheckRecruitForgetAggressors()
+            {
+
+            }
+
+            private void OnTriggerEnter(Collider collider)
+            {
+                if (collider.gameObject.layer != (int)Layer.Player_Server)
+                    return;
+
+                var user = collider.GetComponentInParent<User>();
+
+                if (user != null)
+                {
+                    if (user.CurrentArea != this)
+                    {
+                        Events.OnUserEnteredArea(user, this);
+                    }
+                }
+            }
+
+            private void OnTriggerExit(Collider collider)
+            {
+                if (collider.gameObject.layer != (int)Layer.Player_Server)
+                    return;
+                var user = collider.GetComponentInParent<User>();
+                if (user != null)
+                {
+                    Events.OnUserLeftArea(user, this);
+                }
+
+            }
+
+            public void UpdateAreaMarker(FactionColorPicker colorPicker)
+            {
+                bool markerExists = true;
+                if (Type != AreaType.Headquarters)
+                {
+                    if (headquartersMarker != null)
+                    {
+                        headquartersMarker.Kill();
+                        headquartersMarker = null;
+                    }
+
+                    if (hqMarkerColor != null)
+                    {
+                        hqMarkerColor.Kill();
+                        hqMarkerColor = null;
+                    }
+
+                }
+                if (Type == AreaType.Wilderness)
+                {
+                    if (mapMarker != null)
+                        mapMarker.Kill();
+                }
                 else
-                    sb.AppendLine("<color=#ffd479>/badlands</color> Find badlands (PVP) areas");
+                {
+                    if (mapMarker == null)
+                    {
+                        markerExists = false;
+                        var markerRadius = ((4000 / Instance.Areas.MapGrid.MapSize) * 0.5f);
+                        var marker = GameManager.server.CreateEntity(
+                            "assets/prefabs/tools/map/genericradiusmarker.prefab", transform.position)
+                            as MapMarkerGenericRadius;
+                        marker.radius = markerRadius;
+                        marker.enableSaving = false;
+                        mapMarker = marker;
+                    }
+
+                    if (Type == AreaType.Claimed)
+                    {
+                        mapMarker.alpha = 0.3f;
+                        mapMarker.color1 = Util.ConvertSystemToUnityColor(
+                            colorPicker.GetColorForFaction(FactionId));
+                        mapMarker.color2 = Color.black;
+                        if (!markerExists)
+                            mapMarker.Spawn();
+                        mapMarker.SendUpdate();
+                    }
+                    if (Type == AreaType.Headquarters)
+                    {
+                        mapMarker.alpha = 0.3f;
+                        mapMarker.color1 = Util.ConvertSystemToUnityColor(
+                            colorPicker.GetColorForFaction(FactionId));
+                        mapMarker.color2 = Color.black;
+                        if (!markerExists)
+                            mapMarker.Spawn();
+                        mapMarker.SendUpdate();
+
+                        if (headquartersMarker == null)
+                        {
+                            if (ClaimCupboard)
+                            {
+                                Vector3 tcPosition = ClaimCupboard.transform.position;
+                                var marker = GameManager.server.CreateEntity(
+                                "assets/prefabs/deployable/vendingmachine/vending_mapmarker.prefab", tcPosition)
+                                as VendingMachineMapMarker;
+                                marker.markerShopName = FactionId + " Headquarters";
+                                marker.transform.position.Set(marker.transform.position.x, -100f, marker.transform.position.z);
+                                headquartersMarker = marker;
+                                headquartersMarker.enableSaving = false;
+                                headquartersMarker.appType = ProtoBuf.AppMarkerType.Player;
+                                headquartersMarker.Spawn();
+
+
+                                var markerTop = GameManager.server.CreateEntity(
+                            "assets/prefabs/tools/map/genericradiusmarker.prefab")
+                            as MapMarkerGenericRadius;
+                                markerTop.radius = 0.2f;
+                                markerTop.enableSaving = false;
+                                markerTop.color1 = Util.ConvertSystemToUnityColor(
+                                   colorPicker.GetColorForFaction(FactionId));
+                                markerTop.color2 = Color.black;
+                                markerTop.alpha = 0.5f;
+                                markerTop.SetParent(headquartersMarker);
+                                markerTop.Spawn();
+                                hqMarkerColor = markerTop;
+                                headquartersMarker.SendNetworkUpdate();
+                                markerTop.SendUpdate();
+
+                            }
+
+                        }
+                    }
+                    if (Type == AreaType.Badlands)
+                    {
+                        mapMarker.alpha = 0.2f;
+                        mapMarker.color1 = Color.black;
+                        mapMarker.color2 = Color.black;
+                        if (!markerExists)
+                            mapMarker.Spawn();
+                        mapMarker.SendUpdate();
+                    }
+
+                }
             }
 
-            user.SendChatMessage(sb);
+            public float GetDistanceFromEntity(BaseEntity entity)
+            {
+                return Vector3.Distance(entity.transform.position, transform.position);
+            }
+
+            public int GetClaimCost(Faction faction)
+            {
+                var costs = Instance.Options.Claims.Costs;
+                int numberOfAreasOwned = Instance.Areas.GetAllClaimedByFaction(faction).Length;
+                int index = Mathf.Clamp(numberOfAreasOwned, 0, costs.Count - 1);
+                return costs[index];
+            }
+
+            public float GetDefensiveBonus()
+            {
+                var bonuses = Instance.Options.War.DefensiveBonuses;
+                var depth = Instance.Areas.GetDepthInsideFriendlyTerritory(this);
+                int index = Mathf.Clamp(depth, 0, bonuses.Count - 1);
+                float bonus = bonuses[index];
+                if (Instance.Options.Upgrading.Enabled && Instance.Options.Upgrading.MaxRaidDefenseBonus > 0)
+                {
+                    bonus = Mathf.Clamp(bonus + GetLevelDefensiveBonus(), 0, 1);
+                    bonus = Mathf.Floor((bonus * 100) / 100);
+                }
+                return bonus;
+            }
+
+            public float GetTaxRate()
+            {
+                if (!IsTaxableClaim)
+                    return 0;
+
+                Faction faction = Instance.Factions.Get(FactionId);
+
+                if (!faction.CanCollectTaxes)
+                    return 0;
+
+                return faction.TaxRate;
+            }
+
+            public War[] GetActiveWars()
+            {
+                if (FactionId == null)
+                    return new War[0];
+
+                return Instance.Wars.GetAllActiveWarsByFaction(FactionId);
+            }
+
+            private float GetRatio(int level, int maxLevel, float maxBonus)
+            {
+                return (level / maxLevel) * maxBonus;
+            }
+            //TODO: Remove all logic about levels (land upgrading) as this was a terrible idea
+            public float GetLevelDefensiveBonus()
+            {
+                return GetRatio(Level,
+                    Instance.Options.Upgrading.MaxUpgradeLevel,
+                    Instance.Options.Upgrading.MaxRaidDefenseBonus);
+
+            }
+            public float GetLevelDecayReduction()
+            {
+                return GetRatio(Level,
+                    Instance.Options.Upgrading.MaxUpgradeLevel,
+                    Instance.Options.Upgrading.MaxDecayExtraReduction);
+            }
+
+            public float GetLevelTaxBonus()
+            {
+                return GetRatio(Level,
+                    Instance.Options.Upgrading.MaxUpgradeLevel,
+                    Instance.Options.Upgrading.MaxTaxChestBonus);
+            }
+
+            public AreaInfo Serialize()
+            {
+                return new AreaInfo
+                {
+                    Id = Id,
+                    Name = Name,
+                    Type = Type,
+                    FactionId = FactionId,
+                    ClaimantId = ClaimantId,
+                    CupboardId = ClaimCupboard?.net?.ID.Value,
+                    ArmoryId = ArmoryLocker?.net?.ID.Value,
+                    RecruitSleepingBagId = RecruitSleepingBag?.net?.ID.Value,
+                    Level = Level
+
+                };
+            }
         }
     }
 }
+
 #endregion
-#region /imperium
-namespace Oxide.Plugins
+
+#region AreaInfo.cs
+﻿namespace Oxide.Plugins
 {
+    using Newtonsoft.Json;
+    using Newtonsoft.Json.Converters;
+
+    public partial class Imperium : RustPlugin
+    {
+        public class AreaInfo
+        {
+            [JsonProperty("id")] public string Id;
+
+            [JsonProperty("name")] public string Name;
+
+            [JsonProperty("type"), JsonConverter(typeof(StringEnumConverter))]
+            public AreaType Type;
+
+            [JsonProperty("factionId")] public string FactionId;
+
+            [JsonProperty("claimantId")] public string ClaimantId;
+
+            [JsonProperty("cupboardId")] public ulong? CupboardId;
+
+            [JsonProperty("armoryId")] public ulong? ArmoryId;
+
+            [JsonProperty("recruitBagId")] public ulong? RecruitSleepingBagId;
+
+            [JsonProperty("level")] public int Level;
+
+            [JsonProperty("hasRecruit")] public bool HasRecruit;
+
+            [JsonProperty("recruitSpawnPosition")] public string RecruitSpawnPosition;
+        }
+    }
+}
+
+#endregion
+
+#region AreaManager.cs
+﻿namespace Oxide.Plugins
+{
+    using System;
+    using System.Collections.Generic;
+    using System.Linq;
+    using UnityEngine;
+
     public partial class Imperium
     {
-        [ChatCommand("i")]
-        private void OnImperiumCommand(BasePlayer player, string command, string[] args)
+        private class AreaManager
         {
-            User user = Users.Get(player);
-            user.Panel.Toggle();
+            private Dictionary<string, Area> Areas;
+            private Area[,] Layout;
+            public MapGrid MapGrid { get; }
+
+            public int Count
+            {
+                get { return Areas.Count; }
+            }
+
+            public AreaManager()
+            {
+                MapGrid = new MapGrid();
+                Areas = new Dictionary<string, Area>();
+                Layout = new Area[MapGrid.NumberOfColumns, MapGrid.NumberOfRows];
+            }
+
+            public Area Get(string areaId)
+            {
+                Area area;
+                if (Areas.TryGetValue(areaId, out area))
+                    return area;
+                else
+                    return null;
+            }
+
+            public Area Get(int row, int col)
+            {
+                return Layout[row, col];
+            }
+
+            public Area[] GetAll()
+            {
+                return Areas.Values.ToArray();
+            }
+
+            public Area[] GetAllByType(AreaType type)
+            {
+                return Areas.Values.Where(a => a.Type == type).ToArray();
+            }
+
+            public Area[] GetAllClaimedByFaction(Faction faction)
+            {
+                return GetAllClaimedByFaction(faction.Id);
+            }
+
+            public Area[] GetAllClaimedByFaction(string factionId)
+            {
+                return Areas.Values.Where(a => a.FactionId == factionId).ToArray();
+            }
+
+            public Area[] GetAllTaxableClaimsByFaction(Faction faction)
+            {
+                return GetAllTaxableClaimsByFaction(faction.Id);
+            }
+
+            public Area[] GetAllTaxableClaimsByFaction(string factionId)
+            {
+                return Areas.Values.Where(a => a.FactionId == factionId && a.IsTaxableClaim).ToArray();
+            }
+
+            public Area GetByClaimCupboard(BuildingPrivlidge cupboard)
+            {
+                return GetByClaimCupboard(cupboard.net.ID.Value);
+            }
+
+            public Area GetByClaimReskinningPlayer(BasePlayer player)
+            {
+                if (player == null)
+                    return null;
+                return Areas.Values.FirstOrDefault(a =>
+                    a.ClaimCupboard != null && a.ClaimReskinningPlayer == player);
+            }
+
+            public Area GetByReskinnedCupboardLastPosition(Vector3 testPosition)
+            {
+                return Areas.Values.FirstOrDefault(a =>
+                    IsApproximatedly(a.ReskinnedCupboardLastPosition, testPosition));
+
+            }
+
+            private Vector3 Abs(Vector3 v)
+            {
+                return new Vector3(Mathf.Abs(v.x), Mathf.Abs(v.y), Mathf.Abs(v.z));
+            }
+
+            private bool IsApproximatedly(Vector3 v1, Vector3 v2)
+            {
+                Vector3 diff = Abs(v1 - v2);
+                return (diff.x < 0.1f) && (diff.y < 0.1f) && (diff.z < 0.1f);
+            }
+
+            public Area GetByClaimCupboard(ulong cupboardId)
+            {
+                return Areas.Values.FirstOrDefault(a =>
+                    a.ClaimCupboard != null && a.ClaimCupboard.net.ID.Value == cupboardId);
+            }
+            public Area GetByArmoryLocker(Locker locker)
+            {
+                return GetByArmoryLocker(locker.net.ID.Value);
+            }
+
+            public Area GetByArmoryLocker(ulong lockerId)
+            {
+                return Areas.Values.FirstOrDefault(a =>
+                    a.ArmoryLocker != null && a.ArmoryLocker.net.ID.Value == lockerId);
+            }
+
+            public Area GetByRecruitSleepingBag(SleepingBag bag)
+            {
+                return GetByRecruitSleepingBag(bag.net.ID.Value);
+            }
+
+            public Area GetByRecruitSleepingBag(ulong bagId)
+            {
+                return Areas.Values.FirstOrDefault(a =>
+                    a.RecruitSleepingBag != null && a.RecruitSleepingBag.net.ID.Value == bagId);
+            }
+
+            public Area GetByEntityPosition(BaseEntity entity)
+            {
+                Vector3 position = entity.transform.position;
+
+                int row = Mathf.FloorToInt((MapGrid.MapHeight / 2 - (position.z + (MapGrid.MapOffsetZ / 2))) / MapGrid.CellSize) + Instance.Options.Map.MapGridYOffset;
+                int col = Mathf.FloorToInt((MapGrid.MapWidth / 2 + (position.x + (MapGrid.MapOffsetX) / 2)) / MapGrid.CellSize);
+                if (Instance.Options.Pvp.AllowedUnderground && position.y < -20f)
+                    return null;
+                if (row < 0 || col < 0 || row >= MapGrid.NumberOfRows || col >= MapGrid.NumberOfColumns)
+                    return null;
+
+                return Layout[row, col];
+            }
+
+            public Area GetByWorldPosition(Vector3 position)
+            {
+                int row = Mathf.FloorToInt((MapGrid.MapHeight / 2 - (position.z + (MapGrid.MapOffsetZ / 2))) / MapGrid.CellSize) + Instance.Options.Map.MapGridYOffset;
+                int col = Mathf.FloorToInt((MapGrid.MapWidth / 2 + (position.x + (MapGrid.MapOffsetX) / 2)) / MapGrid.CellSize);
+                if (Instance.Options.Pvp.AllowedUnderground && position.y < -20f)
+                    return null;
+                if (row < 0 || col < 0 || row >= MapGrid.NumberOfRows || col >= MapGrid.NumberOfColumns)
+                    return null;
+
+                return Layout[row, col];
+            }
+
+            public void Claim(Area area, AreaType type, Faction faction, User claimant, BuildingPrivlidge cupboard)
+            {
+                area.Type = type;
+                area.FactionId = faction.Id;
+                area.ClaimantId = claimant.Id;
+                area.ClaimCupboard = cupboard;
+
+
+                Events.OnAreaChanged(area);
+            }
+
+            public void SetHeadquarters(Area area, Faction faction)
+            {
+                // Ensure that no other areas are considered headquarters.
+                foreach (Area otherArea in GetAllClaimedByFaction(faction).Where(a => a.Type == AreaType.Headquarters))
+                {
+                    otherArea.Type = AreaType.Claimed;
+                    Events.OnAreaChanged(otherArea);
+                }
+
+                area.Type = AreaType.Headquarters;
+                Events.OnAreaChanged(area);
+            }
+
+            public void Unclaim(IEnumerable<Area> areas)
+            {
+                Unclaim(areas.ToArray());
+            }
+
+            public void Unclaim(params Area[] areas)
+            {
+                foreach (Area area in areas)
+                {
+                    area.Type = AreaType.Wilderness;
+                    area.FactionId = null;
+                    area.ClaimantId = null;
+                    area.ClaimCupboard = null;
+                    area.RecruitSleepingBag = null;
+                    if (area.recruitInstance != null)
+                    {
+                        area.recruitInstance.AdminKill();
+                    }
+                    area.recruitInstance = null;
+                    area.recruitInfo = null;
+                    Events.OnAreaChanged(area);
+                }
+            }
+
+            //TODO: Move all Recruit logic to Recruit Manager?
+
+            public void SetArmory(Area area, Locker locker)
+            {
+                area.ArmoryLocker = locker;
+
+                Events.OnAreaChanged(area);
+            }
+
+            public void SetRecruitSpawnPoint(Area area, SleepingBag sleepingBag)
+            {
+                ulong ownerId = sleepingBag.deployerUserID;
+                SleepingBag.RemoveBagForPlayer(sleepingBag, ownerId);
+                sleepingBag.deployerUserID = 0L;
+                sleepingBag.SendNetworkUpdate();
+                BasePlayer owner = BasePlayer.FindByID(ownerId);
+                if (owner != null)
+                {
+                    owner.SendRespawnOptions();
+                }
+                area.RecruitSleepingBag = sleepingBag;
+                area.recruitRespawnCooldown = 30;
+                if (area.recruitInstance)
+                {
+                    area.recruitInstance.AdminKill();
+                }
+            }
+
+            public void RemoveArmory(Area area)
+            {
+                area.ArmoryLocker = null;
+                if (area.recruitInstance != null)
+                {
+                    area.recruitInstance.AdminKill();
+                }
+                area.RecruitSleepingBag = null;
+                area.recruitInstance = null;
+                area.recruitInfo = null;
+                Events.OnAreaChanged(area);
+            }
+
+            public void RemoveRecruitSpawnPoint(Area area)
+            {
+                area.RecruitSleepingBag = null;
+                if (area.recruitInstance != null)
+                {
+                    area.recruitInstance.AdminKill();
+                }
+                area.recruitInstance = null;
+                area.recruitInfo = null;
+                Events.OnAreaChanged(area);
+            }
+
+            public void AddBadlands(params Area[] areas)
+            {
+                foreach (Area area in areas)
+                {
+                    area.Type = AreaType.Badlands;
+                    area.FactionId = null;
+                    area.ClaimantId = null;
+                    area.ClaimCupboard = null;
+
+                    Events.OnAreaChanged(area);
+                }
+            }
+
+            public void AddBadlands(IEnumerable<Area> areas)
+            {
+                AddBadlands(areas.ToArray());
+            }
+
+            public int GetNumberOfContiguousClaimedAreas(Area area, Faction owner)
+            {
+                int count = 0;
+
+                // North
+                if (area.Row > 0 && Layout[area.Row - 1, area.Col].FactionId == owner.Id)
+                    count++;
+
+                // South
+                if (area.Row < MapGrid.NumberOfRows - 1 && Layout[area.Row + 1, area.Col].FactionId == owner.Id)
+                    count++;
+
+                // West
+                if (area.Col > 0 && Layout[area.Row, area.Col - 1].FactionId == owner.Id)
+                    count++;
+
+                // East
+                if (area.Col < MapGrid.NumberOfColumns - 1 && Layout[area.Row, area.Col + 1].FactionId == owner.Id)
+                    count++;
+
+                return count;
+            }
+
+            public int GetDepthInsideFriendlyTerritory(Area area)
+            {
+                if (!area.IsClaimed)
+                    return 0;
+
+                var depth = new int[4];
+
+                // North
+                for (var row = area.Row; row >= 0; row--)
+                {
+                    if (Layout[row, area.Col].FactionId != area.FactionId)
+                        break;
+
+                    depth[0]++;
+                }
+
+                // South
+                for (var row = area.Row; row < MapGrid.NumberOfRows; row++)
+                {
+                    if (Layout[row, area.Col].FactionId != area.FactionId)
+                        break;
+
+                    depth[1]++;
+                }
+
+                // West
+                for (var col = area.Col; col >= 0; col--)
+                {
+                    if (Layout[area.Row, col].FactionId != area.FactionId)
+                        break;
+
+                    depth[2]++;
+                }
+
+                // East
+                for (var col = area.Col; col < MapGrid.NumberOfColumns; col++)
+                {
+                    if (Layout[area.Row, col].FactionId != area.FactionId)
+                        break;
+
+                    depth[3]++;
+                }
+                return depth.Min() - 1;
+            }
+
+            public void Init(IEnumerable<AreaInfo> areaInfos)
+            {
+                Instance.Puts("Creating area objects...");
+
+                Dictionary<string, AreaInfo> lookup;
+                if (areaInfos != null)
+                    lookup = areaInfos.ToDictionary(a => a.Id);
+                else
+                    lookup = new Dictionary<string, AreaInfo>();
+
+                for (var row = 0; row < MapGrid.NumberOfRows; row++)
+                {
+                    for (var col = 0; col < MapGrid.NumberOfColumns; col++)
+                    {
+                        string areaId = MapGrid.GetAreaId(row, col);
+                        Vector3 position = MapGrid.GetPosition(row, col);
+                        if (Instance.Options.Pvp.AllowedUnderground)
+                        {
+                            position.y = position.y + 480f;
+                        }
+                        Vector3 size = new Vector3(MapGrid.CellSize / 2, 500, MapGrid.CellSize / 2);
+
+                        AreaInfo info = null;
+                        lookup.TryGetValue(areaId, out info);
+
+                        var area = new GameObject().AddComponent<Area>();
+                        area.Init(areaId, row, col, position, size, info);
+                        Areas[areaId] = area;
+                        Layout[row, col] = area;
+                    }
+                }
+                Instance.Areas.UpdateAreaMarkers();
+
+                Instance.Puts($"Created {Areas.Values.Count} area objects.");
+            }
+
+            public void Destroy()
+            {
+                DestroyAreaMarkers();
+                Area[] areas = UnityEngine.Object.FindObjectsOfType<Area>();
+
+                if (areas != null)
+                {
+                    Instance.Puts($"Destroying {areas.Length} area objects...");
+                    foreach (Area area in areas)
+                        UnityEngine.Object.Destroy(area);
+                }
+
+                Areas.Clear();
+                Array.Clear(Layout, 0, Layout.Length);
+
+                Instance.Puts("Area objects destroyed.");
+            }
+
+            public AreaInfo[] Serialize()
+            {
+                return Areas.Values.Select(area => area.Serialize()).ToArray();
+            }
+
+            public void UpdateAreaMarkers()
+            {
+                FactionColorPicker colorPicker = new FactionColorPicker();
+
+                Area[] AllAreas = GetAll();
+                foreach (Area area in AllAreas)
+                {
+                    area.UpdateAreaMarker(colorPicker);
+                }
+            }
+
+            public void DestroyAreaMarkers()
+            {
+                Area[] AllAreas = GetAll();
+                foreach (Area area in AllAreas)
+                {
+                    if (area.mapMarker != null)
+                    {
+                        area.mapMarker.Kill();
+                        area.mapMarker = null;
+                    }
+
+                    if (area.headquartersMarker != null)
+                    {
+                        area.headquartersMarker.Kill();
+                        area.headquartersMarker = null;
+                    }
+
+                    if (area.hqMarkerColor != null)
+                    {
+                        area.hqMarkerColor.Kill();
+                        area.hqMarkerColor = null;
+                    }
+
+                }
+            }
         }
     }
 }
+
 #endregion
-#region /pvp
-namespace Oxide.Plugins
+
+#region AreaType.cs
+﻿namespace Oxide.Plugins
 {
-    public partial class Imperium
+    public partial class Imperium : RustPlugin
     {
-        [ChatCommand("pvp")]
-        private void OnPvpCommand(BasePlayer player, string command, string[] args)
+        public enum AreaType
         {
-            User user = Users.Get(player);
-
-            if (!Options.Pvp.EnablePvpCommand)
-            {
-                user.SendChatMessage(nameof(Messages.PvpModeDisabled));
-                return;
-            }
-
-            if (!EnforceCommandCooldown(user, "pvp", Options.Pvp.CommandCooldownSeconds))
-                return;
-
-            if (user.IsInPvpMode)
-            {
-                user.IsInPvpMode = false;
-                user.SendChatMessage(nameof(Messages.ExitedPvpMode));
-                Util.RunEffect(user.transform.position, "assets/prefabs/missions/effects/mission_objective_complete.prefab");
-            }
-            else
-            {
-                user.IsInPvpMode = true;
-                user.SendChatMessage(nameof(Messages.EnteredPvpMode));
-                Util.RunEffect(user.transform.position, "assets/prefabs/missions/effects/mission_objective_complete.prefab");
-            }
-
-            user.Hud.Refresh();
+            Wilderness,
+            Claimed,
+            Headquarters,
+            Badlands
         }
     }
 }
 #endregion
-#region /badlands
-namespace Oxide.Plugins
+
+#region ChatCommands.Badlands.cs
+﻿namespace Oxide.Plugins
 {
     using System.Linq;
 
@@ -813,7 +1594,7 @@ namespace Oxide.Plugins
 
     public partial class Imperium
     {
-        private User user;
+
 
         private void OnBadlandsHelpCommand(User user)
         {
@@ -908,8 +1689,9 @@ namespace Oxide.Plugins
     }
 }
 #endregion
-#region /claim
-namespace Oxide.Plugins
+
+#region ChatCommands.Claim.cs
+﻿namespace Oxide.Plugins
 {
     using System.Linq;
 
@@ -988,7 +1770,7 @@ namespace Oxide.Plugins
         {
             Faction faction = Factions.GetByMember(user);
 
-            if (!EnsureUserCanChangeFactionClaims(user, faction))
+            if (!Instance.Factions.EnsureUserCanChangeFactionClaims(user, faction))
                 return;
 
             user.SendChatMessage(nameof(Messages.SelectClaimCupboardToAdd));
@@ -1150,7 +1932,7 @@ namespace Oxide.Plugins
 
             Faction sourceFaction = Factions.GetByMember(user);
 
-            if (!EnsureUserCanChangeFactionClaims(user, sourceFaction))
+            if (!Instance.Factions.EnsureUserCanChangeFactionClaims(user, sourceFaction))
                 return;
 
             string factionId = Util.NormalizeFactionId(args[0]);
@@ -1176,7 +1958,7 @@ namespace Oxide.Plugins
         {
             Faction faction = Factions.GetByMember(user);
 
-            if (!EnsureUserCanChangeFactionClaims(user, faction))
+            if (!Instance.Factions.EnsureUserCanChangeFactionClaims(user, faction))
                 return;
 
             user.SendChatMessage(nameof(Messages.SelectClaimCupboardForHeadquarters));
@@ -1282,7 +2064,7 @@ namespace Oxide.Plugins
         {
             Faction faction = Factions.GetByMember(user);
 
-            if (!EnsureUserCanChangeFactionClaims(user, faction))
+            if (!Instance.Factions.EnsureUserCanChangeFactionClaims(user, faction))
                 return;
 
             user.SendChatMessage(nameof(Messages.SelectClaimCupboardToRemove));
@@ -1301,7 +2083,7 @@ namespace Oxide.Plugins
         {
             Faction faction = Factions.GetByMember(user);
 
-            if (!EnsureUserCanChangeFactionClaims(user, faction))
+            if (!Instance.Factions.EnsureUserCanChangeFactionClaims(user, faction))
                 return;
 
             if (args.Length != 2)
@@ -1423,8 +2205,97 @@ namespace Oxide.Plugins
     }
 }
 #endregion
-#region /faction
+
+#region ChatCommands.Common.cs
+﻿namespace Oxide.Plugins
+{
+    public partial class Imperium
+    {
+        [ChatCommand("i")]
+        private void OnImperiumCommand(BasePlayer player, string command, string[] args)
+        {
+            User user = Users.Get(player);
+            user.Panel.Toggle();
+        }
+    }
+}
+
 namespace Oxide.Plugins
+{
+    public partial class Imperium
+    {
+        [ChatCommand("cancel")]
+        private void OnCancelCommand(BasePlayer player, string command, string[] args)
+        {
+            User user = Users.Get(player);
+
+            if (user.CurrentInteraction == null)
+            {
+                user.SendChatMessage(nameof(Messages.NoInteractionInProgress));
+                return;
+            }
+
+            user.SendChatMessage(nameof(Messages.InteractionCanceled));
+            user.CancelInteraction();
+
+        }
+
+    }
+}
+
+namespace Oxide.Plugins
+{
+    using System.Text;
+
+    public partial class Imperium
+    {
+        [ChatCommand("help")]
+        private void OnHelpCommand(BasePlayer player, string command, string[] args)
+        {
+            User user = Users.Get(player);
+            if (user == null) return;
+
+            var sb = new StringBuilder();
+
+            sb.AppendLine($"<size=18>Welcome to {ConVar.Server.hostname}!</size>");
+            sb.AppendLine($"Powered by {Name} v{Version} by <color=#ffd479>chucklenugget</color> and <color=#ffd479>evict</color>");
+            sb.AppendLine(
+                "Do <color=#ffd479>/i</color> to open Imperium UI. You can also do <color=#ffd479>bind i chat.say /i</color> in F1 console to easily toggle Imperium UI");
+            sb.AppendLine();
+
+            sb.Append(
+                "The following commands are available. To learn more about each command, do <color=#ffd479>/command help</color>. ");
+            sb.AppendLine("For example, to learn more about how to claim land, do <color=#ffd479>/claim help</color>.");
+            sb.AppendLine();
+
+            sb.AppendLine("<color=#ffd479>/faction</color> Create or join a faction");
+            sb.AppendLine("<color=#ffd479>/claim</color> Claim areas of land");
+
+            if (Options.Taxes.Enabled)
+                sb.AppendLine("<color=#ffd479>/tax</color> Manage taxation of your land");
+
+            if (Options.Map.PinsEnabled)
+                sb.AppendLine("<color=#ffd479>/pin</color> Add pins (points of interest) to the map");
+
+            if (Options.War.Enabled)
+                sb.AppendLine("<color=#ffd479>/war</color> See active wars, declare war, or offer peace");
+
+            if (Options.Badlands.Enabled)
+            {
+                if (user.HasPermission(Permission.AdminBadlands))
+                    sb.AppendLine("<color=#ffd479>/badlands</color> Find or change badlands areas");
+                else
+                    sb.AppendLine("<color=#ffd479>/badlands</color> Find badlands (PVP) areas");
+            }
+
+            user.SendChatMessage(sb);
+        }
+    }
+}
+#endregion
+
+#region ChatCommands.Faction.cs
+﻿namespace Oxide.Plugins
 {
     using System.Linq;
 
@@ -2060,23 +2931,74 @@ namespace Oxide.Plugins
     }
 }
 #endregion
-#region imperium.images.refresh
+
+#region ChatCommands.Hud.cs
+﻿namespace Oxide.Plugins
+{
+    public partial class Imperium
+    {
+        [ChatCommand("hud")]
+        private void OnHudCommand(BasePlayer player, string command, string[] args)
+        {
+            User user = Users.Get(player);
+            if (user == null) return;
+
+            if (!EnforceCommandCooldown(user, "hud", Options.Map.CommandCooldownSeconds))
+                return;
+
+            user.Hud.Toggle();
+        }
+    }
+}
+
 namespace Oxide.Plugins
 {
     public partial class Imperium
     {
-        [ConsoleCommand("imperium.images.refresh")]
-        private void OnRefreshImagesConsoleCommand(ConsoleSystem.Arg arg)
+        [ConsoleCommand("imperium.hud.toggle")]
+        private void OnHudToggleConsoleCommand(ConsoleSystem.Arg arg)
         {
-            if (!arg.IsAdmin) return;
-            arg.ReplyWith("Refreshing images...");
-            Hud.RefreshAllImages();
+            var player = arg.Connection.player as BasePlayer;
+            if (player == null) return;
+
+            User user = Users.Get(player);
+            if (user == null) return;
+
+            if (!EnforceCommandCooldown(user, "hud", Options.Map.CommandCooldownSeconds))
+                return;
+
+            user.Hud.Toggle();
         }
     }
 }
 #endregion
-#region /pin
-namespace Oxide.Plugins
+
+#region ChatCommands.Map.cs
+﻿namespace Oxide.Plugins
+{
+    public partial class Imperium
+    {
+        //This crap is deprecated
+        [ChatCommand("map")]
+        private void OnMapCommand(BasePlayer player, string command, string[] args)
+        {
+            return;
+            /*
+            User user = Users.Get(player);
+            if (user == null) return;
+
+            if (!user.Map.IsVisible && !EnforceCommandCooldown(user, "map", Options.Map.CommandCooldownSeconds))
+                return;
+
+            user.Map.Toggle();
+            */
+        }
+    }
+}
+#endregion
+
+#region ChatCommands.Pin.cs
+﻿namespace Oxide.Plugins
 {
     using System.Linq;
 
@@ -2189,7 +3111,13 @@ namespace Oxide.Plugins
             if (Options.Map.PinCost > 0)
             {
                 ItemDefinition scrapDef = ItemManager.FindItemDefinition("scrap");
-                List<Item> stacks = user.Player.inventory.FindItemsByItemID(scrapDef.itemid);
+                List<Item> stacks = new List<Item>();
+                user.Player.inventory.GetAllItems(stacks);
+                for (int i = stacks.Count - 1; i >= 0; i--)
+                {
+                    if (stacks[i].info.itemid != scrapDef.itemid)
+                        stacks.RemoveAt(i);
+                }
 
                 if (!Instance.TryCollectFromStacks(scrapDef, stacks, Options.Map.PinCost))
                 {
@@ -2372,8 +3300,240 @@ namespace Oxide.Plugins
     }
 }
 #endregion
-#region /tax
+
+#region ChatCommands.Pvp.cs
+﻿namespace Oxide.Plugins
+{
+    public partial class Imperium
+    {
+        [ChatCommand("pvp")]
+        private void OnPvpCommand(BasePlayer player, string command, string[] args)
+        {
+            User user = Users.Get(player);
+
+            if (!Options.Pvp.EnablePvpCommand)
+            {
+                user.SendChatMessage(nameof(Messages.PvpModeDisabled));
+                return;
+            }
+
+            if (!EnforceCommandCooldown(user, "pvp", Options.Pvp.CommandCooldownSeconds))
+                return;
+
+            if (user.IsInPvpMode)
+            {
+                user.IsInPvpMode = false;
+                user.SendChatMessage(nameof(Messages.ExitedPvpMode));
+                Util.RunEffect(user.transform.position, "assets/prefabs/missions/effects/mission_objective_complete.prefab");
+            }
+            else
+            {
+                user.IsInPvpMode = true;
+                user.SendChatMessage(nameof(Messages.EnteredPvpMode));
+                Util.RunEffect(user.transform.position, "assets/prefabs/missions/effects/mission_objective_complete.prefab");
+            }
+
+            user.Hud.Refresh();
+        }
+    }
+}
+#endregion
+
+#region ChatCommands.Recruit.cs
+﻿namespace Oxide.Plugins
+{
+    using System.Linq;
+
+    public partial class Imperium
+    {
+        [ChatCommand("recruit")]
+        void OnRecruitCommand(BasePlayer player, string command, string[] args)
+        {
+            User user = Users.Get(player);
+            if (user == null) return;
+
+            if (!Options.Recruiting.Enabled)
+            {
+                user.SendChatMessage(nameof(Messages.RecruitingDisabled));
+                return;
+            }
+
+            if (args.Length == 0)
+            {
+                OnRecruitHelpCommand(user);
+                return;
+            }
+
+            var restArguments = args.Skip(1).ToArray();
+
+            switch (args[0].ToLower())
+            {
+                case "armory":
+                    OnRecruitArmoryCommand(user);
+                    break;
+                case "setspawn":
+                    OnRecruitSetSpawnCommand(user, restArguments);
+                    break;
+                case "debug":
+                    OnRecruitForceSpawnCommand(user, restArguments);
+                    break;
+                case "help":
+                default:
+                    OnRecruitHelpCommand(user);
+                    break;
+            }
+        }
+    }
+}
+
+
 namespace Oxide.Plugins
+{
+    public partial class Imperium
+    {
+        private void OnRecruitArmoryCommand(User user)
+        {
+            Faction faction = Factions.GetByMember(user);
+
+            if (faction == null || !faction.HasLeader(user))
+            {
+                user.SendChatMessage(nameof(Messages.NotLeaderOfFaction));
+                return;
+            }
+
+            user.SendChatMessage(nameof(Messages.SelectArmoryLocker));
+            user.BeginInteraction(new SelectingArmoryLockerInteraction(faction));
+        }
+    }
+}
+
+namespace Oxide.Plugins
+{
+    using Oxide;
+    using Oxide.Core;
+    using Oxide.Core.Plugins;
+    using static BaseCombatEntity;
+    using UnityEngine;
+    using UnityEngine.Diagnostics;
+
+    public partial class Imperium
+    {
+        private void OnRecruitSetSpawnCommand(User user, string[] args)
+        {
+            Faction faction = Factions.GetByMember(user);
+
+            if (faction == null || !faction.HasLeader(user))
+            {
+                user.SendChatMessage(nameof(Messages.NotLeaderOfFaction));
+                return;
+            }
+
+            Area area = Areas.Get(args[0]);
+
+            if (area == null)
+            {
+                //No available area
+                user.SendChatMessage("Invalid land id " + args[0]);
+                return;
+            }
+
+            if (area.FactionId != user.Faction.Id)
+            {
+                user.SendChatMessage(nameof(Messages.FactionDoesNotOwnLand));
+                return;
+            }
+
+            if (area.ArmoryLocker == null)
+            {
+                user.SendChatMessage("Area " + args[0] + " has no armory locker. Set up an armory locker in that land before trying to set a spawn");
+                return;
+            }
+
+            user.SendChatMessage(nameof(Messages.SelectRecruitSleepingBag));
+            user.BeginInteraction(new SelectingRecruitSpawnPointInteraction(area));
+
+        }
+
+        private void OnRecruitForceSpawnCommand(User user, string[] args)
+        {
+            Area area = Areas.Get(args[0]);
+
+            if (area == null)
+            {
+                //No available area
+                user.SendChatMessage("Invalid land id " + args[0]);
+                return;
+            }
+            if (area.ArmoryLocker == null)
+            {
+                user.SendChatMessage("Area " + args[0] + " has no armory locker. Set up an armory locker in that land before trying to set a spawn");
+                return;
+            }
+            NpcConfig config = GetAreaNpcConfig(area);
+            SpawnRecruit(area, user.transform.position, config, false, args.Length > 1);
+        }
+
+        private void OnNpcSpawnDebugCommand(User user)
+        {
+            Area area = Areas.GetByEntityPosition(user.Player);
+            NpcConfig config = GetAreaNpcConfig(area);
+            SpawnRecruit(Areas.GetByEntityPosition(user.Player), user.transform.position, config, true);
+        }
+
+        private void OnTryRecruitFollow(User user)
+        {
+            Faction faction = Factions.GetByMember(user);
+            Ray ray = user.Player.eyes.HeadRay();
+            RaycastHit hit = new();
+            Physics.Raycast(ray, out hit, 1f);
+            BasePlayer npc = hit.GetEntity() as BasePlayer;
+
+            if (npc == null)
+                return;
+            Recruit recruit;
+            recruitInstances.TryGetValue(npc, out recruit);
+            if (recruit == null)
+            {
+                return;
+            }
+            if (recruit.leader != null)
+                return;
+            if (recruit.leader != user.Player)
+            {
+                recruit.SetLeader(user);
+                user.SendChatMessage("This recruit will now follow you");
+
+                Util.RunEffect(user.transform.position, "assets/bundled/prefabs/fx/invite_notice.prefab", user.Player);
+
+                return;
+            }
+        }
+    }
+}
+
+namespace Oxide.Plugins
+{
+    using System.Text;
+
+    public partial class Imperium
+    {
+        private void OnRecruitHelpCommand(User user)
+        {
+            var sb = new StringBuilder();
+
+            sb.AppendLine("Available commands:");
+            sb.AppendLine("  <color=#ffd479>/recruit locker NN</color>: Set the armory locker for the current land");
+            sb.AppendLine("  <color=#ffd479>/recruit here</color>: Recruit a faction bot for the current land");
+            sb.AppendLine("  <color=#ffd479>/recruit help</color>: Prints this message");
+
+            user.SendChatMessage(sb);
+        }
+    }
+}
+#endregion
+
+#region ChatCommands.Tax.cs
+﻿namespace Oxide.Plugins
 {
     using System.Linq;
 
@@ -2499,131 +3659,9 @@ namespace Oxide.Plugins
     }
 }
 #endregion
-#region /recruit
-/*
-namespace Oxide.Plugins
-{
-    using System.Linq;
 
-    public partial class Imperium
-    {
-        [ChatCommand("recruit")]
-        void OnRecruitCommand(BasePlayer player, string command, string[] args)
-        {
-            User user = Users.Get(player);
-            if (user == null) return;
-
-            if (!Options.Recruiting.Enabled)
-            {
-                user.SendChatMessage(nameof(Messages.RecruitingDisabled);
-                return;
-            }
-
-            ;
-
-            if (args.Length == 0)
-            {
-                OnRecruitHereCommand(user);
-                return;
-            }
-
-            var restArguments = args.Skip(1).ToArray();
-
-            switch (args[0].ToLower())
-            {
-                case "locker":
-                    OnRecruitLockerCommand(user);
-                    break;
-                case "here":
-                    OnRecruitHereCommand(user);
-                    break;
-                case "help":
-                default:
-                    OnRecruitHelpCommand(user);
-                    break;
-            }
-        }
-    }
-}
-*/
-
-namespace Oxide.Plugins
-{
-    public partial class Imperium
-    {
-        private void OnRecruitLockerCommand(User user)
-        {
-            Faction faction = Factions.GetByMember(user);
-
-            if (faction == null || !faction.HasLeader(user))
-            {
-                user.SendChatMessage(nameof(Messages.NotLeaderOfFaction));
-                return;
-            }
-
-            user.SendChatMessage(nameof(Messages.SelectArmoryLocker));
-            user.BeginInteraction(new SelectingArmoryLockerInteraction(faction));
-        }
-    }
-}
-
-namespace Oxide.Plugins
-{
-    public partial class Imperium
-    {
-        private void OnRecruitHereCommand(User user)
-        {
-            Faction faction = Factions.GetByMember(user);
-
-            if (faction == null || !faction.HasLeader(user))
-            {
-                user.SendChatMessage(nameof(Messages.NotLeaderOfFaction));
-                return;
-            }
-            var npc = (global::HumanNPC)GameManager.server.CreateEntity("assets/rust.ai/agents/npcplayer/humannpc/scientist/scientistnpc_roam.prefab", user.transform.position, UnityEngine.Quaternion.identity, false);
-            if (npc)
-            {
-                npc.gameObject.AwakeFromInstantiate();
-                npc.Spawn();
-                Recruit recruit = npc.gameObject.AddComponent<Recruit>();
-                var nav = npc.GetComponent<BaseNavigator>();
-                if (nav == null)
-                    return;
-                nav.DefaultArea = "Walkable";
-                npc.NavAgent.areaMask = 1;
-                npc.NavAgent.agentTypeID = -1372625422;
-                npc.NavAgent.autoTraverseOffMeshLink = true;
-                npc.NavAgent.autoRepath = true;
-                npc.NavAgent.enabled = true;
-                nav.CanUseCustomNav = true;
-            }
-
-        }
-    }
-}
-
-namespace Oxide.Plugins
-{
-    using System.Text;
-
-    public partial class Imperium
-    {
-        private void OnRecruitHelpCommand(User user)
-        {
-            var sb = new StringBuilder();
-
-            sb.AppendLine("Available commands:");
-            sb.AppendLine("  <color=#ffd479>/recruit locker NN</color>: Set the armory locker for the current land");
-            sb.AppendLine("  <color=#ffd479>/recruit here</color>: Recruit a faction bot for the current land");
-            sb.AppendLine("  <color=#ffd479>/recruit help</color>: Prints this message");
-
-            user.SendChatMessage(sb);
-        }
-    }
-}
-#endregion
-#region /upgrade
-namespace Oxide.Plugins
+#region ChatCommands.Upgrade.cs
+﻿namespace Oxide.Plugins
 {
     public partial class Imperium
     {
@@ -2718,7 +3756,7 @@ namespace Oxide.Plugins
                 user.SendChatMessage(nameof(Messages.AreaIsMaximumLevel));
                 return;
             }
-            if (!Instance.EnsureUserCanChangeFactionClaims(user, user.Faction))
+            if (!Instance.Factions.EnsureUserCanChangeFactionClaims(user, user.Faction))
             {
                 user.SendMessage(Messages.UserIsNotManagerOfFaction);
                 return;
@@ -2727,7 +3765,13 @@ namespace Oxide.Plugins
             if (cost > 0)
             {
                 ItemDefinition scrapDef = ItemManager.FindItemDefinition("scrap");
-                List<Item> stacks = user.Player.inventory.FindItemsByItemID(scrapDef.itemid);
+                List<Item> stacks = new List<Item>(); 
+                user.Player.inventory.GetAllItems(stacks);
+                for(int i = stacks.Count - 1; i >= 0; i--)
+                {
+                    if (stacks[i].info.itemid != scrapDef.itemid)
+                        stacks.RemoveAt(i);
+                }
 
                 if (!Instance.TryCollectFromStacks(scrapDef, stacks, cost))
                 {
@@ -2760,120 +3804,9 @@ namespace Oxide.Plugins
     }
 }
 #endregion
-#region /hud
-namespace Oxide.Plugins
-{
-    public partial class Imperium
-    {
-        [ChatCommand("hud")]
-        private void OnHudCommand(BasePlayer player, string command, string[] args)
-        {
-            User user = Users.Get(player);
-            if (user == null) return;
 
-            if (!EnforceCommandCooldown(user, "hud", Options.Map.CommandCooldownSeconds))
-                return;
-
-            user.Hud.Toggle();
-        }
-    }
-}
-
-namespace Oxide.Plugins
-{
-    public partial class Imperium
-    {
-        [ConsoleCommand("imperium.hud.toggle")]
-        private void OnHudToggleConsoleCommand(ConsoleSystem.Arg arg)
-        {
-            var player = arg.Connection.player as BasePlayer;
-            if (player == null) return;
-
-            User user = Users.Get(player);
-            if (user == null) return;
-
-            if (!EnforceCommandCooldown(user, "hud", Options.Map.CommandCooldownSeconds))
-                return;
-
-            user.Hud.Toggle();
-        }
-    }
-}
-#endregion
-#region imperium.map.togglelayer
-namespace Oxide.Plugins
-{
-    using System;
-
-    public partial class Imperium
-    {
-        [ConsoleCommand("imperium.map.togglelayer")]
-        private void OnMapToggleLayerConsoleCommand(ConsoleSystem.Arg arg)
-        {
-            var player = arg.Connection.player as BasePlayer;
-            if (player == null) return;
-
-            User user = Users.Get(player);
-            if (user == null) return;
-
-            if (!user.Map.IsVisible)
-                return;
-
-            string str = arg.GetString(0);
-            UserMapLayer layer;
-
-            if (String.IsNullOrEmpty(str) || !Util.TryParseEnum(arg.Args[0], out layer))
-                return;
-
-            user.Preferences.ToggleMapLayer(layer);
-            user.Map.Refresh();
-        }
-    }
-}
-#endregion
-#region /map
-namespace Oxide.Plugins
-{
-    public partial class Imperium
-    {
-        [ChatCommand("map")]
-        private void OnMapCommand(BasePlayer player, string command, string[] args)
-        {
-            User user = Users.Get(player);
-            if (user == null) return;
-
-            if (!user.Map.IsVisible && !EnforceCommandCooldown(user, "map", Options.Map.CommandCooldownSeconds))
-                return;
-
-            user.Map.Toggle();
-        }
-    }
-}
-#endregion
-#region imperium.map.toggle
-namespace Oxide.Plugins
-{
-    public partial class Imperium
-    {
-        [ConsoleCommand("imperium.map.toggle")]
-        private void OnMapToggleConsoleCommand(ConsoleSystem.Arg arg)
-        {
-            var player = arg.Connection.player as BasePlayer;
-            if (player == null) return;
-
-            User user = Users.Get(player);
-            if (user == null) return;
-
-            if (!user.Map.IsVisible && !EnforceCommandCooldown(user, "map", Options.Map.CommandCooldownSeconds))
-                return;
-
-            user.Map.Toggle();
-        }
-    }
-}
-#endregion
-#region /war
-namespace Oxide.Plugins
+#region ChatCommands.War.cs
+﻿namespace Oxide.Plugins
 {
     using System.Linq;
 
@@ -2933,7 +3866,6 @@ namespace Oxide.Plugins
     }
 }
 
-
 namespace Oxide.Plugins
 {
     using System;
@@ -2943,8 +3875,11 @@ namespace Oxide.Plugins
     {
         private void OnWarDeclareCommand(User user, string[] args)
         {
+            UnityEngine.Debug.Log(user.Player.displayName + " used OnWarDeclareCommand");
+            UnityEngine.Debug.Log(args[0] + args[1]);
             Faction attacker = Factions.GetByMember(user);
-
+            if (attacker == null)
+                UnityEngine.Debug.Log("user faction is null");
             if (!EnsureUserAndFactionCanEngageInDiplomacy(user, attacker))
                 return;
 
@@ -2952,6 +3887,28 @@ namespace Oxide.Plugins
             {
                 user.SendChatMessage(nameof(Messages.Usage), "/war declare FACTION \"REASON\"");
                 return;
+            }
+
+            if (Instance.Options.War.NoobFactionProtectionInSeconds > 0)
+            {
+                int elapsedSeconds = Instance.Options.War.NoobFactionProtectionInSeconds;
+                int secondsRemaining = 1;
+                elapsedSeconds = (int)(DateTime.Now - attacker.CreationTime).TotalSeconds;
+
+                if (elapsedSeconds < Instance.Options.War.NoobFactionProtectionInSeconds)
+                {
+                    secondsRemaining = Instance.Options.War.NoobFactionProtectionInSeconds - elapsedSeconds;
+                    int minutesRemaining = secondsRemaining / 60;
+                    if (secondsRemaining >= 60)
+                    {
+                        user.SendChatMessage(nameof(Messages.CannotDeclareWarNoobAttacker), minutesRemaining, "minutes");
+                        return;
+
+                    }
+
+                    user.SendChatMessage(nameof(Messages.CannotDeclareWarNoobAttacker), secondsRemaining, "seconds");
+                    return;
+                }
             }
 
             Faction defender = Factions.Get(Util.NormalizeFactionId(args[0]));
@@ -2967,7 +3924,7 @@ namespace Oxide.Plugins
                 user.SendChatMessage(nameof(Messages.CannotDeclareWarAgainstYourself));
                 return;
             }
-
+            UnityEngine.Debug.Log("Before check existing war");
             War existingWar = Wars.GetActiveWarBetween(attacker, defender);
 
             if (existingWar != null)
@@ -2996,8 +3953,8 @@ namespace Oxide.Plugins
                 }
             }
 
-
             string cassusBelli = args[1].Trim();
+            UnityEngine.Debug.Log(cassusBelli);
 
             if (cassusBelli.Length < Options.War.MinCassusBelliLength)
             {
@@ -3019,7 +3976,13 @@ namespace Oxide.Plugins
             if (cost > 0)
             {
                 ItemDefinition scrapDef = ItemManager.FindItemDefinition("scrap");
-                var stacks = user.Player.inventory.FindItemsByItemID(scrapDef.itemid);
+                List<Item> stacks = new List<Item>();
+                user.Player.inventory.GetAllItems(stacks);
+                for (int i = stacks.Count - 1; i >= 0; i--)
+                {
+                    if (stacks[i].info.itemid != scrapDef.itemid)
+                        stacks.RemoveAt(i);
+                }
 
                 if (!Instance.TryCollectFromStacks(scrapDef, stacks, cost))
                 {
@@ -3513,2712 +4476,78 @@ namespace Oxide.Plugins
     }
 }
 #endregion
+
+#region ConsoleCommands.ImageRefresh.cs
+﻿namespace Oxide.Plugins
+{
+    public partial class Imperium
+    {
+        [ConsoleCommand("imperium.images.refresh")]
+        private void OnRefreshImagesConsoleCommand(ConsoleSystem.Arg arg)
+        {
+            if (!arg.IsAdmin) return;
+            arg.ReplyWith("Refreshing images...");
+            Hud.RefreshAllImages();
+        }
+    }
+}
 #endregion
 
-#region > API
-namespace Oxide.Plugins
+#region ConsoleCommands.Map.cs
+﻿namespace Oxide.Plugins
 {
-    using Oxide.Core.Plugins;
+    using System;
 
     public partial class Imperium
     {
-        [HookMethod(nameof(GetFactionName))]
-        public object GetFactionName(BasePlayer player)
+        [ConsoleCommand("imperium.map.togglelayer")]
+        private void OnMapToggleLayerConsoleCommand(ConsoleSystem.Arg arg)
         {
-            User user = Users.Get(player);
-
-            if (user == null || user.Faction == null)
-                return null;
-            else
-                return user.Faction.Id;
-        }
-    }
-}
-#endregion
-
-#region > Events
-namespace Oxide.Plugins
-{
-    using Oxide.Core;
-
-    public partial class Imperium : RustPlugin
-    {
-        private static class Events
-        {
-            public static void OnAreaChanged(Area area)
-            {
-                Interface.CallHook(nameof(OnAreaChanged), area);
-            }
-
-            public static void OnUserEnteredArea(User user, Area area)
-            {
-                Interface.CallHook(nameof(OnUserEnteredArea), user, area);
-            }
-
-            public static void OnUserLeftArea(User user, Area area)
-            {
-                Interface.CallHook(nameof(OnUserLeftArea), user, area);
-            }
-
-            public static void OnUserEnteredZone(User user, Zone zone)
-            {
-                Interface.CallHook(nameof(OnUserEnteredZone), user, zone);
-            }
-
-            public static void OnUserLeftZone(User user, Zone zone)
-            {
-                Interface.CallHook(nameof(OnUserLeftZone), user, zone);
-            }
-
-            public static void OnFactionCreated(Faction faction)
-            {
-                Interface.CallHook(nameof(OnFactionCreated), faction);
-            }
-
-            public static void OnFactionDisbanded(Faction faction)
-            {
-                Interface.CallHook(nameof(OnFactionDisbanded), faction);
-            }
-
-            public static void OnFactionTaxesChanged(Faction faction)
-            {
-                Interface.CallHook(nameof(OnFactionTaxesChanged), faction);
-            }
-
-            public static void OnFactionArmoryChanged(Faction faction)
-            {
-                Interface.CallHook(nameof(OnFactionArmoryChanged), faction);
-            }
-
-            public static void OnFactionBadlandsChanged(Faction faction)
-            {
-                Interface.CallHook(nameof(OnFactionBadlandsChanged), faction);
-            }
-
-            public static void OnPlayerJoinedFaction(Faction faction, User user)
-            {
-                Interface.CallHook(nameof(OnPlayerJoinedFaction), faction, user);
-            }
-
-            public static void OnPlayerLeftFaction(Faction faction, User user)
-            {
-                Interface.CallHook(nameof(OnPlayerLeftFaction), faction, user);
-            }
-
-            public static void OnPlayerInvitedToFaction(Faction faction, User user)
-            {
-                Interface.CallHook(nameof(OnPlayerInvitedToFaction), faction, user);
-            }
-
-            public static void OnPlayerUninvitedFromFaction(Faction faction, User user)
-            {
-                Interface.CallHook(nameof(OnPlayerUninvitedFromFaction), faction, user);
-            }
-
-            public static void OnPlayerPromoted(Faction faction, User user)
-            {
-                Interface.CallHook(nameof(OnPlayerPromoted), faction, user);
-            }
-
-            public static void OnPlayerDemoted(Faction faction, User user)
-            {
-                Interface.CallHook(nameof(OnPlayerDemoted), faction, user);
-            }
-
-            public static void OnPinCreated(Pin pin)
-            {
-                Interface.CallHook(nameof(OnPinCreated), pin);
-            }
-
-            public static void OnPinRemoved(Pin pin)
-            {
-                Interface.CallHook(nameof(OnPinRemoved), pin);
-            }
-        }
-    }
-}
-#endregion
-
-#region > UMod Hooks
-namespace Oxide.Plugins
-{
-    using Network;
-    using Oxide.Core;
-    using UnityEngine;
-    using Newtonsoft.Json.Linq;
-    using Oxide.Core.Libraries.Covalence;
-    using System.Collections.Generic;
-
-    public partial class Imperium : RustPlugin
-    {
-        private void OnUserApprove(Connection connection)
-        {
-            Users.SetOriginalName(connection.userid.ToString(), connection.username);
-        }
-
-        private void OnPlayerConnected(BasePlayer player)
-        {
+            var player = arg.Connection.player as BasePlayer;
             if (player == null) return;
 
-            // If the player hasn't fully connected yet, try again in 2 seconds.
-            if (player.IsReceivingSnapshot)
-            {
-                timer.In(2, () => OnPlayerConnected(player));
-                return;
-            }
-            Users.Add(player);
-        }
-
-        private void OnPlayerSleepEnded(BasePlayer player)
-        {
-            User user = player.GetComponent<User>();
-            if (user != null && !user.UpdatedMarkers)
-            {
-                Areas.UpdateAreaMarkers();
-                user.UpdatedMarkers = true;
-            }
-
-        }
-
-        private void OnPlayerDisconnected(BasePlayer player)
-        {
-            if (player != null)
-                Users.Remove(player);
-        }
-
-        private object OnTeamCreate(BasePlayer player)
-        {
-            if (Instance.Options.Factions.OverrideInGameTeamSystem)
-            {
-                User user = Instance.Users.Get(player);
-                if (user)
-                {
-                    user.SendChatMessage("You can't create a team. Say <color=#ffd479>/i</color> to create your faction");
-                }
-                return true;
-            }
-            return null;
-        }
-
-        private object OnTeamInvite(BasePlayer inviter, BasePlayer target)
-        {
-            if (Instance.Options.Factions.OverrideInGameTeamSystem)
-            {
-                return true;
-            }
-            return null;
-        }
-
-        private object OnTeamPromote(RelationshipManager.PlayerTeam team, BasePlayer newLeader)
-        {
-            if (Instance.Options.Factions.OverrideInGameTeamSystem)
-            {
-                return true;
-            }
-            return null;
-        }
-
-        private object OnTeamKick(ulong currentTeam, ulong newTeam, BasePlayer player)
-        {
-            if (Instance.Options.Factions.OverrideInGameTeamSystem)
-            {
-                return true;
-            }
-            return null;
-        }
-
-        private object OnTeamLeave(RelationshipManager.PlayerTeam team, BasePlayer player)
-        {
-            if (Instance.Options.Factions.OverrideInGameTeamSystem)
-            {
-                return true;
-            }
-            return null;
-        }
-
-        private object OnTeamDisband(RelationshipManager.PlayerTeam team)
-        {
-            if (Instance.Options.Factions.OverrideInGameTeamSystem)
-            {
-                return true;
-            }
-            return null;
-        }
-
-        private void OnHammerHit(BasePlayer player, HitInfo hit)
-        {
             User user = Users.Get(player);
-            if (user != null && user.CurrentInteraction != null)
-                user.CompleteInteraction(hit);
-        }
+            if (user == null) return;
 
-        private object OnEntityTakeDamage(BaseCombatEntity entity, HitInfo hit)
-        {
-            if (entity == null || hit == null)
-                return null;
-
-            object externalResult = Interface.CallHook("CanEntityTakeDamage", new object[] { entity, hit });
-
-            if (externalResult != null)
-            {
-                if ((bool)externalResult == false)
-                    return true;
-
-                return null;
-            }
-            externalResult = GetExternalHookResult("OnEntityTakeDamage", new object[] { entity, hit });
-            if (externalResult != null)
-                return externalResult;
-
-            if (hit.damageTypes.Has(Rust.DamageType.Decay))
-                return Decay.AlterDecayDamage(entity, hit);
-
-            User attacker = null;
-            User defender = entity.GetComponent<User>();
-
-            if (hit.InitiatorPlayer != null)
-                attacker = hit.InitiatorPlayer.GetComponent<User>();
-
-            // A player is being injured by something other than a player/NPC.
-            if (attacker == null && defender != null)
-                return Pvp.HandleIncidentalDamage(defender, hit);
-
-            // One player is damaging another player.
-            if (attacker != null && defender != null)
-                return Pvp.HandleDamageBetweenPlayers(attacker, defender, hit);
-
-            // A player is damaging a structure.
-            if (attacker != null && defender == null)
-                return Raiding.HandleDamageAgainstStructure(attacker, entity, hit);
-
-            // A structure is taking damage from something that isn't a player.
-            return Raiding.HandleIncidentalDamage(entity, hit);
-        }
-
-        private object OnTrapTrigger(BaseTrap trap, GameObject obj)
-        {
-            var player = obj.GetComponent<BasePlayer>();
-
-            if (trap == null || player == null)
-                return null;
-
-            User defender = Users.Get(player);
-            return Pvp.HandleTrapTrigger(trap, defender);
-        }
-
-        private object CanBeTargeted(BaseCombatEntity target, MonoBehaviour turret)
-        {
-            if (target == null || turret == null)
-                return null;
-
-            // Don't interfere with the helicopter.
-            if (turret is HelicopterTurret)
-                return null;
-
-            var player = target as BasePlayer;
-
-            if (player == null)
-                return null;
-
-            if (Users == null)
-            {
-                return null;
-            }
-
-            var defender = Users.Get(player);
-            var entity = turret as BaseCombatEntity;
-
-            if (defender == null || entity == null)
-                return null;
-
-            return Pvp.HandleTurretTarget(entity, defender);
-        }
-
-        private void OnEntitySpawned(BaseNetworkable entity)
-        {
-            if (entity == null)
-                return;
-            if (Hud == null)
-                return;
-            if (Options == null)
-                return;
-            var plane = entity as CargoPlane;
-            if (plane != null)
-                Hud.GameEvents.BeginEvent(plane);
-
-            var drop = entity as SupplyDrop;
-            if (Options.Zones.Enabled && drop != null)
-                Zones.CreateForSupplyDrop(drop);
-
-            var heli = entity as BaseHelicopter;
-            if (heli != null)
-                Hud.GameEvents.BeginEvent(heli);
-
-            var chinook = entity as CH47Helicopter;
-            if (chinook != null)
-                Hud.GameEvents.BeginEvent(chinook);
-
-            var crate = entity as HackableLockedCrate;
-            if (crate != null)
-                Hud.GameEvents.BeginEvent(crate);
-            var cargoship = entity as CargoShip;
-            if (Options.Zones.Enabled && cargoship != null)
-                Zones.CreateForCargoShip(cargoship);
-        }
-
-        private object OnEntityReskin(BaseEntity entity, ItemSkinDirectory.Skin skin, BasePlayer player)
-        {
-            BuildingPrivlidge cupboard = entity as BuildingPrivlidge;
-            if(cupboard == null)
-                return null;
-            Area area = Instance.Areas.GetByClaimCupboard(cupboard);
-            if(area == null)
-                return null;
-            //Mark area as changing cupboard skin so the old cupboard Kill() does not trigger Unclaim()
-            area.IsCupboardChangingSkin = true;
-            //Remember player that reskinned the cupboard
-            area.ClaimReskinningPlayer = player;
-            area.ReskinnedCupboardLastPosition = cupboard.transform.position;
-            return null;
-        }
-
-        private object OnEntityReskinned(BaseEntity entity, ItemSkinDirectory.Skin skin, BasePlayer player)
-        {
-            BuildingPrivlidge cupboard = entity as BuildingPrivlidge;
-            if(cupboard == null)
-                return null;
-            
-            Area area = null;
-
-            if(player != null)
-                area = Instance.Areas.GetByClaimReskinningPlayer(player);
-            if(area == null)
-                area = Instance.Areas.GetByReskinnedCupboardLastPosition(cupboard.transform.position);
-            if(area == null)
-                return null;
-            if(!area.IsCupboardChangingSkin)
-                return null;
-            area.IsCupboardChangingSkin = false;
-            area.ClaimReskinningPlayer = null;
-            area.ClaimCupboard = cupboard;
-            return null;
-        }
-
-        private void OnEntityKill(BaseNetworkable networkable)
-        {
-            var entity = networkable as BaseEntity;
-
-            if (!Ready || entity == null)
+            if (!user.Map.IsVisible)
                 return;
 
-            // If a claim TC was destroyed, remove the claim from the area.
-            var cupboard = entity as BuildingPrivlidge;
-            if (cupboard != null)
-            {
-                var area = Areas.GetByClaimCupboard(cupboard);
-                if (area != null)
-                {
-                    if(area.IsCupboardChangingSkin)
-                    {
-                        PrintWarning("Attempt to unclaim area blocked because cupboard was reskinned!");
-                        return;
-                    }
-                    PrintToChat(Messages.AreaClaimLostCupboardDestroyedAnnouncement, area.FactionId, area.Id);
-                    Log(
-                        $"{area.FactionId} lost their claim on {area.Id} because the tool cupboard was destroyed (hook function)");
-                    Areas.Unclaim(area);
-                }
+            string str = arg.GetString(0);
+            UserMapLayer layer;
 
+            if (String.IsNullOrEmpty(str) || !Util.TryParseEnum(arg.Args[0], out layer))
                 return;
-            }
 
-            // If a tax chest was destroyed, remove it from the faction data.
-            var container = entity as StorageContainer;
-            if (Options.Taxes.Enabled && container != null)
-            {
-                Faction faction = Factions.GetByTaxChest(container);
-                if (faction != null)
-                {
-                    Log($"{faction.Id}'s tax chest was destroyed (hook function)");
-                    faction.TaxChest = null;
-                }
-
-                return;
-            }
-
-            // If an armory locker was destroyed, remove it from the faction data.
-            var locker = entity as Locker;
-            if (Options.Recruiting.Enabled && locker != null)
-            {
-                var area = Areas.GetByArmoryLocker(locker);
-                if (area != null)
-                {
-                    Instance.Puts("locker area is not null");
-                    Log($"{area.FactionId}'s armory locker was destroyed at {area.Id} (hook function)");
-                    Instance.Areas.RemoveArmory(area);
-                }
-
-                return;
-            }
-
-            // If a helicopter was destroyed, create an event zone around it.
-            var helicopter = entity as BaseHelicopter;
-            if (Options.Zones.Enabled && helicopter != null)
-                Zones.CreateForDebrisField(helicopter);
+            user.Preferences.ToggleMapLayer(layer);
+            user.Map.Refresh();
         }
+    }
+}
 
-        private void OnDispenserGather(ResourceDispenser dispenser, BaseEntity entity, Item item)
+namespace Oxide.Plugins
+{
+    public partial class Imperium
+    {
+        [ConsoleCommand("imperium.map.toggle")]
+        private void OnMapToggleConsoleCommand(ConsoleSystem.Arg arg)
         {
-            Taxes.ProcessTaxesIfApplicable(dispenser, entity, item);
-            Taxes.AwardBadlandsBonusIfApplicable(dispenser, entity, item);
-        }
+            var player = arg.Connection.player as BasePlayer;
+            if (player == null) return;
 
-        private void OnDispenserBonus(ResourceDispenser dispenser, BaseEntity entity, Item item)
-        {
-            Taxes.ProcessTaxesIfApplicable(dispenser, entity, item);
-            Taxes.AwardBadlandsBonusIfApplicable(dispenser, entity, item);
-        }
-
-        private object OnEntityDeath(BasePlayer player, HitInfo hit)
-        {
-            if (player == null)
-                return null;
-
-            // When a player dies, remove them from the area and any zones they were in.
             User user = Users.Get(player);
-            if (user != null)
-            {
-                user.CurrentArea = null;
-                user.CurrentZones.Clear();
-            }
+            if (user == null) return;
 
-            return null;
-        }
-
-        private object OnShopAcceptClick(ShopFront entity, BasePlayer player)
-        {
-            if (!Instance.Options.War.EnableShopfrontPeace)
-                return null;
-
-            var user1 = Instance.Users.Get(entity.vendorPlayer);
-            var user2 = Instance.Users.Get(entity.customerPlayer);
-
-            if (user1 == null || user2 == null)
-                return null;
-            if (user1.Faction == null || user2.Faction == null)
-                return null;
-            if (!Instance.Wars.AreFactionsAtWar(user1.Faction, user2.Faction))
-                return null;
-            if (user1.Faction.HasLeader(user1) && user2.Faction.HasLeader(user2))
-                return null;
-            user1.SendChatMessage("Only owners or managers of both enemy factions can trade right now. Trading will end the war");
-            user2.SendChatMessage("Only owners or managers of both enemy factions can trade right now. Trading will end the war");
-            return true;
-        }
-
-        private object OnShopCompleteTrade(ShopFront entity)
-        {
-            Instance.Wars.TryShopfrontTreaty(entity.vendorPlayer, entity.customerPlayer);
-            return null;
-        }
-
-        private void OnUserEnteredArea(User user, Area area)
-        {
-
-            Area previousArea = user.CurrentArea;
-
-            user.CurrentArea = area;
-            user.Hud.Refresh();
-
-            if (area == null || previousArea == null)
+            if (!user.Map.IsVisible && !EnforceCommandCooldown(user, "map", Options.Map.CommandCooldownSeconds))
                 return;
-            if (area.Type == AreaType.Badlands && previousArea.Type != AreaType.Badlands)
-            {
-                // The player has entered the badlands.
-                user.SendChatMessage(nameof(Messages.EnteredBadlands));
-            }
-            else if (area.Type == AreaType.Wilderness && previousArea.Type != AreaType.Wilderness)
-            {
-                // The player has entered the wilderness.
-                user.SendChatMessage(nameof(Messages.EnteredWilderness));
-            }
-            else if (area.IsClaimed && !previousArea.IsClaimed)
-            {
-                // The player has entered a faction's territory.
-                user.SendChatMessage(nameof(Messages.EnteredClaimedArea), area.FactionId);
-            }
-            else if (area.IsClaimed && previousArea.IsClaimed && area.FactionId != previousArea.FactionId)
-            {
-                // The player has crossed a border between the territory of two factions.
-                user.SendChatMessage(nameof(Messages.EnteredClaimedArea), area.FactionId);
-            }
-        }
 
-        private void OnUserLeftArea(User user, Area area)
-        {
-
-        }
-
-        private void OnUserEnteredZone(User user, Zone zone)
-        {
-            user.CurrentZones.Add(zone);
-            user.Hud.Refresh();
-        }
-
-        private void OnUserLeftZone(User user, Zone zone)
-        {
-            user.CurrentZones.Remove(zone);
-            user.Hud.Refresh();
-        }
-
-        private void OnFactionCreated(Faction faction)
-        {
-            Hud.RefreshForAllPlayers();
-        }
-
-        private void OnFactionDisbanded(Faction faction)
-        {
-            Area[] areas = Instance.Areas.GetAllClaimedByFaction(faction);
-
-            if (areas.Length > 0)
-            {
-                foreach (Area area in areas)
-                    PrintToChat(Messages.AreaClaimLostFactionDisbandedAnnouncement, area.FactionId, area.Id);
-
-                Areas.Unclaim(areas);
-            }
-
-            Wars.EndAllWarsForEliminatedFactions();
-            Hud.RefreshForAllPlayers();
-        }
-
-        private void OnFactionTaxesChanged(Faction faction)
-        {
-            Hud.RefreshForAllPlayers();
-        }
-
-        private void OnFactionArmoryChanged(Faction faction)
-        {
-
-        }
-
-        private void OnAreaChanged(Area area)
-        {
-            Areas.UpdateAreaMarkers();
-            Wars.EndAllWarsForEliminatedFactions();
-            Pins.RemoveAllPinsInUnclaimedAreas();
-            Hud.GenerateMapOverlayImage();
-            Hud.RefreshForAllPlayers();
-        }
-
-        private void OnDiplomacyChanged()
-        {
-            Hud.RefreshForAllPlayers();
-        }
-
-        #region CLANS by k1lly0u HOOKS
-
-        private void OnPluginLoaded(CSharpPlugin plugin)
-        {
-            if (plugin == Clans)
-            {
-                if (Instance)
-                    Instance.Factions.SyncAllWithClans();
-            }
-        }
-
-        private void OnClanCreate(string tag)
-        {
-            if (Instance.Options.Factions.UseClansPlugin)
-            {
-                Faction faction = Factions.Get(tag);
-                JObject clanInfo = Clans.CallHook("GetClan", tag) as JObject;
-                if (clanInfo != null)
-                {
-                    string ownerid = clanInfo.GetValue("owner").Value<string>();
-                    User owner = Users.Get(ownerid);
-                    faction = Factions.Create(tag, owner);
-                    owner.SetFaction(faction);
-                }
-            }
-        }
-
-        private void OnClanDisbanded(string tag, List<string> memberUserIDs)
-        {
-            if (Clans)
-            {
-                Factions.Disband(Factions.Get(tag));
-            }
-        }
-
-        private void OnClanMemberJoined(string userID, string tag)
-        {
-            if (Clans)
-            {
-                User user = Users.Get(userID);
-                Faction faction = Factions.Get(tag);
-                if (faction != null && user != null)
-                {
-                    faction.AddMember(user);
-                    user.SetFaction(faction);
-                }
-            }
-        }
-
-        private void OnClanMemberGone(string userID, string tag)
-        {
-            if (Instance.Options.Factions.UseClansPlugin)
-            {
-                User user = Users.Get(userID);
-                Faction faction = Factions.Get(tag);
-                if (faction != null && user != null)
-                {
-                    if (faction.HasOwner(user))
-                    {
-                        JObject jClan = (JObject)Clans.CallHook("GetClan", tag);
-                        string clanOwnerId = jClan["owner"].Value<string>();
-                        if (clanOwnerId != null)
-                        {
-                            faction.OwnerId = clanOwnerId;
-                        }
-                    }
-                    faction.RemoveMember(user);
-                    user.SetFaction(null);
-                }
-            }
-        }
-
-        #endregion
-        #region > Raidable Bases Hooks
-
-        private void OnPlayerEnteredRaidableBase(BasePlayer player, Vector3 raidPos, bool allowPVP, int mode)
-        {
-            User user = Instance.Users.Get(player);
-            if(user == null)
-                return;
-            user.IsInsideRaidableBase = true;
-        }
-        private void OnPlayerExitedRaidableBase(BasePlayer player, Vector3 raidPos, bool allowPVP, int mode)
-        {
-            User user = Instance.Users.Get(player);
-            if(user == null)
-                return;
-            user.IsInsideRaidableBase = false;
-            
-        }
-
-        #endregion
-
-        #region > NPCSpawn Hooks
-
-        private object OnCustomNpcTarget(BasePlayer npc, BasePlayer target)
-        {
-            return null;
-        }
-
-        #endregion
-    }
-}
-#endregion
-
-#region > Decay
-namespace Oxide.Plugins
-{
-    public partial class Imperium
-    {
-        private static class Decay
-        {
-            public static object AlterDecayDamage(BaseEntity entity, HitInfo hit)
-            {
-                if (!Instance.Options.Decay.Enabled)
-                    return null;
-
-                if (entity == null || hit == null)
-                    return null;
-
-
-                Area area = GetAreaForDecayCalculation(entity);
-
-                if (area == null)
-                {
-                    //Instance.PrintWarning($"An entity decayed in an unknown area. This shouldn't happen.");
-                    return null;
-                }
-
-                float reduction = 0;
-
-                if (area.Type == AreaType.Claimed || area.Type == AreaType.Headquarters)
-                    reduction = Instance.Options.Decay.ClaimedLandDecayReduction;
-
-                if (Instance.Options.Upgrading.Enabled && Instance.Options.Upgrading.MaxDecayExtraReduction > 0)
-                    reduction += area.GetLevelDecayReduction();
-
-                if (reduction >= 1)
-                    return true;
-
-                if (reduction > 0)
-                    hit.damageTypes.Scale(Rust.DamageType.Decay, reduction);
-
-                return null;
-            }
-
-            private static Area GetAreaForDecayCalculation(BaseEntity entity)
-            {
-                Area area = null;
-
-                // If the entity is controlled by a claim cupboard, use the area the cupboard controls.
-                BuildingPrivlidge cupboard = entity.GetBuildingPrivilege();
-                if (cupboard)
-                    area = Instance.Areas.GetByClaimCupboard(cupboard);
-
-                // Otherwise, determine the area by its position in the world.
-                if (area == null)
-                    area = Instance.Areas.GetByEntityPosition(entity);
-
-                return area;
-            }
+            user.Map.Toggle();
         }
     }
 }
 #endregion
 
-#region > Messages
-namespace Oxide.Plugins
-{
-    using System.Linq;
-    using System.Reflection;
-    using System.Collections.Generic;
-
-    public partial class Imperium : RustPlugin
-    {
-        private static class Messages
-        {
-            public const string AreaClaimsDisabled = "Area claims are currently disabled.";
-            public const string TaxationDisabled = "Taxation is currently disabled.";
-            public const string RecruitingDisabled = "Recruiting is currently disabled.";
-            public const string BadlandsDisabled = "Badlands are currently disabled.";
-            public const string UpkeepDisabled = "Upkeep is currently disabled.";
-            public const string WarDisabled = "War is currently disabled.";
-            public const string PinsDisabled = "Map pins are currently disabled.";
-            public const string PvpModeDisabled = "PVP Mode is currently not available.";
-            public const string UpgradingDisabled = "Area upgrading is currently disabled.";
-
-            public const string AreaIsBadlands = "<color=#ffd479>{0}</color> is a part of the badlands.";
-
-            public const string AreaIsClaimed =
-                "<color=#ffd479>{0}</color> has been claimed by <color=#ffd479>[{1}]</color>.";
-
-            public const string AreaIsHeadquarters =
-                "<color=#ffd479>{0}</color> is the headquarters of <color=#ffd479>[{1}]</color>.";
-
-            public const string AreaIsWilderness = "<color=#ffd479>{0}</color> has not been claimed by a faction.";
-            public const string AreaNotBadlands = "<color=#ffd479>{0}</color> is not a part of the badlands.";
-            public const string AreaNotOwnedByYourFaction = "<color=#ffd479>{0}</color> is not owned by your faction.";
-            public const string AreaNotWilderness = "<color=#ffd479>{0}</color> is not currently wilderness.";
-
-            public const string AreaNotContiguous =
-                "<color=#ffd479>{0}</color> is not connected to territory owned by <color=#ffd479>[{1}]</color>.";
-
-            public const string YouAreInTheGreatUnknown = "You are currently in the great unknown!";
-
-            public const string InteractionCanceled = "Command canceled.";
-            public const string NoInteractionInProgress = "You aren't currently executing any commands.";
-            public const string NoAreasClaimed = "Your faction has not claimed any areas.";
-
-            public const string FactionChatMessage = "<color=#a1ff46>(FACTION)</color> {0}: {1}";
-
-            public const string NotMemberOfFaction = "You are not a member of a faction.";
-            public const string AlreadyMemberOfFaction = "You are already a member of a faction.";
-            public const string NotLeaderOfFaction = "You must be an owner or a manager of a faction.";
-            public const string FactionTooSmallToOwnLand = "To own land, a faction must have least {0} members.";
-
-            public const string FactionOwnsTooMuchLand =
-                "<color=#ffd479>[{0}]</color> already owns the maximum number of areas (<color=#ffd479>{1}</color>).";
-
-            public const string FactionHasTooManyMembers =
-                "<color=#ffd479>[{0}]</color> already has the maximum number of members (<color=#ffd479>{1}</color>).";
-            public const string AreaIsMaximumLevel =
-                "This land is already at maximum level";
-
-            public const string FactionIsBadlands = "Your faction territory is now badlands";
-            public const string FactionIsNotBadlands = "Your faction territory is no longer badlands";
-            public const string NoFactionBadlandsAllowed = "Faction enforced badlands is disabled in this server";
-            public const string FactionDoesNotOwnLand = "Your faction must own at least one area.";
-            public const string FactionAlreadyExists = "There is already a faction named <color=#ffd479>[{0}]</color>.";
-            public const string FactionDoesNotExist = "There is no faction named <color=#ffd479>[{0}]</color>.";
-            public const string InvalidUser = "Couldn't find a user whose name matches \"{0}\".";
-
-            public const string InvalidFactionName =
-                "Faction names must be between {0} and {1} alphanumeric characters.";
-
-            public const string NotAtWar = "You are not currently at war with <color=#ffd479>[{0}]</color>!";
-
-            public const string Usage = "Usage: <color=#ffd479>{0}</color>";
-            public const string CommandIsOnCooldown = "You can't do that again so quickly. Try again in {0} seconds.";
-            public const string NoPermission = "You don't have permission to do that.";
-
-            public const string MemberAdded =
-                "You have added <color=#ffd479>{0}</color> as a member of <color=#ffd479>[{1}]</color>.";
-
-            public const string MemberRemoved =
-                "You have removed <color=#ffd479>{0}</color> as a member of <color=#ffd479>[{1}]</color>.";
-
-            public const string ManagerAdded =
-                "You have added <color=#ffd479>{0}</color> as a manager of <color=#ffd479>[{1}]</color>.";
-
-            public const string ManagerRemoved =
-                "You have removed <color=#ffd479>{0}</color> as a manager of <color=#ffd479>[{1}]</color>.";
-
-            public const string UserIsAlreadyMemberOfFaction =
-                "<color=#ffd479>{0}</color> is already a member of <color=#ffd479>[{1}]</color>.";
-
-            public const string UserIsNotMemberOfFaction =
-                "<color=#ffd479>{0}</color> is not a member of <color=#ffd479>[{1}]</color>.";
-
-            public const string UserIsAlreadyManagerOfFaction =
-                "<color=#ffd479>{0}</color> is already a manager of <color=#ffd479>[{1}]</color>.";
-
-            public const string UserIsNotManagerOfFaction =
-                "<color=#ffd479>{0}</color> is not a manager of <color=#ffd479>[{1}]</color>.";
-
-            public const string CannotPromoteOrDemoteOwnerOfFaction =
-                "<color=#ffd479>{0}</color> cannot be promoted or demoted, since they are the owner of <color=#ffd479>[{1}]</color>.";
-
-            public const string CannotKickLeaderOfFaction =
-                "<color=#ffd479>{0}</color> cannot be kicked, since they are an owner or manager of <color=#ffd479>[{1}]</color>.";
-
-            public const string InviteAdded =
-                "You have invited <color=#ffd479>{0}</color> to join <color=#ffd479>[{1}]</color>.";
-
-            public const string InviteReceived =
-                "<color=#ffd479>{0}</color> has invited you to join <color=#ffd479>[{1}]</color>. Say <color=#ffd479>/faction join {1}</color> to accept.";
-
-            public const string CannotJoinFactionNotInvited =
-                "You cannot join <color=#ffd479>[{0}]</color>, because you have not been invited.";
-
-            public const string CannotManageFactionUseClansInstead =
-                "This server uses the Clans plugin. Manage your faction through the Clans system instead. Say /clanhelp for more info";
-
-            public const string YouJoinedFaction = "You are now a member of <color=#ffd479>[{0}]</color>.";
-            public const string YouLeftFaction = "You are no longer a member of <color=#ffd479>[{0}]</color>.";
-
-            public const string SelectingCupboardFailedInvalidTarget = "You must select a tool cupboard.";
-            public const string SelectingCupboardFailedNotAuthorized = "You must be authorized on the tool cupboard.";
-            public const string SelectingCupboardFailedCantUnclaimHeadquarters = "You must move your headquarters to another land first. Say <color=#ffd479>/claim hq</color> in another land";
-
-            public const string SelectingCupboardFailedNotClaimCupboard =
-                "That tool cupboard doesn't represent an area claim made by your faction.";
-
-            public const string CannotClaimAreaAlreadyClaimed =
-                "<color=#ffd479>{0}</color> has already been claimed by <color=#ffd479>[{1}]</color>.";
-
-            public const string CannotClaimAreaCannotAfford =
-                "Claiming this area costs <color=#ffd479>{0}</color> scrap. Add this amount to your inventory and try again.";
-
-            public const string CannotUpgradeAreaCannotAfford =
-                "Upgrading this area costs <color=#ffd479>{0}</color> scrap. Add this amount to your inventory and try again.";
-
-            public const string CannotClaimAreaAlreadyOwned =
-                "The area <color=#ffd479>{0}</color> is already owned by your faction, and this cupboard represents the claim.";
-
-            public const string SelectClaimCupboardToAdd =
-                "Use the hammer to select a tool cupboard to represent the claim. Say <color=#ffd479>/cancel</color> to cancel.";
-
-            public const string SelectClaimCupboardToRemove =
-                "Use the hammer to select the tool cupboard representing the claim you want to remove. Say <color=#ffd479>/cancel</color> to cancel.";
-
-            public const string SelectClaimCupboardForHeadquarters =
-                "Use the hammer to select the tool cupboard to represent your faction's headquarters. Say <color=#ffd479>/cancel</color> to cancel.";
-
-            public const string SelectClaimCupboardToAssign =
-                "Use the hammer to select a tool cupboard to represent the claim to assign to <color=#ffd479>[{0}]</color>. Say <color=#ffd479>/cancel</color> to cancel.";
-
-            public const string SelectClaimCupboardToTransfer =
-                "Use the hammer to select the tool cupboard representing the claim to give to <color=#ffd479>[{0}]</color>. Say <color=#ffd479>/cancel</color> to cancel.";
-
-            public const string ClaimCupboardMoved =
-                "You have moved the claim <color=#ffd479>{0}</color> to a new tool cupboard.";
-
-            public const string ClaimCaptured =
-                "You have captured <color=#ffd479>{0}</color> from <color=#ffd479>[{1}]</color>!";
-
-            public const string ClaimAdded = "You have claimed <color=#ffd479>{0}</color> for your faction.";
-            public const string ClaimRemoved = "You have removed your faction's claim on <color=#ffd479>{0}</color>.";
-
-            public const string ClaimTransferred =
-                "You have transferred ownership of <color=#ffd479>{0}</color> to <color=#ffd479>[{1}]</color>.";
-
-            public const string InvalidAreaName =
-                "Area names must be between <color=#ffd479>{0}</color> and <color=#ffd479>{1}</color> characters long.";
-
-            public const string UnknownArea = "Unknown area <color=#ffd479>{0}</color>.";
-            public const string AreaRenamed = "<color=#ffd479>{0}</color> is now known as <color=#ffd479>{1}</color>.";
-
-            public const string ClaimsList = "<color=#ffd479>[{0}]</color> has claimed: <color=#ffd479>{1}</color>";
-
-            public const string ClaimCost =
-                "<color=#ffd479>{0}</color> can be claimed by <color=#ffd479>[{1}]</color> for <color=#ffd479>{2}</color> scrap.";
-
-            public const string UpkeepCost =
-                "It will cost <color=#ffd479>{0}</color> scrap per day to maintain the <color=#ffd479>{1}</color> areas claimed by <color=#ffd479>[{2}]</color>. Upkeep is due <color=#ffd479>{3}</color> hours from now.";
-
-            public const string UpkeepCostOverdue =
-                "It will cost <color=#ffd479>{0}</color> scrap per day to maintain the <color=#ffd479>{1}</color> areas claimed by <color=#ffd479>[{2}]</color>. Your upkeep is <color=#ffd479>{3}</color> hours overdue! Fill your Headquarters Cupboard with scrap immediately, before your claims begin to fall into ruin.";
-            public const string SelectArmoryLocker =
-                "Use the hammer to select the locker to set as this land armory. Say <color=#ffd479>/cancel</color> to cancel.";
-
-            public const string SelectTaxChest =
-                "Use the hammer to select the container to receive your faction's tribute. Say <color=#ffd479>/cancel</color> to cancel.";
-
-            public const string SelectingTaxChestFailedInvalidTarget = "That can't be used as a tax chest.";
-
-            public const string SelectingTaxChestSucceeded =
-                "You have selected a new tax chest that will receive <color=#ffd479>{0}%</color> of the materials harvested within land owned by <color=#ffd479>[{1}]</color>. To change the tax rate, say <color=#ffd479>/tax rate PERCENT</color>.";
-            public const string SelectingArmoryLockerFailedInvalidTarget =
-                "That can't be used as an armory";
-
-            public const string SelectingArmoryLockerSucceeded =
-                "You have selected a new armory locker that will be used to recruit bots in {0}";
-
-            public const string CannotSetTaxRateInvalidValue =
-                "You must specify a valid percentage between <color=#ffd479>0-{0}%</color> as a tax rate.";
-
-            public const string SetTaxRateSuccessful =
-                "You have set the tax rate on the land holdings of <color=#ffd479>[{0}]</color> to <color=#ffd479>{1}%</color>.";
-
-            public const string BadlandsSet = "Badlands areas are now: <color=#ffd479>{0}</color>";
-
-            public const string BadlandsList =
-                "Badlands areas are: <color=#ffd479>{0}</color>. Gather bonus is <color=#ffd479>{1}%</color>.";
-
-            public const string CannotDeclareWarAgainstYourself = "You cannot declare war against yourself!";
-
-            public const string CannotDeclareWarAlreadyAtWar =
-                "You area already at war with <color=#ffd479>[{0}]</color>!";
-
-            public const string CannotDeclareWarNoobAttacker =
-                "You cannot declare war yet because your faction is not old enough. Try again in <color=#ffd479>[{0}]</color> {1}!";
-
-
-            public const string CannotDeclareWarDefenderProtected =
-                "You cannot declare war against <color=#ffd479>[{0}]</color> because this faction is not old enough. Try again in <color=#ffd479>[{1}]</color> {2}!";
-
-            public const string CannotDeclareWarInvalidCassusBelli =
-                "You cannot declare war against <color=#ffd479>[{0}]</color>, because your reason doesn't meet the minimum length.";
-
-            public const string CannotDeclareWarCannotAfford =
-                "Declaring war costs <color=#ffd479>{0}</color> scrap. Add this amount to your inventory and try again.";
-
-            public const string CannotDeclareWarDefendersNotOnline =
-                "Declaring war requires at least <color=#ffd479>{0}</color> defending member online. Try again when your enemies are online";
-            public const string CannotOfferPeaceAlreadyOfferedPeace =
-                "You have already offered peace to <color=#ffd479>[{0}]</color>.";
-
-            public const string PeaceOffered =
-                "You have offered peace to <color=#ffd479>[{0}]</color>. They must accept it before the war will end.";
-
-            public const string EnteredBadlands =
-                "<color=#ff0000>BORDER:</color> You have entered the badlands! Player violence is allowed here.";
-
-            public const string EnteredWilderness = "<color=#ffd479>BORDER:</color> You have entered the wilderness.";
-
-            public const string EnteredClaimedArea =
-                "<color=#ffd479>BORDER:</color> You have entered land claimed by <color=#ffd479>[{0}]</color>.";
-
-            public const string EnteredPvpMode =
-                "<color=#ff0000>PVP ENABLED:</color> You are now in PVP mode. You can now hurt, and be hurt by, other players who are also in PVP mode.";
-
-            public const string ExitedPvpMode =
-                "<color=#00ff00>PVP DISABLED:</color> You are no longer in PVP mode. You can't be harmed by other players except inside of normal PVP areas.";
-
-            public const string PvpModeOnCooldown = "You must wait at least {0} seconds to exit or re-enter PVP mode.";
-
-            public const string InvalidPinType =
-                "Unknown map pin type <color=#ffd479>{0}</color>. Say <color=#ffd479>/pin types</color> to see a list of available types.";
-
-            public const string InvalidPinName =
-                "Map pin names must be between <color=#ffd479>{0}</color> and <color=#ffd479>{1}</color> characters long.";
-
-            public const string CannotCreatePinCannotAfford =
-                "Creating a new map pin costs <color=#ffd479>{0}</color> scrap. Add this amount to your inventory and try again.";
-
-            public const string CannotCreatePinAlreadyExists =
-                "Cannot create a new map pin named <color=#ffd479>{0}</color>, since one already exists with the same name in <color=#ffd479>{1}</color>.";
-
-            public const string UnknownPin = "Unknown map pin <color=#ffd479>{0}</color>.";
-
-            public const string CannotRemovePinAreaNotOwnedByYourFaction =
-                "Cannot remove the map pin named <color=#ffd479>{0}</color>, because the area <color=#ffd479>{1} is not owned by your faction.";
-
-            public const string PinRemoved = "Removed map pin <color=#ffd479>{0}</color>.";
-
-            public const string FactionCreatedAnnouncement =
-                "<color=#00ff00>FACTION CREATED:</color> A new faction <color=#ffd479>[{0}]</color> has been created!";
-
-            public const string FactionDisbandedAnnouncement =
-                "<color=#00ff00>FACTION DISBANDED:</color> <color=#ffd479>[{0}]</color> has been disbanded!";
-
-            public const string FactionMemberJoinedAnnouncement =
-                "<color=#00ff00>MEMBER JOINED:</color> <color=#ffd479>{0}</color> has joined <color=#ffd479>[{1}]</color>!";
-
-            public const string FactionMemberLeftAnnouncement =
-                "<color=#00ff00>MEMBER LEFT:</color> <color=#ffd479>{0}</color> has left <color=#ffd479>[{1}]</color>!";
-
-            public const string AreaClaimedAnnouncement =
-                "<color=#00ff00>AREA CLAIMED:</color> <color=#ffd479>[{0}]</color> claims <color=#ffd479>{1}</color>!";
-
-            public const string AreaClaimedAsHeadquartersAnnouncement =
-                "<color=#00ff00>AREA CLAIMED:</color> <color=#ffd479>[{0}]</color> claims <color=#ffd479>{1}</color> as their headquarters!";
-
-            public const string AreaLevelUpgraded =
-                "Land upgraded to level {0}";
-
-            public const string AreaCapturedAnnouncement =
-                "<color=#ff0000>AREA CAPTURED:</color> <color=#ffd479>[{0}]</color> has captured <color=#ffd479>{1}</color> from <color=#ffd479>[{2}]</color>!";
-
-            public const string AreaClaimRemovedAnnouncement =
-                "<color=#ff0000>CLAIM REMOVED:</color> <color=#ffd479>[{0}]</color> has relinquished their claim on <color=#ffd479>{1}</color>!";
-
-            public const string AreaClaimTransferredAnnouncement =
-                "<color=#ff0000>CLAIM TRANSFERRED:</color> <color=#ffd479>[{0}]</color> has transferred their claim on <color=#ffd479>{1}</color> to <color=#ffd479>[{2}]</color>!";
-
-            public const string AreaClaimAssignedAnnouncement =
-                "<color=#ff0000>AREA CLAIM ASSIGNED:</color> <color=#ffd479>{0}</color> has been assigned to <color=#ffd479>[{1}]</color> by an admin.";
-
-            public const string AreaClaimDeletedAnnouncement =
-                "<color=#ff0000>AREA CLAIM REMOVED:</color> <color=#ffd479>[{0}]</color>'s claim on <color=#ffd479>{1}</color> has been removed by an admin.";
-
-            public const string AreaClaimLostCupboardDestroyedAnnouncement =
-                "<color=#ff0000>AREA CLAIM LOST:</color> <color=#ffd479>[{0}]</color> has lost its claim on <color=#ffd479>{1}</color>, because the tool cupboard was destroyed!";
-
-            public const string AreaClaimLostArmoryDestroyedAnnouncement =
-                "<color=#ff0000>AREA ARMORY LOST:</color> <color=#ffd479>[{0}]</color> has lost its armory on <color=#ffd479>{1}</color>, because the locker was destroyed!";
-
-            public const string AreaClaimLostFactionDisbandedAnnouncement =
-                "<color=#ff0000>AREA CLAIM LOST:</color> <color=#ffd479>[{0}]</color> has been disbanded, losing its claim on <color=#ffd479>{1}</color>!";
-
-            public const string AreaClaimLostUpkeepNotPaidAnnouncement =
-                "<color=#ff0000>AREA CLAIM LOST:</color>: <color=#ffd479>[{0}]</color> has lost their claim on <color=#ffd479>{1}</color> after it fell into ruin! Tool Cupboard destroyed!";
-
-            public const string HeadquartersChangedAnnouncement =
-                "<color=#00ff00>HQ CHANGED:</color> The headquarters of <color=#ffd479>[{0}]</color> is now <color=#ffd479>{1}</color>.";
-
-            public const string NoWarBetweenFactions =
-                "There are no war declarations between <color=#ffd479>[{0}]</color> and <color=#ffd479>[{1}]</color> ";
-
-            public const string WarDeclaredAnnouncement =
-                "<color=#ff0000>WAR DECLARED:</color> <color=#ffd479>[{0}]</color> has declared war on <color=#ffd479>[{1}]</color>! Their reason: <color=#ffd479>{2}</color>";
-
-            public const string WarDeclaredAdminApproved =
-                "<color=#ff0000>WAR APPROVED BY AN ADMIN:</color> An admin approved the war between <color=#ffd479>[{0}]</color> and <color=#ffd479>[{1}]</color>!";
-
-            public const string WarDeclaredAdminDenied =
-                "<color=#ff0000>WAR DENIED BY AN ADMIN:</color> An admin denied the war between <color=#ffd479>[{0}]</color> and <color=#ffd479>[{1}]</color>!";
-
-            public const string WarDeclaredDefenderApproved =
-                "<color=#ff0000>WAR APPROVED BY DEFENDERS:</color> <color=#ffd479>[{1}]</color> accepted the war declaration from <color=#ffd479>[{0}]</color>";
-
-            public const string WarDeclaredDefenderDenied =
-                "<color=#ff0000>WAR DENIED BY DEFENDERS:</color>  <color=#ffd479>[{1}]</color> rejected the war declaration from <color=#ffd479>[{0}]</color>";
-
-            public const string WarEndedTreatyAcceptedAnnouncement =
-                "<color=#00ff00>WAR ENDED:</color> The war between <color=#ffd479>[{0}]</color> and <color=#ffd479>[{1}]</color> has ended after both sides have agreed to a treaty.";
-
-            public const string WarEndedFactionEliminatedAnnouncement =
-                "<color=#00ff00>WAR ENDED:</color> The war between <color=#ffd479>[{0}]</color> and <color=#ffd479>[{1}]</color> has ended, since <color=#ffd479>[{2}]</color> no longer holds any land.";
-
-            public const string PinAddedAnnouncement =
-                "<color=#00ff00>POINT OF INTEREST:</color> <color=#ffd479>[{0}]</color> announces the creation of <color=#ffd479>{1}</color>, a new {2} located in <color=#ffd479>{3}</color>!";
-
-
-            public static string Get(string key, string userId = null)
-            {
-                return Instance.lang.GetMessage(key, Instance, userId);
-            }
-
-            public static Dictionary<string, string> AsDictionary(BindingFlags bindingAttr = BindingFlags.Public | BindingFlags.DeclaredOnly)
-            {
-                var dict = typeof(Messages).GetFields().Select(f => new { Key = f.Name, Value = (string)f.GetValue(null) }).ToDictionary
-                (
-                    item => item.Key,
-                    item => item.Value
-                );
-                return dict;
-
-            }
-        }
-
-        private void InitLang()
-        {
-            Dictionary<string, string> messages = Messages.AsDictionary();
-            lang.RegisterMessages(messages, this);
-
-        }
-    }
-}
-#endregion
-
-#region > Pvp
-namespace Oxide.Plugins
-{
-    using System;
-    using System.Linq;
-
-    public partial class Imperium
-    {
-        private static class Pvp
-        {
-            private static string[] BlockedPrefabs = new[]
-            {
-                "fireball_small",
-                "fireball_small_arrow",
-                "fireball_small_shotgun",
-                "fireexplosion",
-                "fireball_small_molotov"
-            };
-
-            public static object HandleDamageBetweenPlayers(User attacker, User defender, HitInfo hit)
-            {
-                if (!Instance.Options.Pvp.RestrictPvp)
-                    return null;
-
-                if (attacker == null || defender == null || hit == null)
-                    return null;
-                
-
-                // Allow players to take the easy way out.
-                if (hit.damageTypes.Has(Rust.DamageType.Suicide))
-                    return null;
-
-                // If the players are both in factions who are currently at war, they can damage each other anywhere.
-                if (attacker.Faction != null && defender.Faction != null &&
-                    Instance.Wars.AreFactionsAtWar(attacker.Faction, defender.Faction))
-                    return null;
-
-                // If both the attacker and the defender are in PVP mode, or in a PVP area/zone, they can damage one another.
-                if (IsUserInDanger(attacker) && IsUserInDanger(defender))
-                    return null;
-
-                // Stop the damage.
-                return true;
-            }
-
-            public static object HandleIncidentalDamage(User defender, HitInfo hit)
-            {
-                if (defender == null || hit == null)
-                    return null;
-
-                if (!Instance.Options.Pvp.RestrictPvp)
-                    return null;
-
-                if (hit.Initiator == null)
-                    return null;
-
-                // If the damage is coming from something other than a blocked prefab, allow it.
-                if (!BlockedPrefabs.Contains(hit.Initiator.ShortPrefabName))
-                    return null;
-
-                //If player is inside a Raidable Base and the damage was initiated by a trap or turret, allow it.
-                if(Instance.RaidableBases != null && defender.IsInsideRaidableBase &&
-                     (hit.Initiator is AutoTurret ||
-                      hit.Initiator is GunTrap ||
-                      hit.Initiator is BaseTrap ||
-                      hit.Initiator is FlameTurret ||
-                      hit.Initiator is SamSite ||
-                      hit.Initiator is Barricade || 
-                      hit.Initiator is TeslaCoil))
-                      {
-                         return null;
-                      }
-
-
-                // If the player is in a PVP area or in PVP mode, allow the damage.
-                if (IsUserInDanger(defender))
-                    return null;
-
-                return true;
-            }
-
-            public static object HandleTrapTrigger(BaseTrap trap, User defender)
-            {
-                if (!Instance.Options.Pvp.RestrictPvp)
-                    return null;
-
-                // A player can always trigger their own traps, to prevent exploiting this mechanic.
-                if (defender == null || defender.Player == null || defender.Player.userID == trap.OwnerID)
-                    return null;
-                
-                //Players can always trigger traps when inside a Raidable Base
-                if(Instance.RaidableBases != null && defender.IsInsideRaidableBase)
-                    return null;
-
-                Area trapArea = Instance.Areas.GetByEntityPosition(trap);
-
-                // If the defender is in a faction, they can trigger traps placed in areas claimed by factions with which they are at war.
-                if (trapArea == null || defender.Faction != null && trapArea.FactionId != null &&
-                    Instance.Wars.AreFactionsAtWar(defender.Faction.Id, trapArea.FactionId))
-                    return null;
-
-
-                // If the defender is in a PVP area or zone, the trap can trigger.
-                // TODO: Ensure the trap is also in the PVP zone.
-                if (IsUserInDanger(defender))
-                    return null;
-
-                // Stop the trap from triggering.
-                return true;
-            }
-
-            public static object HandleTurretTarget(BaseCombatEntity turret, User defender)
-            {
-                if (!Instance.Options.Pvp.RestrictPvp)
-                    return null;
-
-                // A player can be always be targeted by their own turrets, to prevent exploiting this mechanic.
-                if (defender.Player.userID == turret.OwnerID)
-                    return null;
-
-                Area turretArea = Instance.Areas.GetByEntityPosition(turret);
-
-                //Players inside RaidableBases can be targeted by turrets
-                if(defender.IsInsideRaidableBase)
-                    return null;
-
-                if (turretArea == null || defender.CurrentArea == null)
-                    return null;
-
-                // If the defender is in a faction, they can be targeted by turrets in areas claimed by factions with which they are at war.
-                if (defender.Faction != null && turretArea.FactionId != null &&
-                    Instance.Wars.AreFactionsAtWar(defender.Faction.Id, turretArea.FactionId))
-                    return null;
-
-                // If the defender is in a PVP area or zone, the turret can trigger.
-                // TODO: Ensure the turret is also in the PVP zone.
-                if (IsUserInDanger(defender))
-                    return null;
-
-                return false;
-            }
-
-            public static bool IsUserInDanger(User user)
-            {
-                return user.IsInPvpMode || 
-                IsPvpArea(user.CurrentArea) || 
-                user.CurrentZones.Any(IsPvpZone);
-            }
-
-            public static bool IsPvpZone(Zone zone)
-            {
-                switch (zone.Type)
-                {
-                    case ZoneType.Debris:
-                    case ZoneType.SupplyDrop:
-                        return Instance.Options.Pvp.AllowedInEventZones;
-                    case ZoneType.Monument:
-                        return Instance.Options.Pvp.AllowedInMonumentZones;
-                    case ZoneType.Raid:
-                        return Instance.Options.Pvp.AllowedInRaidZones;
-                    default:
-                        throw new InvalidOperationException($"Unknown zone type {zone.Type}");
-                }
-            }
-
-            public static bool IsPvpArea(Area area)
-            {
-                if (area == null)
-                    return Instance.Options.Pvp.AllowedInDeepWater;
-
-                switch (area.Type)
-                {
-                    case AreaType.Badlands:
-                        return Instance.Options.Pvp.AllowedInBadlands;
-                    case AreaType.Claimed:
-                    case AreaType.Headquarters:
-                        {
-                            if (Instance.Options.Pvp.AllowedInClaimedLand)
-                            {
-                                return true;
-                            }
-                            else if (Instance.Options.Factions.AllowFactionBadlands && Instance.Factions.Get(area.FactionId).IsBadlands)
-                            {
-                                return true;
-                            }
-                            else
-                            {
-                                return false;
-                            }
-                        }
-                    case AreaType.Wilderness:
-                        return Instance.Options.Pvp.AllowedInWilderness;
-                    default:
-                        throw new InvalidOperationException($"Unknown area type {area.Type}");
-                }
-            }
-        }
-    }
-}
-#endregion
-
-#region > Raiding
-namespace Oxide.Plugins
-{
-    using System;
-    using System.Linq;
-
-    public partial class Imperium
-    {
-        private static class Raiding
-        {
-            // Setting this to true will disable the rules which normally allow owners of land to damage their own structures
-            // This means that for the purposes of structural damage, the player will be considered a hostile force, which
-            // in turn allows easy testing of raiding rules. Should usually be false unless you're testing something.
-            private const bool EnableTestMode = false;
-
-            private enum DamageResult
-            {
-                Prevent,
-                NotProtected,
-                Friendly,
-                BeingAttacked
-            }
-
-            private static string[] BlockedPrefabs = new[]
-            {
-                "fireball_small",
-                "fireball_small_arrow",
-                "fireball_small_shotgun",
-                "fireexplosion"
-            };
-            private static string[] ProtectedPrefabs = new[]
-            {
-                "barricade.concrete",
-                "barricade.metal",
-                "barricade.sandbags",
-                "barricade.stone",
-                "barricade.wood",
-                "barricade.woodwire",
-                "bbq",
-                "bed",
-                "box.wooden.large",
-                "ceilinglight",
-                "chair",
-                "cupboard",
-                "door.double.hinged",
-                "door.hinged",
-                "dropbox",
-                "fireplace",
-                "floor.ladder.hatch",
-                "floor.grill",
-                "fridge",
-                "furnace",
-                "gates.external",
-                "jackolantern",
-                "lantern",
-                "locker",
-                "mailbox",
-                "planter.large",
-                "planter.small",
-                "reactivetarget",
-                "refinery",
-                "repairbench",
-                "researchtable",
-                "rug",
-                "searchlight",
-                "shelves",
-                "shutter",
-                "sign.hanging",
-                "sign.huge.wood",
-                "sign.large.wood",
-                "sign.medium.wood",
-                "sign.pictureframe",
-                "sign.pole.banner.large",
-                "sign.post",
-                "sign.small.wood",
-                "stash.small",
-                "spikes.floor",
-                "spinner.wheel",
-                "survivalfishtrap",
-                "table",
-                "tunalight",
-                "vendingmachine",
-                "wall.external",
-                "wall.frame",
-                "wall.window",
-                "watchtower.wood",
-                "water.barrel",
-                "water.catcher",
-                "water.purifier",
-                "waterbarrel",
-                "waterpurifier",
-                "window.bars",
-                "woodbox",
-                "workbench",
-                "switch",
-                "orswitch",
-                "andswitch",
-                "xorswitch",
-                "timer",
-                "splitter",
-                "blocker",
-                "cabletunnel",
-                "doorcontroller",
-                "generator",
-                "laserdetector",
-                "pressurepad",
-                "simplelight",
-                "solarpanel",
-                "electrical.branch",
-                "electrical.combiner",
-                "electrical.memorycell",
-                "smallrechargablebattery",
-                "large.rechargable.battery"
-            };
-            private static string[] RaidTriggeringPrefabs = new[]
-            {
-                "cupboard",
-                "door.double.hinged",
-                "door.hinged",
-                "floor.ladder.hatch",
-                "floor.grill",
-                "gates.external",
-                "vendingmachine",
-                "wall.frame",
-                "wall.external",
-                "wall.window",
-                "window.bars"
-            };
-
-            public static object HandleDamageAgainstStructure(User attacker, BaseEntity entity, HitInfo hit)
-            {
-                if (attacker == null || entity == null || hit == null)
-                    return null;
-
-                Area area = Instance.Areas.GetByEntityPosition(entity);
-
-                if (area == null && entity.gameObject.GetComponent<BaseCombatEntity>() == null)
-                {
-                    //Instance.PrintWarning("An entity was damaged in an unknown area. This shouldn't happen.");
-                    return null;
-                }
-
-                DamageResult result = DetermineDamageResult(attacker, area, entity);
-                if (EnableTestMode)
-                    Instance.Log("Damage from a player to structure with prefab {0}: {1}", entity.ShortPrefabName,
-                        result.ToString());
-
-                if (result == DamageResult.NotProtected)
-                {
-                    return null;
-                }
-
-                if (result == DamageResult.Friendly)
-                {
-                    if (entity.OwnerID == attacker.Player.userID)
-                    {
-                        return null;
-                    }
-                    if (!attacker.Faction.HasLeader(attacker) && (!area.IsWarZone && !area.IsHostile))
-                    {
-                        if (hit.damageTypes.Has(Rust.DamageType.Explosion) || hit.damageTypes.Has(Rust.DamageType.Heat))
-                        {
-                            hit.damageTypes.ScaleAll(Instance.Options.Factions.MemberOwnLandExplosiveRaidingDamageScale);
-                            return null;
-                        }
-                        hit.damageTypes.ScaleAll(Instance.Options.Factions.MemberOwnLandEcoRaidingDamageScale);
-                        return null;
-                    }
-                    return null;
-                }
-
-                if (result == DamageResult.Prevent)
-                    return true;
-
-                float reduction = area.GetDefensiveBonus();
-
-                if (reduction >= 1)
-                    return true;
-
-                if (reduction > 0)
-                    hit.damageTypes.ScaleAll(reduction);
-
-                if (Instance.Options.Zones.Enabled)
-                {
-                    BuildingPrivlidge cupboard = entity.GetBuildingPrivilege();
-
-                    if (cupboard != null && IsRaidTriggeringEntity(entity))
-                    {
-                        float remainingHealth = entity.Health() - hit.damageTypes.Total();
-                        if (remainingHealth < 1)
-                            Instance.Zones.CreateForRaid(cupboard);
-                    }
-                }
-
-                return null;
-            }
-
-            private static DamageResult DetermineDamageResult(User attacker, Area area, BaseEntity entity)
-            {
-                // Players can always damage their own entities.
-                if (!EnableTestMode && attacker.Player.userID == entity.OwnerID)
-                    return DamageResult.Friendly;
-
-                if (area == null || !IsProtectedEntity(entity))
-                    return DamageResult.NotProtected;
-
-                if (attacker.Faction != null)
-                {
-                    // Factions can damage any structure built on their own land.
-                    if (!EnableTestMode && area.FactionId != null && attacker.Faction.Id == area.FactionId)
-                        return DamageResult.Friendly;
-
-                    // Factions who are at war can damage any structure on enemy land, subject to the defensive bonus.
-                    if (area.FactionId != null && Instance.Wars.AreFactionsAtWar(attacker.Faction.Id, area.FactionId))
-                        return DamageResult.BeingAttacked;
-
-                    // Factions who are at war can damage any structure built by a member of an enemy faction, subject
-                    // to the defensive bonus.
-                    BasePlayer owner = BasePlayer.FindByID(entity.OwnerID);
-                    if (owner != null)
-                    {
-                        Faction owningFaction = Instance.Factions.GetByMember(owner.UserIDString);
-                        if (owningFaction != null && Instance.Wars.AreFactionsAtWar(attacker.Faction, owningFaction))
-                            return DamageResult.BeingAttacked;
-                    }
-                }
-
-                // If the structure is in a raidable area, it can be damaged subject to the defensive bonus.
-                if (IsRaidableArea(area))
-                    return DamageResult.BeingAttacked;
-
-                // Prevent the damage.
-                return DamageResult.Prevent;
-            }
-
-            public static object HandleIncidentalDamage(BaseEntity entity, HitInfo hit)
-            {
-                if (entity == null || hit == null)
-                    return null;
-                if (!Instance.Options.Raiding.RestrictRaiding)
-                    return null;
-
-                Area area = Instance.Areas.GetByEntityPosition(entity);
-
-                if (area == null)
-                {
-                    //Instance.PrintWarning("An entity was damaged in an unknown area. This shouldn't happen.");
-                    return null;
-                }
-
-                if (hit.Initiator == null)
-                {
-                    if (EnableTestMode)
-                        Instance.Log("Incidental damage to {0} with no initiator", entity.ShortPrefabName);
-
-                    return null;
-                }
-
-                // If the damage is coming from something other than a blocked prefab, allow it.
-                if (!BlockedPrefabs.Contains(hit.Initiator.ShortPrefabName))
-                {
-
-                    if (EnableTestMode)
-                    {
-                        Instance.Log("Incidental damage to {0} caused by {1}, allowing since it isn't a blocked prefab",
-                            entity.ShortPrefabName, hit.Initiator.ShortPrefabName);
-                    }
-
-
-                    return null;
-                }
-
-                // If the player is in a PVP area or in PVP mode, allow the damage.
-                if (IsRaidableArea(area))
-                {
-                    if (EnableTestMode)
-                        Instance.Log(
-                            "Incidental damage to {0} caused by {1}, allowing since target is in raidable area",
-                            entity.ShortPrefabName, hit.Initiator.ShortPrefabName);
-
-                    return null;
-                }
-
-                if (EnableTestMode)
-                    Instance.Log("Incidental damage to {0} caused by {1}, stopping since it is a blocked prefab",
-                        entity.ShortPrefabName, hit.Initiator.ShortPrefabName);
-
-                return true;
-            }
-
-            private static bool IsProtectedEntity(BaseEntity entity)
-            {
-                var buildingBlock = entity as BuildingBlock;
-
-                // All building blocks except for twig are protected.
-                if (buildingBlock != null)
-                    return buildingBlock.grade != BuildingGrade.Enum.Twigs;
-
-                // Some additional entities (doors, boxes, etc.) are also protected.
-                if (ProtectedPrefabs.Any(prefab => entity.ShortPrefabName.Contains(prefab)))
-                    return true;
-
-                return false;
-            }
-
-            private static bool IsRaidTriggeringEntity(BaseEntity entity)
-            {
-                var buildingBlock = entity as BuildingBlock;
-
-                // All building blocks except for twig are protected.
-                if (buildingBlock != null)
-                    return buildingBlock.grade != BuildingGrade.Enum.Twigs;
-
-                // Destriction of some additional entities (doors, etc.) will also trigger raids.
-                if (RaidTriggeringPrefabs.Any(prefab => entity.ShortPrefabName.Contains(prefab)))
-                    return true;
-
-                return false;
-            }
-
-            private static bool IsRaidableArea(Area area)
-            {
-                if (!Instance.Options.Raiding.RestrictRaiding)
-                    return true;
-
-                switch (area.Type)
-                {
-                    case AreaType.Badlands:
-                        return Instance.Options.Raiding.AllowedInBadlands;
-                    case AreaType.Claimed:
-                    case AreaType.Headquarters:
-                        return Instance.Options.Raiding.AllowedInClaimedLand;
-                    case AreaType.Wilderness:
-                        return Instance.Options.Raiding.AllowedInWilderness;
-                    default:
-                        throw new InvalidOperationException($"Unknown area type {area.Type}");
-                }
-            }
-
-
-        }
-    }
-}
-#endregion
-
-#region > Tax
-namespace Oxide.Plugins
-{
-    using UnityEngine;
-    public partial class Imperium
-    {
-        private static class Taxes
-        {
-            public static void ProcessTaxesIfApplicable(ResourceDispenser dispenser, BaseEntity entity, Item item)
-            {
-                if (!Instance.Options.Taxes.Enabled)
-                    return;
-
-                var player = entity as BasePlayer;
-                if (player == null)
-                    return;
-
-                User user = Instance.Users.Get(player);
-                if (user == null)
-                    return;
-
-                Area area = user.CurrentArea;
-                if (area == null || !area.IsClaimed)
-                    return;
-
-                Faction faction = Instance.Factions.Get(area.FactionId);
-                if (!faction.CanCollectTaxes || faction.TaxChest.inventory.IsFull())
-                    return;
-
-                ItemDefinition itemDef = ItemManager.FindItemDefinition(item.info.itemid);
-                if (itemDef == null)
-                    return;
-
-                float landBonus = Instance.Options.Taxes.ClaimedLandGatherBonus;
-                float upgradeBonus = 0f;
-                int bonus = (int)(item.amount * landBonus);
-
-                if (Instance.Options.Upgrading.Enabled && Instance.Options.Upgrading.MaxTaxChestBonus > 0)
-                {
-                    upgradeBonus = area.GetLevelTaxBonus();
-                    upgradeBonus = Mathf.Floor(landBonus * 100f) / 100f;
-                }
-
-                var tax = (int)(item.amount * faction.TaxRate);
-
-                faction.TaxChest.inventory.AddItem(itemDef, (int)((tax + bonus) * (1 + upgradeBonus)));
-                item.amount -= tax;
-            }
-
-            public static void AwardBadlandsBonusIfApplicable(ResourceDispenser dispenser, BaseEntity entity, Item item)
-            {
-                if (!Instance.Options.Badlands.Enabled)
-                    return;
-
-                var player = entity as BasePlayer;
-                if (player == null) return;
-
-                User user = Instance.Users.Get(player);
-
-                if (user.CurrentArea != null && user.CurrentArea.Type == AreaType.Badlands)
-                {
-                    var bonus = (int)(item.amount * Instance.Options.Taxes.BadlandsGatherBonus);
-                    item.amount += bonus;
-                }
-            }
-        }
-    }
-}
-#endregion
-
-#region > Upkeep
-namespace Oxide.Plugins
-{
-    using System;
-    using System.Collections.Generic;
-    using System.Linq;
-    using UnityEngine;
-
-    public partial class Imperium
-    {
-        private static class Upkeep
-        {
-            public static void CollectForAllFactions()
-            {
-                foreach (Faction faction in Instance.Factions.GetAll())
-                    Collect(faction);
-            }
-
-            public static void Collect(Faction faction)
-            {
-                DateTime now = DateTime.UtcNow;
-                Area[] areas = Instance.Areas.GetAllTaxableClaimsByFaction(faction);
-
-                if (areas.Length == 0)
-                    return;
-
-                if (now < faction.NextUpkeepPaymentTime)
-                {
-                    Instance.Log($"[UPKEEP] {faction.Id}: Upkeep not due until {faction.NextUpkeepPaymentTime}");
-                    return;
-                }
-
-                int amountOwed = faction.GetUpkeepPerPeriod();
-                var hoursSincePaid = (int)now.Subtract(faction.NextUpkeepPaymentTime).TotalHours;
-
-                Instance.Log(
-                    $"[UPKEEP] {faction.Id}: {hoursSincePaid} hours since upkeep paid, trying to collect {amountOwed} scrap for {areas.Length} area claims");
-
-                var headquarters = areas.Where(a => a.Type == AreaType.Headquarters).FirstOrDefault();
-                if (headquarters == null || headquarters.ClaimCupboard == null)
-                {
-                    Instance.Log($"[UPKEEP] {faction.Id}: Couldn't collect upkeep, faction has no headquarters");
-                }
-                else
-                {
-                    ItemDefinition scrapDef = ItemManager.FindItemDefinition("scrap");
-                    ItemContainer container = headquarters.ClaimCupboard.inventory;
-                    List<Item> stacks = container.FindItemsByItemID(scrapDef.itemid);
-
-                    if (Instance.TryCollectFromStacks(scrapDef, stacks, amountOwed))
-                    {
-                        faction.NextUpkeepPaymentTime =
-                            faction.NextUpkeepPaymentTime.AddHours(Instance.Options.Upkeep.CollectionPeriodHours);
-
-                        faction.IsUpkeepPastDue = false;
-                        Instance.Log(
-                            $"[UPKEEP] {faction.Id}: {amountOwed} scrap upkeep collected, next payment due {faction.NextUpkeepPaymentTime}");
-                        return;
-                    }
-                }
-
-                faction.IsUpkeepPastDue = true;
-
-                if (hoursSincePaid <= Instance.Options.Upkeep.GracePeriodHours)
-                {
-                    Instance.Log(
-                        $"[UPKEEP] {faction.Id}: Couldn't collect upkeep, but still within {Instance.Options.Upkeep.GracePeriodHours} hour grace period");
-                    return;
-                }
-                Area lostArea = null;
-                Area[] NonHQAreas = areas.Where(a => a.Type != AreaType.Headquarters).ToArray();
-                if (NonHQAreas.Length > 0)
-                {
-                    lostArea = NonHQAreas.OrderBy(area => Instance.Areas.GetDepthInsideFriendlyTerritory(area)).First();
-                }
-
-
-                if (lostArea == null)
-                    lostArea = headquarters;
-                Instance.Log(
-                    $"[UPKEEP] {faction.Id}: Upkeep not paid in {hoursSincePaid} hours, seizing claim on {lostArea.Id}");
-                Util.PrintToChat(nameof(Messages.AreaClaimLostUpkeepNotPaidAnnouncement), faction.Id, lostArea.Id);
-                BuildingPrivlidge cupboard = lostArea.ClaimCupboard;
-                Instance.Areas.Unclaim(lostArea);
-                if (cupboard)
-                    cupboard.Kill(BaseNetworkable.DestroyMode.Gib);
-            }
-        }
-    }
-}
-#endregion
-
-#region > Area
-namespace Oxide.Plugins
-{
-    using Rust;
-    using Rust.UI;
-    using UnityEngine;
-
-    public partial class Imperium
-    {
-        private class Area : MonoBehaviour
-        {
-            public Vector3 Position { get; private set; }
-            public Vector3 Size { get; private set; }
-
-            public string Id { get; private set; }
-            public int Row { get; private set; }
-            public int Col { get; private set; }
-
-            public AreaType Type { get; set; }
-            public string Name { get; set; }
-            public string FactionId { get; set; }
-            public string ClaimantId { get; set; }
-            public BuildingPrivlidge ClaimCupboard { get; set; }
-            public BasePlayer ClaimReskinningPlayer { get; set; }
-            public Vector3 ReskinnedCupboardLastPosition { get; set; }
-            public bool IsCupboardChangingSkin { get; set; }
-            public Locker ArmoryLocker { get; set; }
-            public int Level { get; set; }
-            public bool HasRecruit = false;
-            public string RecruitSpawnPosition = "0,0,0";
-
-            public MapMarkerGenericRadius mapMarker;
-            public VendingMachineMapMarker hqMarker;
-            public MapMarkerGenericRadius hqMarkerColor;
-            public BaseEntity textMarker;
-            public bool IsClaimed
-            {
-                get { return FactionId != null; }
-            }
-            public bool IsTaxableClaim
-            {
-                get { return Type == AreaType.Claimed || Type == AreaType.Headquarters; }
-            }
-            public bool IsWarZone
-            {
-                get { return GetActiveWars().Length > 0; }
-            }
-            public bool IsHostile
-            {
-                get
-                {
-                    if (FactionId != null)
-                    {
-                        if (Instance.Factions.Get(FactionId) != null)
-                        {
-                            return Instance.Factions.Get(FactionId).IsBadlands;
-                        }
-
-                    }
-                    return false;
-                }
-            }
-            public int UpgradeCost
-            {
-                get
-                {
-                    var costs = Instance.Options.Upgrading.Costs;
-                    return costs[Mathf.Clamp(Level, 0, costs.Count - 1)
-                    ];
-                }
-            }
-            public void Init(string id, int row, int col, Vector3 position, Vector3 size, AreaInfo info)
-            {
-                Id = id;
-                Row = row;
-                Col = col;
-                Position = position;
-                Size = size;
-
-
-                if (info != null)
-                    TryLoadInfo(info);
-                gameObject.layer = (int)Layer.Reserved1;
-                gameObject.name = $"imperium_area_{id}";
-                transform.position = position;
-                transform.rotation = Quaternion.Euler(new Vector3(0, 0, 0));
-
-                var collider = gameObject.AddComponent<BoxCollider>();
-                collider.size = Size;
-                collider.isTrigger = true;
-                collider.enabled = true;
-
-
-                gameObject.SetActive(true);
-                enabled = true;
-            }
-
-            private void Awake()
-            {
-                InvokeRepeating("CheckClaimCupboard", 60f, 60f);
-                InvokeRepeating("CheckArmoryLocker", 60f, 60f);
-            }
-
-            private void OnDestroy()
-            {
-                var collider = GetComponent<BoxCollider>();
-
-                if (collider != null)
-                    Destroy(collider);
-
-                if (IsInvoking("CheckClaimCupboard"))
-                    CancelInvoke("CheckClaimCupboard");
-                if (IsInvoking("CheckArmoryLocker"))
-                    CancelInvoke("CheckArmoryLocker");
-            }
-
-            private void TryLoadInfo(AreaInfo info)
-            {
-                BuildingPrivlidge cupboard = null;
-                Locker locker = null;
-
-                if (info.CupboardId != null)
-                {
-                    cupboard = BaseNetworkable.serverEntities.Find(new NetworkableId((ulong)info.CupboardId)) as BuildingPrivlidge;
-                    if (cupboard == null)
-                    {
-                        Instance.Log(
-                            $"[LOAD] Area {Id}: Cupboard entity {info.CupboardId} not found, treating as unclaimed");
-                        return;
-                    }
-                }
-
-                if (info.FactionId != null)
-                {
-                    Faction faction = Instance.Factions.Get(info.FactionId);
-                    if (faction == null)
-                    {
-                        Instance.Log(
-                            $"[LOAD] Area {Id}: Claimed by unknown faction {info.FactionId}, treating as unclaimed");
-                        return;
-                    }
-                }
-
-                Name = info.Name;
-                Type = info.Type;
-                FactionId = info.FactionId;
-                ClaimantId = info.ClaimantId;
-                ClaimCupboard = cupboard;
-                Level = info.Level;
-                HasRecruit = info.HasRecruit;
-                RecruitSpawnPosition = info.RecruitSpawnPosition;
-
-                if (info.ArmoryId != null)
-                {
-                    locker = BaseNetworkable.serverEntities.Find(new NetworkableId((ulong)info.ArmoryId)) as Locker;
-                    if (locker == null)
-                    {
-                        Instance.Log(
-                            $"[LOAD] Area {Id}: Locker entity {info.ArmoryId} not found");
-                    }
-                }
-
-                ArmoryLocker = locker;
-
-                if (FactionId != null)
-                    Instance.Log(
-                        $"[LOAD] Area {Id}: Claimed by {FactionId}, type = {Type}, cupboard = {Util.Format(ClaimCupboard)}");
-            }
-
-            private void CheckClaimCupboard()
-            {
-                if (ClaimCupboard == null || !ClaimCupboard.IsDestroyed)
-                    return;
-
-                Instance.Log(
-                    $"{FactionId} lost their claim on {Id} because the tool cupboard was destroyed (periodic check)");
-                Util.PrintToChat(nameof(Messages.AreaClaimLostCupboardDestroyedAnnouncement), FactionId, Id);
-                Instance.Areas.Unclaim(this);
-            }
-
-            private void CheckArmoryLocker()
-            {
-                if (ArmoryLocker == null || !ArmoryLocker.IsDestroyed)
-                    return;
-
-                Instance.Log(
-                    $"{FactionId} lost their armory on {Id} because the locker was destroyed (periodic check)");
-                Util.PrintToChat(nameof(Messages.AreaClaimLostArmoryDestroyedAnnouncement), FactionId, Id);
-                Instance.Areas.RemoveArmory(this);
-            }
-
-            private void OnTriggerEnter(Collider collider)
-            {
-                if (collider.gameObject.layer != (int)Layer.Player_Server)
-                    return;
-
-                var user = collider.GetComponentInParent<User>();
-
-                if (user != null)
-                {
-                    if (user.CurrentArea != this)
-                    {
-                        Events.OnUserEnteredArea(user, this);
-                    }
-                }
-            }
-
-            private void OnTriggerExit(Collider collider)
-            {
-                if (collider.gameObject.layer != (int)Layer.Player_Server)
-                    return;
-                var user = collider.GetComponentInParent<User>();
-                if (user != null)
-                {
-                    Events.OnUserLeftArea(user, this);
-                }
-
-            }
-
-            public void UpdateAreaMarker(FactionColorPicker colorPicker)
-            {
-                bool markerExists = true;
-                if (Type != AreaType.Headquarters)
-                {
-                    if (hqMarker != null)
-                    {
-                        hqMarker.Kill();
-                        hqMarker = null;
-                    }
-
-                    if (hqMarkerColor != null)
-                    {
-                        hqMarkerColor.Kill();
-                        hqMarkerColor = null;
-                    }
-
-                }
-                if (Type == AreaType.Wilderness)
-                {
-                    if (mapMarker != null)
-                        mapMarker.Kill();
-                }
-                else
-                {
-                    if (mapMarker == null)
-                    {
-                        markerExists = false;
-                        var markerRadius = ((4000 / Instance.Areas.MapGrid.MapSize) * 0.5f);
-                        var marker = GameManager.server.CreateEntity(
-                            "assets/prefabs/tools/map/genericradiusmarker.prefab", transform.position)
-                            as MapMarkerGenericRadius;
-                        marker.radius = markerRadius;
-                        marker.enableSaving = false;
-                        mapMarker = marker;
-                    }
-
-                    if (Type == AreaType.Claimed)
-                    {
-                        mapMarker.alpha = 0.3f;
-                        mapMarker.color1 = Util.ConvertSystemToUnityColor(
-                            colorPicker.GetColorForFaction(FactionId));
-                        mapMarker.color2 = Color.black;
-                        if (!markerExists)
-                            mapMarker.Spawn();
-                        mapMarker.SendUpdate();
-                    }
-                    if (Type == AreaType.Headquarters)
-                    {
-                        mapMarker.alpha = 0.3f;
-                        mapMarker.color1 = Util.ConvertSystemToUnityColor(
-                            colorPicker.GetColorForFaction(FactionId));
-                        mapMarker.color2 = Color.black;
-                        if (!markerExists)
-                            mapMarker.Spawn();
-                        mapMarker.SendUpdate();
-
-                        if (hqMarker == null)
-                        {
-                            if (ClaimCupboard)
-                            {
-                                Vector3 tcPosition = ClaimCupboard.transform.position;
-                                var marker = GameManager.server.CreateEntity(
-                                "assets/prefabs/deployable/vendingmachine/vending_mapmarker.prefab", tcPosition)
-                                as VendingMachineMapMarker;
-                                marker.markerShopName = FactionId + " Headquarters";
-                                marker.transform.position.Set(marker.transform.position.x, -100f, marker.transform.position.z);
-                                hqMarker = marker;
-                                hqMarker.enableSaving = false;
-                                hqMarker.appType = ProtoBuf.AppMarkerType.Player;
-                                hqMarker.Spawn();
-
-
-                                var markerTop = GameManager.server.CreateEntity(
-                            "assets/prefabs/tools/map/genericradiusmarker.prefab")
-                            as MapMarkerGenericRadius;
-                                markerTop.radius = 0.2f;
-                                markerTop.enableSaving = false;
-                                markerTop.color1 = Util.ConvertSystemToUnityColor(
-                                   colorPicker.GetColorForFaction(FactionId));
-                                markerTop.color2 = Color.black;
-                                markerTop.alpha = 0.5f;
-                                markerTop.SetParent(hqMarker);
-                                markerTop.Spawn();
-                                hqMarkerColor = markerTop;
-                                hqMarker.SendNetworkUpdate();
-                                markerTop.SendUpdate();
-
-                            }
-
-                        }
-                    }
-                    if (Type == AreaType.Badlands)
-                    {
-                        mapMarker.alpha = 0.2f;
-                        mapMarker.color1 = Color.black;
-                        mapMarker.color2 = Color.black;
-                        if (!markerExists)
-                            mapMarker.Spawn();
-                        mapMarker.SendUpdate();
-                    }
-
-                }
-            }
-
-            public float GetDistanceFromEntity(BaseEntity entity)
-            {
-                return Vector3.Distance(entity.transform.position, transform.position);
-            }
-
-            public int GetClaimCost(Faction faction)
-            {
-                var costs = Instance.Options.Claims.Costs;
-                int numberOfAreasOwned = Instance.Areas.GetAllClaimedByFaction(faction).Length;
-                int index = Mathf.Clamp(numberOfAreasOwned, 0, costs.Count - 1);
-                return costs[index];
-            }
-
-            public float GetDefensiveBonus()
-            {
-                var bonuses = Instance.Options.War.DefensiveBonuses;
-                var depth = Instance.Areas.GetDepthInsideFriendlyTerritory(this);
-                int index = Mathf.Clamp(depth, 0, bonuses.Count - 1);
-                float bonus = bonuses[index];
-                if (Instance.Options.Upgrading.Enabled && Instance.Options.Upgrading.MaxRaidDefenseBonus > 0)
-                {
-                    bonus = Mathf.Clamp(bonus + GetLevelDefensiveBonus(), 0, 1);
-                    bonus = Mathf.Floor((bonus * 100) / 100);
-                }
-                return bonus;
-            }
-
-            public float GetTaxRate()
-            {
-                if (!IsTaxableClaim)
-                    return 0;
-
-                Faction faction = Instance.Factions.Get(FactionId);
-
-                if (!faction.CanCollectTaxes)
-                    return 0;
-
-                return faction.TaxRate;
-            }
-
-            public War[] GetActiveWars()
-            {
-                if (FactionId == null)
-                    return new War[0];
-
-                return Instance.Wars.GetAllActiveWarsByFaction(FactionId);
-            }
-
-            private float GetRatio(int level, int maxLevel, float maxBonus)
-            {
-                return (level / maxLevel) * maxBonus;
-            }
-            public float GetLevelDefensiveBonus()
-            {
-                return GetRatio(Level,
-                    Instance.Options.Upgrading.MaxUpgradeLevel,
-                    Instance.Options.Upgrading.MaxRaidDefenseBonus);
-
-            }
-            public float GetLevelDecayReduction()
-            {
-                return GetRatio(Level,
-                    Instance.Options.Upgrading.MaxUpgradeLevel,
-                    Instance.Options.Upgrading.MaxDecayExtraReduction);
-            }
-
-            public float GetLevelTaxBonus()
-            {
-                return GetRatio(Level,
-                    Instance.Options.Upgrading.MaxUpgradeLevel,
-                    Instance.Options.Upgrading.MaxTaxChestBonus);
-            }
-
-            public AreaInfo Serialize()
-            {
-                return new AreaInfo
-                {
-                    Id = Id,
-                    Name = Name,
-                    Type = Type,
-                    FactionId = FactionId,
-                    ClaimantId = ClaimantId,
-                    CupboardId = ClaimCupboard?.net?.ID.Value,
-                    ArmoryId = ArmoryLocker?.net?.ID.Value,
-                    Level = Level,
-                    HasRecruit = HasRecruit,
-                    RecruitSpawnPosition = RecruitSpawnPosition
-                };
-            }
-        }
-    }
-}
-
-namespace Oxide.Plugins
-{
-    using Newtonsoft.Json;
-    using Newtonsoft.Json.Converters;
-
-    public partial class Imperium : RustPlugin
-    {
-        public class AreaInfo
-        {
-            [JsonProperty("id")] public string Id;
-
-            [JsonProperty("name")] public string Name;
-
-            [JsonProperty("type"), JsonConverter(typeof(StringEnumConverter))]
-            public AreaType Type;
-
-            [JsonProperty("factionId")] public string FactionId;
-
-            [JsonProperty("claimantId")] public string ClaimantId;
-
-            [JsonProperty("cupboardId")] public ulong? CupboardId;
-
-            [JsonProperty("armoryId")] public ulong? ArmoryId;
-
-            [JsonProperty("level")] public int Level;
-
-            [JsonProperty("hasRecruit")] public bool HasRecruit;
-
-            [JsonProperty("recruitSpawnPosition")] public string RecruitSpawnPosition;
-        }
-    }
-}
-
-namespace Oxide.Plugins
-{
-    using System;
-    using System.Collections.Generic;
-    using System.Linq;
-    using UnityEngine;
-
-    public partial class Imperium
-    {
-        private class AreaManager
-        {
-            private Dictionary<string, Area> Areas;
-            private Area[,] Layout;
-
-            public MapGrid MapGrid { get; }
-
-            public int Count
-            {
-                get { return Areas.Count; }
-            }
-
-            public AreaManager()
-            {
-                MapGrid = new MapGrid();
-                Areas = new Dictionary<string, Area>();
-                Layout = new Area[MapGrid.NumberOfColumns, MapGrid.NumberOfRows];
-            }
-
-            public Area Get(string areaId)
-            {
-                Area area;
-                if (Areas.TryGetValue(areaId, out area))
-                    return area;
-                else
-                    return null;
-            }
-
-            public Area Get(int row, int col)
-            {
-                return Layout[row, col];
-            }
-
-            public Area[] GetAll()
-            {
-                return Areas.Values.ToArray();
-            }
-
-            public Area[] GetAllByType(AreaType type)
-            {
-                return Areas.Values.Where(a => a.Type == type).ToArray();
-            }
-
-            public Area[] GetAllClaimedByFaction(Faction faction)
-            {
-                return GetAllClaimedByFaction(faction.Id);
-            }
-
-            public Area[] GetAllClaimedByFaction(string factionId)
-            {
-                return Areas.Values.Where(a => a.FactionId == factionId).ToArray();
-            }
-
-            public Area[] GetAllTaxableClaimsByFaction(Faction faction)
-            {
-                return GetAllTaxableClaimsByFaction(faction.Id);
-            }
-
-            public Area[] GetAllTaxableClaimsByFaction(string factionId)
-            {
-                return Areas.Values.Where(a => a.FactionId == factionId && a.IsTaxableClaim).ToArray();
-            }
-
-            public Area GetByClaimCupboard(BuildingPrivlidge cupboard)
-            {
-                return GetByClaimCupboard(cupboard.net.ID.Value);
-            }
-
-            public Area GetByClaimReskinningPlayer(BasePlayer player)
-            {
-                if(player == null)
-                    return null;
-                return Areas.Values.FirstOrDefault(a =>
-                    a.ClaimCupboard != null && a.ClaimReskinningPlayer == player);
-            }
-
-            public Area GetByReskinnedCupboardLastPosition(Vector3 testPosition)
-            {
-                return Areas.Values.FirstOrDefault(a =>
-                    IsApproximatedly(a.ReskinnedCupboardLastPosition, testPosition));
-                
-            }
-
-            private Vector3 Abs(Vector3 v)
-            {
-                return new Vector3(Mathf.Abs(v.x), Mathf.Abs(v.y), Mathf.Abs(v.z));
-            }
-
-            private bool IsApproximatedly(Vector3 v1, Vector3 v2)
-            {
-                Vector3 diff = Abs(v1 - v2);
-                return (diff.x < 0.1f) && (diff.y < 0.1f) && (diff.z < 0.1f);
-            }
-
-            public Area GetByClaimCupboard(ulong cupboardId)
-            {
-                return Areas.Values.FirstOrDefault(a =>
-                    a.ClaimCupboard != null && a.ClaimCupboard.net.ID.Value == cupboardId);
-            }
-            public Area GetByArmoryLocker(Locker locker)
-            {
-                return GetByClaimCupboard(locker.net.ID.Value);
-            }
-
-            public Area GetByArmoryLocker(ulong lockerId)
-            {
-                return Areas.Values.FirstOrDefault(a =>
-                    a.ArmoryLocker != null && a.ArmoryLocker.net.ID.Value == lockerId);
-            }
-
-            public Area GetByEntityPosition(BaseEntity entity)
-            {
-                Vector3 position = entity.transform.position;
-
-                int row = Mathf.FloorToInt((MapGrid.MapHeight / 2 - (position.z + (MapGrid.MapOffsetZ / 2))) / MapGrid.CellSize) + Instance.Options.Map.MapGridYOffset;
-                int col = Mathf.FloorToInt((MapGrid.MapWidth / 2 + (position.x + (MapGrid.MapOffsetX) / 2)) / MapGrid.CellSize);
-                if (Instance.Options.Pvp.AllowedUnderground && position.y < -20f)
-                    return null;
-                if (row < 0 || col < 0 || row >= MapGrid.NumberOfRows || col >= MapGrid.NumberOfColumns)
-                    return null;
-
-                return Layout[row, col];
-            }
-
-            public Area GetByWorldPosition(Vector3 position)
-            {
-                int row = Mathf.FloorToInt((MapGrid.MapHeight / 2 - (position.z + (MapGrid.MapOffsetZ / 2))) / MapGrid.CellSize) + Instance.Options.Map.MapGridYOffset;
-                int col = Mathf.FloorToInt((MapGrid.MapWidth / 2 + (position.x + (MapGrid.MapOffsetX) / 2)) / MapGrid.CellSize);
-                if (Instance.Options.Pvp.AllowedUnderground && position.y < -20f)
-                    return null;
-                if (row < 0 || col < 0 || row >= MapGrid.NumberOfRows || col >= MapGrid.NumberOfColumns)
-                    return null;
-
-                return Layout[row, col];
-            }
-
-            public void Claim(Area area, AreaType type, Faction faction, User claimant, BuildingPrivlidge cupboard)
-            {
-                area.Type = type;
-                area.FactionId = faction.Id;
-                area.ClaimantId = claimant.Id;
-                area.ClaimCupboard = cupboard;
-
-
-                Events.OnAreaChanged(area);
-            }
-
-            public void SetHeadquarters(Area area, Faction faction)
-            {
-                // Ensure that no other areas are considered headquarters.
-                foreach (Area otherArea in GetAllClaimedByFaction(faction).Where(a => a.Type == AreaType.Headquarters))
-                {
-                    otherArea.Type = AreaType.Claimed;
-                    Events.OnAreaChanged(otherArea);
-                }
-
-                area.Type = AreaType.Headquarters;
-                Events.OnAreaChanged(area);
-            }
-
-            public void Unclaim(IEnumerable<Area> areas)
-            {
-                Unclaim(areas.ToArray());
-            }
-
-            public void Unclaim(params Area[] areas)
-            {
-                foreach (Area area in areas)
-                {
-                    area.Type = AreaType.Wilderness;
-                    area.FactionId = null;
-                    area.ClaimantId = null;
-                    area.ClaimCupboard = null;
-
-                    Events.OnAreaChanged(area);
-                }
-            }
-
-            public void SetArmory(Area area, Locker locker)
-            {
-                area.ArmoryLocker = locker;
-
-                Events.OnAreaChanged(area);
-            }
-
-            public void RemoveArmory(Area area)
-            {
-                area.ArmoryLocker = null;
-
-                Events.OnAreaChanged(area);
-            }
-
-            public void AddBadlands(params Area[] areas)
-            {
-                foreach (Area area in areas)
-                {
-                    area.Type = AreaType.Badlands;
-                    area.FactionId = null;
-                    area.ClaimantId = null;
-                    area.ClaimCupboard = null;
-
-                    Events.OnAreaChanged(area);
-                }
-            }
-
-            public void AddBadlands(IEnumerable<Area> areas)
-            {
-                AddBadlands(areas.ToArray());
-            }
-
-            public int GetNumberOfContiguousClaimedAreas(Area area, Faction owner)
-            {
-                int count = 0;
-
-                // North
-                if (area.Row > 0 && Layout[area.Row - 1, area.Col].FactionId == owner.Id)
-                    count++;
-
-                // South
-                if (area.Row < MapGrid.NumberOfRows - 1 && Layout[area.Row + 1, area.Col].FactionId == owner.Id)
-                    count++;
-
-                // West
-                if (area.Col > 0 && Layout[area.Row, area.Col - 1].FactionId == owner.Id)
-                    count++;
-
-                // East
-                if (area.Col < MapGrid.NumberOfColumns - 1 && Layout[area.Row, area.Col + 1].FactionId == owner.Id)
-                    count++;
-
-                return count;
-            }
-
-            public int GetDepthInsideFriendlyTerritory(Area area)
-            {
-                if (!area.IsClaimed)
-                    return 0;
-
-                var depth = new int[4];
-
-                // North
-                for (var row = area.Row; row >= 0; row--)
-                {
-                    if (Layout[row, area.Col].FactionId != area.FactionId)
-                        break;
-
-                    depth[0]++;
-                }
-
-                // South
-                for (var row = area.Row; row < MapGrid.NumberOfRows; row++)
-                {
-                    if (Layout[row, area.Col].FactionId != area.FactionId)
-                        break;
-
-                    depth[1]++;
-                }
-
-                // West
-                for (var col = area.Col; col >= 0; col--)
-                {
-                    if (Layout[area.Row, col].FactionId != area.FactionId)
-                        break;
-
-                    depth[2]++;
-                }
-
-                // East
-                for (var col = area.Col; col < MapGrid.NumberOfColumns; col++)
-                {
-                    if (Layout[area.Row, col].FactionId != area.FactionId)
-                        break;
-
-                    depth[3]++;
-                }
-                return depth.Min() - 1;
-            }
-
-            public void Init(IEnumerable<AreaInfo> areaInfos)
-            {
-                Instance.Puts("Creating area objects...");
-
-                Dictionary<string, AreaInfo> lookup;
-                if (areaInfos != null)
-                    lookup = areaInfos.ToDictionary(a => a.Id);
-                else
-                    lookup = new Dictionary<string, AreaInfo>();
-
-                for (var row = 0; row < MapGrid.NumberOfRows; row++)
-                {
-                    for (var col = 0; col < MapGrid.NumberOfColumns; col++)
-                    {
-                        string areaId = MapGrid.GetAreaId(row, col);
-                        Vector3 position = MapGrid.GetPosition(row, col);
-                        if (Instance.Options.Pvp.AllowedUnderground)
-                        {
-                            position.y = position.y + 480f;
-                        }
-                        Vector3 size = new Vector3(MapGrid.CellSize / 2, 500, MapGrid.CellSize / 2);
-
-                        AreaInfo info = null;
-                        lookup.TryGetValue(areaId, out info);
-
-                        var area = new GameObject().AddComponent<Area>();
-                        area.Init(areaId, row, col, position, size, info);
-                        Areas[areaId] = area;
-                        Layout[row, col] = area;
-                    }
-                }
-                Instance.Areas.UpdateAreaMarkers();
-
-                Instance.Puts($"Created {Areas.Values.Count} area objects.");
-            }
-
-            public void Destroy()
-            {
-                DestroyAreaMarkers();
-                Area[] areas = UnityEngine.Object.FindObjectsOfType<Area>();
-
-                if (areas != null)
-                {
-                    Instance.Puts($"Destroying {areas.Length} area objects...");
-                    foreach (Area area in areas)
-                        UnityEngine.Object.Destroy(area);
-                }
-
-                Areas.Clear();
-                Array.Clear(Layout, 0, Layout.Length);
-
-                Instance.Puts("Area objects destroyed.");
-            }
-
-            public AreaInfo[] Serialize()
-            {
-                return Areas.Values.Select(area => area.Serialize()).ToArray();
-            }
-
-            public void UpdateAreaMarkers()
-            {
-                FactionColorPicker colorPicker = new FactionColorPicker();
-
-                Area[] AllAreas = GetAll();
-                foreach (Area area in AllAreas)
-                {
-                    area.UpdateAreaMarker(colorPicker);
-                }
-            }
-
-            public void DestroyAreaMarkers()
-            {
-                Area[] AllAreas = GetAll();
-                foreach (Area area in AllAreas)
-                {
-                    if (area.mapMarker != null)
-                    {
-                        area.mapMarker.Kill();
-                        area.mapMarker = null;
-                    }
-
-                    if (area.hqMarker != null)
-                    {
-                        area.hqMarker.Kill();
-                        area.hqMarker = null;
-                    }
-
-                    if (area.hqMarkerColor != null)
-                    {
-                        area.hqMarkerColor.Kill();
-                        area.hqMarkerColor = null;
-                    }
-
-                }
-            }
-        }
-    }
-}
-
-namespace Oxide.Plugins
-{
-    public partial class Imperium : RustPlugin
-    {
-        public enum AreaType
-        {
-            Wilderness,
-            Claimed,
-            Headquarters,
-            Badlands
-        }
-    }
-}
-#endregion
-
-#region > Faction
-namespace Oxide.Plugins
+#region Faction.cs
+﻿namespace Oxide.Plugins
 {
     using System;
     using System.Collections.Generic;
@@ -6231,6 +4560,7 @@ namespace Oxide.Plugins
         {
             public string Id { get; private set; }
             public string OwnerId { get; set; }
+            public bool IsNpcFaction { get; set; }
             public HashSet<string> MemberIds { get; }
             public HashSet<string> ManagerIds { get; }
             public HashSet<string> InviteIds { get; }
@@ -6244,6 +4574,9 @@ namespace Oxide.Plugins
             public bool IsBadlands { get; set; }
             public DateTime? BadlandsCommandUsedTime { get; set; }
             public DateTime CreationTime { get; set; }
+            public float Reputation { get; set; }
+            public float CobaltReputation {  get {  return Reputation > 0f ? Reputation : 0f; } }
+            public float BanditsReputation { get { return Reputation < 0f ? Mathf.Abs(Reputation) : 0f; } }
 
 
             public bool CanCollectTaxes
@@ -6255,8 +4588,6 @@ namespace Oxide.Plugins
             {
                 get { return MemberIds.Count; }
             }
-
-
 
             public Faction(string id, User owner)
             {
@@ -6272,6 +4603,26 @@ namespace Oxide.Plugins
                 NextUpkeepPaymentTime = DateTime.UtcNow.AddHours(Instance.Options.Upkeep.CollectionPeriodHours);
                 IsBadlands = false;
                 BadlandsCommandUsedTime = null;
+                Reputation = 0f;
+                IsNpcFaction = false;
+            }
+
+            public Faction(string id)
+            {
+                Id = id;
+
+                OwnerId = null;
+                MemberIds = new HashSet<string> { };
+                ManagerIds = new HashSet<string>();
+                InviteIds = new HashSet<string>();
+                Aggressors = new HashSet<string>();
+                TaxChest = null;
+                TaxRate = Instance.Options.Taxes.DefaultTaxRate;
+                NextUpkeepPaymentTime = DateTime.UtcNow.AddHours(Instance.Options.Upkeep.CollectionPeriodHours);
+                IsBadlands = false;
+                BadlandsCommandUsedTime = null;
+                Reputation = 0f;
+                IsNpcFaction = true;
             }
 
             public Faction(FactionInfo info)
@@ -6299,6 +4650,8 @@ namespace Oxide.Plugins
                 IsBadlands = info.IsBadlands;
                 BadlandsCommandUsedTime = info.BadlandsCommandUsedTime;
                 CreationTime = info.CreationTime;
+                Reputation = info.Reputation;
+                IsNpcFaction = info.IsNpcFaction;
 
                 Instance.Log($"[LOAD] Faction {Id}: {MemberIds.Count} members, tax chest = {Util.Format(TaxChest)}");
             }
@@ -6543,19 +4896,91 @@ namespace Oxide.Plugins
                     NextUpkeepPaymentTime = NextUpkeepPaymentTime,
                     IsBadlands = IsBadlands,
                     BadlandsCommandUsedTime = BadlandsCommandUsedTime,
-                    CreationTime = CreationTime
+                    CreationTime = CreationTime,
+                    Reputation = Reputation
                 };
             }
         }
     }
 }
 
-namespace Oxide.Plugins
+#endregion
+
+#region FactionColorPicker.cs
+﻿namespace Oxide.Plugins
+{
+    using System.Collections.Generic;
+    using System.Drawing;
+    public partial class Imperium
+    {
+        private class FactionColorPicker
+        {
+            private static string[] Colors = new[]
+            {
+                "#0000FF", "#FF0000", "#00FF00", "#01FFFE", "#FFA6FE",
+                "#FFDB66", "#006401", "#010067", "#95003A", "#007DB5",
+                "#FF00F6", "#FFEEE8", "#774D00", "#90FB92", "#0076FF",
+                "#D5FF00", "#FF937E", "#6A826C", "#FF029D", "#FE8900",
+                "#7A4782", "#7E2DD2", "#85A900", "#FF0056", "#A42400",
+                "#00AE7E", "#683D3B", "#BDC6FF", "#263400", "#BDD393",
+                "#00B917", "#9E008E", "#001544", "#C28C9F", "#FF74A3",
+                "#01D0FF", "#004754", "#E56FFE", "#788231", "#0E4CA1",
+                "#91D0CB", "#BE9970", "#968AE8", "#BB8800", "#43002C",
+                "#DEFF74", "#00FFC6", "#FFE502", "#620E00", "#008F9C",
+                "#98FF52", "#7544B1", "#B500FF", "#00FF78", "#FF6E41",
+                "#005F39", "#6B6882", "#5FAD4E", "#A75740", "#A5FFD2",
+                "#FFB167", "#009BFF", "#E85EBE"
+            };
+            private Dictionary<string, Color> AssignedColors;
+            private int NextColor = 0;
+
+            public FactionColorPicker()
+            {
+                AssignedColors = new Dictionary<string, Color>();
+            }
+
+            public Color GetColorForFaction(string factionId)
+            {
+                Color color;
+
+                if (!AssignedColors.TryGetValue(factionId, out color))
+                {
+                    color = Color.FromArgb(128, ColorTranslator.FromHtml(Colors[NextColor]));
+                    AssignedColors.Add(factionId, color);
+                    NextColor = (NextColor + 1) % Colors.Length;
+                }
+
+                return color;
+            }
+
+            public string GetHexColorForFaction(string factionId)
+            {
+                string hexcolor;
+                Color color;
+
+                if (!AssignedColors.TryGetValue(factionId, out color))
+                {
+                    color = Color.FromArgb(128, ColorTranslator.FromHtml(Colors[NextColor]));
+                    AssignedColors.Add(factionId, color);
+                    NextColor = (NextColor + 1) % Colors.Length;
+                }
+                hexcolor = $"#{color.R:X2}{color.G:X2}{color.B:X2}";
+
+                return hexcolor;
+            }
+        }
+    }
+}
+#endregion
+
+#region FactionEntityMonitor.cs
+﻿namespace Oxide.Plugins
 {
     using UnityEngine;
 
     public partial class Imperium
     {
+        //WTF IS THIS?
         private class FactionEntityMonitor : MonoBehaviour
         {
             private void Awake()
@@ -6585,8 +5010,10 @@ namespace Oxide.Plugins
         }
     }
 }
+#endregion
 
-namespace Oxide.Plugins
+#region FactionInfo.cs
+﻿namespace Oxide.Plugins
 {
     using System;
     using Newtonsoft.Json;
@@ -6626,13 +5053,19 @@ namespace Oxide.Plugins
 
             [JsonProperty("creationTime"), JsonConverter(typeof(IsoDateTimeConverter))]
             public DateTime CreationTime;
+
+            [JsonProperty("reputation")] public float Reputation;
+
+            [JsonProperty("isNpcFaction")] public bool IsNpcFaction;
         }
 
 
     }
 }
+#endregion
 
-namespace Oxide.Plugins
+#region FactionManager.cs
+﻿namespace Oxide.Plugins
 {
     using System;
     using System.Collections.Generic;
@@ -6748,6 +5181,18 @@ namespace Oxide.Plugins
                     Factions.Add(faction.Id, faction);
                 }
 
+                if(!Exists("COBALT"))
+                {
+                    Faction faction = new Faction("COBALT");
+                    Factions.Add(faction.Id, faction);
+                }
+
+                if (!Exists("BANDITS"))
+                {
+                    Faction faction = new Faction("BANDITS");
+                    Factions.Add(faction.Id, faction);
+                }
+
                 Instance.Puts("Factions created.");
             }
 
@@ -6800,2930 +5245,868 @@ namespace Oxide.Plugins
                     }
                 }
             }
+
+            public bool EnsureUserCanChangeFactionClaims(User user, Faction faction)
+            {
+                if (faction == null || !faction.HasLeader(user))
+                {
+                    user.SendChatMessage(nameof(Messages.NotLeaderOfFaction));
+                    return false;
+                }
+
+                if (faction.MemberCount < Instance.Options.Claims.MinFactionMembers)
+                {
+                    user.SendChatMessage(nameof(Messages.FactionTooSmallToOwnLand), Instance.Options.Claims.MinFactionMembers);
+                    return false;
+                }
+
+                return true;
+            }
         }
     }
 }
 #endregion
 
-#region > Pin
-namespace Oxide.Plugins
+#region Decay.cs
+﻿namespace Oxide.Plugins
 {
-    using UnityEngine;
-
     public partial class Imperium
     {
-        private class Pin
+        private static class Decay
         {
-            public Vector3 Position { get; }
-            public string AreaId { get; }
-            public string CreatorId { get; set; }
-            public PinType Type { get; set; }
-            public string Name { get; set; }
-
-            public Pin(Vector3 position, Area area, User creator, PinType type, string name)
+            public static object AlterDecayDamage(BaseEntity entity, HitInfo hit)
             {
-                Position = position;
-                AreaId = area.Id;
-                CreatorId = creator.Id;
-                Type = type;
-                Name = name;
-            }
-
-            public Pin(PinInfo info)
-            {
-                Position = info.Position;
-                AreaId = info.AreaId;
-                CreatorId = info.CreatorId;
-                Type = info.Type;
-                Name = info.Name;
-            }
-
-            public float GetDistanceFrom(BaseEntity entity)
-            {
-                return GetDistanceFrom(entity.transform.position);
-            }
-
-            public float GetDistanceFrom(Vector3 position)
-            {
-                return Vector3.Distance(position, Position);
-            }
-
-            public PinInfo Serialize()
-            {
-                return new PinInfo
-                {
-                    Position = Position,
-                    AreaId = AreaId,
-                    CreatorId = CreatorId,
-                    Type = Type,
-                    Name = Name
-                };
-            }
-        }
-    }
-}
-
-namespace Oxide.Plugins
-{
-    using Newtonsoft.Json;
-    using Newtonsoft.Json.Converters;
-    using UnityEngine;
-
-    public partial class Imperium : RustPlugin
-    {
-        private class PinInfo
-        {
-            [JsonProperty("name")] public string Name;
-
-            [JsonProperty("type"), JsonConverter(typeof(StringEnumConverter))]
-            public PinType Type;
-
-            [JsonProperty("position"), JsonConverter(typeof(UnityVector3Converter))]
-            public Vector3 Position;
-
-            [JsonProperty("areaId")] public string AreaId;
-
-            [JsonProperty("creatorId")] public string CreatorId;
-        }
-    }
-}
-
-namespace Oxide.Plugins
-{
-    using System;
-    using System.Collections.Generic;
-    using System.Linq;
-
-    public partial class Imperium
-    {
-        private class PinManager
-        {
-            private Dictionary<string, Pin> Pins;
-
-            public PinManager()
-            {
-                Pins = new Dictionary<string, Pin>(StringComparer.OrdinalIgnoreCase);
-            }
-
-            public Pin Get(string name)
-            {
-                Pin pin;
-
-                if (!Pins.TryGetValue(name, out pin))
+                if (!Instance.Options.Decay.Enabled)
                     return null;
 
-                return pin;
-            }
+                if (entity == null || hit == null)
+                    return null;
 
-            public Pin[] GetAll()
-            {
-                return Pins.Values.ToArray();
-            }
 
-            public void Add(Pin pin)
-            {
-                Pins.Add(pin.Name, pin);
-                Events.OnPinCreated(pin);
-            }
+                Area area = GetAreaForDecayCalculation(entity);
 
-            public void Remove(Pin pin)
-            {
-                Pins.Remove(pin.Name);
-                Events.OnPinRemoved(pin);
-            }
-
-            public void RemoveAllPinsInUnclaimedAreas()
-            {
-                foreach (Pin pin in GetAll())
+                if (area == null)
                 {
-                    Area area = Instance.Areas.Get(pin.AreaId);
-                    if (!area.IsClaimed) Remove(pin);
-                }
-            }
-
-            public void Init(IEnumerable<PinInfo> pinInfos)
-            {
-                Instance.Puts($"Creating pins for {pinInfos.Count()} pins...");
-
-                foreach (PinInfo info in pinInfos)
-                {
-                    var pin = new Pin(info);
-                    Pins.Add(pin.Name, pin);
+                    //Instance.PrintWarning($"An entity decayed in an unknown area. This shouldn't happen.");
+                    return null;
                 }
 
-                Instance.Puts("Pins created.");
+                float reduction = 0;
+
+                if (area.Type == AreaType.Claimed || area.Type == AreaType.Headquarters)
+                    reduction = Instance.Options.Decay.ClaimedLandDecayReduction;
+
+                if (Instance.Options.Upgrading.Enabled && Instance.Options.Upgrading.MaxDecayExtraReduction > 0)
+                    reduction += area.GetLevelDecayReduction();
+
+                if (reduction >= 1)
+                    return true;
+
+                if (reduction > 0)
+                    hit.damageTypes.Scale(Rust.DamageType.Decay, reduction);
+
+                return null;
             }
 
-            public void Destroy()
+            private static Area GetAreaForDecayCalculation(BaseEntity entity)
             {
-                Pins.Clear();
-            }
+                Area area = null;
 
-            public PinInfo[] Serialize()
-            {
-                return Pins.Values.Select(pin => pin.Serialize()).ToArray();
-            }
-        }
-    }
-}
+                // If the entity is controlled by a claim cupboard, use the area the cupboard controls.
+                BuildingPrivlidge cupboard = entity.GetBuildingPrivilege();
+                if (cupboard)
+                    area = Instance.Areas.GetByClaimCupboard(cupboard);
 
-namespace Oxide.Plugins
-{
-    public partial class Imperium
-    {
-        private enum PinType
-        {
-            Arena,
-            Hotel,
-            Marina,
-            Shop,
-            Town
+                // Otherwise, determine the area by its position in the world.
+                if (area == null)
+                    area = Instance.Areas.GetByEntityPosition(entity);
+
+                return area;
+            }
         }
     }
 }
 #endregion
 
-#region > User
-namespace Oxide.Plugins
+#region Pvp.cs
+﻿namespace Oxide.Plugins
 {
     using System;
-    using System.Collections.Generic;
-    using System.Text;
-    using UnityEngine;
     using System.Linq;
-    using Newtonsoft.Json.Linq;
-    //using ProtoBuf;
 
     public partial class Imperium
     {
-        private class User : MonoBehaviour
+        private static class Pvp
         {
-            private string OriginalName;
-            private Dictionary<string, DateTime> CommandCooldownExpirations;
-            public BasePlayer Player { get; private set; }
-            public UserMap Map { get; private set; }
-            public UserHud Hud { get; private set; }
-            public UserPanel Panel { get; set; }
-            public UserPreferences Preferences { get; set; }
-            public Area CurrentArea { get; set; }
-            public HashSet<Zone> CurrentZones { get; private set; }
-            public Faction Faction { get; private set; }
-            public Interaction CurrentInteraction { get; private set; }
-            public DateTime MapCommandCooldownExpiration { get; set; }
-            public DateTime PvpCommandCooldownExpiration { get; set; }
-            public bool IsInPvpMode { get; set; }
-            public bool IsInsideRaidableBase { get ; set; }
-
-            public bool UpdatedMarkers = false;
-
-            public string Id
+            private static string[] BlockedPrefabs = new[]
             {
-                get { return Player.UserIDString; }
+                "fireball_small",
+                "fireball_small_arrow",
+                "fireball_small_shotgun",
+                "fireexplosion",
+                "fireball_small_molotov"
+            };
+
+            public static object HandleDamageBetweenPlayers(User attacker, User defender, HitInfo hit)
+            {
+
+                if (!Instance.Options.Pvp.RestrictPvp)
+                {
+                    attacker.onDamagedUser?.Invoke(defender);
+                    defender.onDamagedByUser?.Invoke(attacker);
+                    return null;
+                }
+
+                if (attacker == null || defender == null || hit == null)
+                    return null;
+
+                // Allow players to take the easy way out.
+                if (hit.damageTypes.Has(Rust.DamageType.Suicide))
+                    return null;
+
+                // If the players are both in factions who are currently at war, they can damage each other anywhere.
+                if (attacker.Faction != null && defender.Faction != null &&
+                    Instance.Wars.AreFactionsAtWar(attacker.Faction, defender.Faction))
+                {
+                    attacker.onDamagedUser?.Invoke(defender);
+                    defender.onDamagedByUser?.Invoke(attacker);
+                    return null;
+                }
+
+
+                // If both the attacker and the defender are in PVP mode, or in a PVP area/zone, they can damage one another.
+                if (IsUserInDanger(attacker) && IsUserInDanger(defender))
+                {
+                    attacker.onDamagedUser?.Invoke(defender);
+                    defender.onDamagedByUser?.Invoke(attacker);
+                    return null;
+                }
+
+
+                // Return the result
+                return true;
             }
 
-            public string UserName
+            public static object HandleIncidentalDamage(User defender, HitInfo hit)
             {
-                get { return OriginalName; }
+                if (defender == null || hit == null)
+                    return null;
+
+                if (!Instance.Options.Pvp.RestrictPvp)
+                    return null;
+
+                if (hit.Initiator == null)
+                    return null;
+
+                // If the damage is coming from something other than a blocked prefab, allow it.
+                if (!BlockedPrefabs.Contains(hit.Initiator.ShortPrefabName))
+                    return null;
+
+                //If player is inside a Raidable Base and the damage was initiated by a trap or turret, allow it.
+                if (Instance.RaidableBases != null && defender.IsInsideRaidableBase &&
+                     (hit.Initiator is AutoTurret ||
+                      hit.Initiator is GunTrap ||
+                      hit.Initiator is BaseTrap ||
+                      hit.Initiator is FlameTurret ||
+                      hit.Initiator is SamSite ||
+                      hit.Initiator is Barricade ||
+                      hit.Initiator is TeslaCoil))
+                {
+                    return null;
+                }
+
+
+                // If the player is in a PVP area or in PVP mode, allow the damage.
+                if (IsUserInDanger(defender))
+                    return null;
+
+                return true;
             }
 
-            public string UserNameWithFactionTag
+            public static object HandleTrapTrigger(BaseTrap trap, User defender)
             {
-                get { return Player.displayName; }
+                if (!Instance.Options.Pvp.RestrictPvp)
+                    return null;
+
+                // A player can always trigger their own traps, to prevent exploiting this mechanic.
+                if (defender == null || defender.Player == null || defender.Player.userID == trap.OwnerID)
+                    return null;
+
+                //Players can always trigger traps when inside a Raidable Base
+                if (Instance.RaidableBases != null && defender.IsInsideRaidableBase)
+                    return null;
+
+                Area trapArea = Instance.Areas.GetByEntityPosition(trap);
+
+                // If the defender is in a faction, they can trigger traps placed in areas claimed by factions with which they are at war.
+                if (trapArea == null || defender.Faction != null && trapArea.FactionId != null &&
+                    Instance.Wars.AreFactionsAtWar(defender.Faction.Id, trapArea.FactionId))
+                    return null;
+
+
+                // If the defender is in a PVP area or zone, the trap can trigger.
+                // TODO: Ensure the trap is also in the PVP zone.
+                if (IsUserInDanger(defender))
+                    return null;
+
+                // Stop the trap from triggering.
+                return true;
             }
 
-            public void Init(BasePlayer player)
+            public static object HandleTurretTarget(BaseCombatEntity turret, User defender)
             {
-                Player = player;
-                OriginalName = player.displayName;
-                CurrentZones = new HashSet<Zone>();
-                CommandCooldownExpirations = new Dictionary<string, DateTime>();
-                Preferences = UserPreferences.Default;
+                if (!Instance.Options.Pvp.RestrictPvp)
+                    return null;
 
-                Map = new UserMap(this);
-                Hud = new UserHud(this);
-                Panel = new UserPanel(this);
+                // A player can be always be targeted by their own turrets, to prevent exploiting this mechanic.
+                if (defender.Player.userID == turret.OwnerID)
+                    return null;
 
-                IsInsideRaidableBase = false;
+                Area turretArea = Instance.Areas.GetByEntityPosition(turret);
 
-                InvokeRepeating(nameof(UpdateHud), 5f, 5f);
-                InvokeRepeating(nameof(CheckArea), 2f, 2f);
+                //Players inside RaidableBases can be targeted by turrets
+                if (defender.IsInsideRaidableBase)
+                    return null;
+
+                if (turretArea == null || defender.CurrentArea == null)
+                    return null;
+
+                // If the defender is in a faction, they can be targeted by turrets in areas claimed by factions with which they are at war.
+                if (defender.Faction != null && turretArea.FactionId != null &&
+                    Instance.Wars.AreFactionsAtWar(defender.Faction.Id, turretArea.FactionId))
+                    return null;
+
+                // If the defender is in a PVP area or zone, the turret can trigger.
+                // TODO: Ensure the turret is also in the PVP zone.
+                if (IsUserInDanger(defender))
+                    return null;
+
+                return false;
             }
 
-            private void OnDestroy()
+            public static object HandleRecruitTurretTarget(BaseCombatEntity turret, Recruit defender)
             {
-                Map.Hide();
-                Hud.Hide();
-                Panel.Hide();
+                BasePlayer owner = null;
+                BasePlayer.TryFindByID(turret.OwnerID, out owner);
+                User user = null;
+                Faction faction = null;
+                if (owner != null)
+                {
+                    user = Instance.Users.Get(owner.UserIDString);
+                }
+                if (user != null)
+                    faction = user.Faction;
 
-                if (IsInvoking(nameof(UpdateHud))) CancelInvoke(nameof(UpdateHud));
-                if (IsInvoking(nameof(CheckArea))) CancelInvoke(nameof(CheckArea));
-
-                if (Player != null)
-                    Player.displayName = OriginalName;
-            }
-
-            public void SetFaction(Faction faction)
-            {
-                if (Faction == faction)
-                    return;
-                CurrentInteraction = null;
-                Faction = faction;
-
+                if (defender.faction == faction)
+                    return false;
                 if (faction == null)
-                    Player.displayName = OriginalName;
-                else
-                    Player.displayName = $"[{faction.Id}] {Player.displayName}";
-                if (Instance.Options.Factions.OverrideInGameTeamSystem)
                 {
-                    CancelInvoke("EnsureIsInFactionTeam");
-                    Invoke("EnsureIsInFactionTeam", 3f);
-                }
-
-                Player.SendNetworkUpdate();
-            }
-
-            public bool HasPermission(string permission)
-            {
-                return Instance.permission.UserHasPermission(Player.UserIDString, permission);
-            }
-
-            public void BeginInteraction(Interaction interaction)
-            {
-                interaction.User = this;
-                CurrentInteraction = interaction;
-            }
-
-            public void CompleteInteraction(HitInfo hit)
-            {
-                if (CurrentInteraction.TryComplete(hit))
-                    CurrentInteraction = null;
-            }
-
-            public void CancelInteraction()
-            {
-                MapMarker
-                CurrentInteraction = null;
-            }
-
-            public void SendChatMessage(string message, params object[] args)
-            {
-                string format = Instance.lang.GetMessage(message, Instance, Player.UserIDString);
-                Instance.SendReply(Player, format, args);
-            }
-
-            public void SendChatMessage(StringBuilder sb)
-            {
-                Instance.SendReply(Player, sb.ToString().TrimEnd());
-            }
-
-            public void SendConsoleMessage(string message, params object[] args)
-            {
-                Player.ConsoleMessage(String.Format(message, args));
-            }
-
-            private void UpdateHud()
-            {
-                Hud.Refresh();
-            }
-
-            public int GetSecondsLeftOnCooldown(string command)
-            {
-                DateTime expiration;
-
-                if (!CommandCooldownExpirations.TryGetValue(command, out expiration))
-                    return 0;
-
-                return (int)Math.Max(0, expiration.Subtract(DateTime.UtcNow).TotalSeconds);
-            }
-
-            public void SetCooldownExpiration(string command, DateTime time)
-            {
-                CommandCooldownExpirations[command] = time;
-            }
-
-            private void CheckArea()
-            {
-                Area currentArea = CurrentArea;
-                Area correctArea = Instance.Areas.GetByEntityPosition(Player);
-
-                if (currentArea != null && (correctArea == null || currentArea.Id != correctArea.Id))
-                {
-                    Events.OnUserLeftArea(this, currentArea);
-                }
-                Events.OnUserEnteredArea(this, correctArea);
-
-            }
-
-            public void EnsureIsInFactionTeam()
-            {
-                if (Player.currentTeam != 0UL)
-                {
-                    if (Faction == null || Player.currentTeam != Faction.InGameTeamID)
+                    AutoTurret autoTurret = turret as AutoTurret;
+                    if (autoTurret)
                     {
-                        Player.Team.RemovePlayer(Player.userID);
-                        if (Faction == null)
-                            return;
+                        foreach (ProtoBuf.PlayerNameID playerId in autoTurret.authorizedPlayers)
+                        {
+                            faction = Instance.Factions.GetByMember(playerId.userid.ToString());
+                            if (faction != null)
+                                break;
+                        }
                     }
-                    if (Player.currentTeam == Faction.InGameTeamID)
-                        return;
                 }
-                if (Player.currentTeam == 0UL && Faction == null)
-                    return;
-                RelationshipManager.PlayerTeam factionTeam;
-                factionTeam = RelationshipManager.ServerInstance.FindTeam(Faction.InGameTeamID);
-                if (factionTeam == null)
-                {
-                    Faction.CreateFactionTeam();
-                    return;
-                }
-                factionTeam.AddPlayer(Player);
+                Area turretArea = Instance.Areas.GetByEntityPosition(turret);
+                Area recruitArea = Instance.Areas.GetByEntityPosition(defender.npc);
+
+                if (turretArea == null || recruitArea == null)
+                    return null;
+
+                // If the defender is in a faction, they can be targeted by turrets in areas claimed by factions with which they are at war.
+                if (defender.faction != null && turretArea.FactionId != null &&
+                    Instance.Wars.AreFactionsAtWar(defender.faction.Id, turretArea.FactionId))
+                    return null;
+
+                // If the defender is in a PVP area or zone, the turret can trigger.
+                // TODO: Ensure the turret is also in the PVP zone.
+                if (IsRecruitInDanger(defender))
+                    return null;
+
+                return null;
             }
 
-            public void SyncWithClan()
+            public static bool IsUserInDanger(User user)
             {
-                if (!Instance.Options.Factions.UseClansPlugin)
-                    return;
+                return user.IsInPvpMode ||
+                IsPvpArea(user.CurrentArea) ||
+                user.CurrentZones.Any(IsPvpZone);
+            }
 
-                if (Player == null)
-                    return;
-                string clanId = (string)Instance.Clans.CallHook("GetClanOf", Player);
-                //is in correct faction already
-                if (Faction?.Id == clanId)
+            public static bool IsRecruitInDanger(Recruit recruit)
+            {
+                return IsPvpArea(Instance.Areas.GetByEntityPosition(recruit.npc));
+            }
+
+            public static bool IsPvpZone(Zone zone)
+            {
+                switch (zone.Type)
                 {
-                    return;
+                    case ZoneType.Debris:
+                    case ZoneType.SupplyDrop:
+                        return Instance.Options.Pvp.AllowedInEventZones;
+                    case ZoneType.Monument:
+                        return Instance.Options.Pvp.AllowedInMonumentZones;
+                    case ZoneType.Raid:
+                        return Instance.Options.Pvp.AllowedInRaidZones;
+                    default:
+                        throw new InvalidOperationException($"Unknown zone type {zone.Type}");
                 }
-                //user is not in a clan
-                if (clanId == null)
+            }
+
+            public static bool IsPvpArea(Area area)
+            {
+                if (area == null)
+                    return Instance.Options.Pvp.AllowedInDeepWater;
+
+                switch (area.Type)
                 {
-                    //user is in a faction (Disband if owner, leave if not)
-                    if (Faction != null)
+                    case AreaType.Badlands:
+                        return Instance.Options.Pvp.AllowedInBadlands;
+                    case AreaType.Claimed:
+                    case AreaType.Headquarters:
+                        {
+                            if (Instance.Options.Pvp.AllowedInClaimedLand)
+                            {
+                                return true;
+                            }
+                            else if (Instance.Options.Factions.AllowFactionBadlands && Instance.Factions.Get(area.FactionId).IsBadlands)
+                            {
+                                return true;
+                            }
+                            else
+                            {
+                                return false;
+                            }
+                        }
+                    case AreaType.Wilderness:
+                        return Instance.Options.Pvp.AllowedInWilderness;
+                    default:
+                        throw new InvalidOperationException($"Unknown area type {area.Type}");
+                }
+            }
+        }
+    }
+}
+#endregion
+
+#region Raiding.cs
+﻿namespace Oxide.Plugins
+{
+    using System;
+    using System.Linq;
+
+    public partial class Imperium
+    {
+        private static class Raiding
+        {
+            // Setting this to true will disable the rules which normally allow owners of land to damage their own structures
+            // This means that for the purposes of structural damage, the player will be considered a hostile force, which
+            // in turn allows easy testing of raiding rules. Should usually be false unless you're testing something.
+            private const bool EnableTestMode = false;
+
+            private enum DamageResult
+            {
+                Prevent,
+                NotProtected,
+                Friendly,
+                BeingAttacked
+            }
+
+            private static string[] BlockedPrefabs = new[]
+            {
+                "fireball_small",
+                "fireball_small_arrow",
+                "fireball_small_shotgun",
+                "fireexplosion"
+            };
+            private static string[] ProtectedPrefabs = new[]
+            {
+                "barricade.concrete",
+                "barricade.metal",
+                "barricade.sandbags",
+                "barricade.stone",
+                "barricade.wood",
+                "barricade.woodwire",
+                "bbq",
+                "bed",
+                "box.wooden.large",
+                "ceilinglight",
+                "chair",
+                "cupboard",
+                "door.double.hinged",
+                "door.hinged",
+                "dropbox",
+                "fireplace",
+                "floor.ladder.hatch",
+                "floor.grill",
+                "fridge",
+                "furnace",
+                "gates.external",
+                "jackolantern",
+                "lantern",
+                "locker",
+                "mailbox",
+                "planter.large",
+                "planter.small",
+                "reactivetarget",
+                "refinery",
+                "repairbench",
+                "researchtable",
+                "rug",
+                "searchlight",
+                "shelves",
+                "shutter",
+                "sign.hanging",
+                "sign.huge.wood",
+                "sign.large.wood",
+                "sign.medium.wood",
+                "sign.pictureframe",
+                "sign.pole.banner.large",
+                "sign.post",
+                "sign.small.wood",
+                "stash.small",
+                "spikes.floor",
+                "spinner.wheel",
+                "survivalfishtrap",
+                "table",
+                "tunalight",
+                "vendingmachine",
+                "wall.external",
+                "wall.frame",
+                "wall.window",
+                "watchtower.wood",
+                "water.barrel",
+                "water.catcher",
+                "water.purifier",
+                "waterbarrel",
+                "waterpurifier",
+                "window.bars",
+                "woodbox",
+                "workbench",
+                "switch",
+                "orswitch",
+                "andswitch",
+                "xorswitch",
+                "timer",
+                "splitter",
+                "blocker",
+                "cabletunnel",
+                "doorcontroller",
+                "generator",
+                "laserdetector",
+                "pressurepad",
+                "simplelight",
+                "solarpanel",
+                "electrical.branch",
+                "electrical.combiner",
+                "electrical.memorycell",
+                "smallrechargablebattery",
+                "large.rechargable.battery"
+            };
+            private static string[] RaidTriggeringPrefabs = new[]
+            {
+                "cupboard",
+                "door.double.hinged",
+                "door.hinged",
+                "floor.ladder.hatch",
+                "floor.grill",
+                "gates.external",
+                "vendingmachine",
+                "wall.frame",
+                "wall.external",
+                "wall.window",
+                "window.bars"
+            };
+
+            public static object HandleDamageAgainstStructure(User attacker, BaseEntity entity, HitInfo hit)
+            {
+                if (attacker == null || entity == null || hit == null)
+                    return null;
+                Area area = Instance.Areas.GetByEntityPosition(entity);
+
+                if (area == null && entity.gameObject.GetComponent<BaseCombatEntity>() == null)
+                {
+                    return null;
+                }
+
+                DamageResult result = DetermineDamageResult(attacker, area, entity);
+                if (EnableTestMode)
+                    Instance.Log("Damage from a player to structure with prefab {0}: {1}", entity.ShortPrefabName,
+                        result.ToString());
+
+                if (result == DamageResult.NotProtected)
+                {
+                    return null;
+                }
+
+                if (result == DamageResult.Friendly)
+                {
+                    if (entity.OwnerID == attacker.Player.userID)
                     {
-                        if (Faction.HasOwner(this))
-                        {
-                            Instance.Factions.Disband(this.Faction);
-                            SetFaction(null);
-                        }
-                        else
-                        {
-                            Faction.RemoveMember(this);
-                            SetFaction(null);
-                        }
-
+                        return null;
                     }
-                    return;
+                    if (!attacker.Faction.HasLeader(attacker) && (!area.IsWarZone && !area.IsHostile))
+                    {
+                        if (hit.damageTypes.Has(Rust.DamageType.Explosion) || hit.damageTypes.Has(Rust.DamageType.Heat))
+                        {
+                            hit.damageTypes.ScaleAll(Instance.Options.Factions.MemberOwnLandExplosiveRaidingDamageScale);
+                            return null;
+                        }
+                        hit.damageTypes.ScaleAll(Instance.Options.Factions.MemberOwnLandEcoRaidingDamageScale);
+                        return null;
+                    }
+                    return null;
                 }
-                JObject jClan = (JObject)Instance.Clans.CallHook("GetClan", clanId);
-                Faction clanFaction = Instance.Factions.Get(clanId);
 
-                //corresponding clan for faction does not exist yet. If owner, create the correct faction
-                if (clanFaction == null)
+                if (result == DamageResult.Prevent)
+                    return true;
+
+                float reduction = area.GetDefensiveBonus();
+
+                if (reduction >= 1)
+                    return true;
+
+                if (reduction > 0)
+                    hit.damageTypes.ScaleAll(reduction);
+
+                if (Instance.Options.Zones.Enabled)
                 {
-                    User owner = Instance.Users.Get(jClan.GetValue("owner").Value<string>());
-                    //clan owner is online
+                    BuildingPrivlidge cupboard = entity.GetBuildingPrivilege();
+
+                    if (cupboard != null && IsRaidTriggeringEntity(entity))
+                    {
+                        float remainingHealth = entity.Health() - hit.damageTypes.Total();
+                        if (remainingHealth < 1)
+                            Instance.Zones.CreateForRaid(cupboard);
+                    }
+                }
+
+                return null;
+            }
+
+            private static DamageResult DetermineDamageResult(User attacker, Area area, BaseEntity entity)
+            {
+                // Players can always damage their own entities.
+                if (!EnableTestMode && attacker.Player.userID == entity.OwnerID)
+                    return DamageResult.Friendly;
+
+                if (area == null || !IsProtectedEntity(entity))
+                    return DamageResult.NotProtected;
+
+                if (attacker.Faction != null)
+                {
+                    // Factions can damage any structure built on their own land.
+                    if (!EnableTestMode && area.FactionId != null && attacker.Faction.Id == area.FactionId)
+                        return DamageResult.Friendly;
+
+                    // Factions who are at war can damage any structure on enemy land, subject to the defensive bonus.
+                    if (area.FactionId != null && Instance.Wars.AreFactionsAtWar(attacker.Faction.Id, area.FactionId))
+                        return DamageResult.BeingAttacked;
+
+                    // Factions who are at war can damage any structure built by a member of an enemy faction, subject
+                    // to the defensive bonus.
+                    BasePlayer owner = BasePlayer.FindByID(entity.OwnerID);
                     if (owner != null)
                     {
-                        clanFaction = Instance.Factions.Create(clanId, owner);
-                        if (owner.Faction != null)
-                        {
-                            Instance.Factions.Disband(owner.Faction);
-                        }
-                        owner.SetFaction(clanFaction);
-                        if (this == owner)
-                            return;
+                        Faction owningFaction = Instance.Factions.GetByMember(owner.UserIDString);
+                        if (owningFaction != null && Instance.Wars.AreFactionsAtWar(attacker.Faction, owningFaction))
+                            return DamageResult.BeingAttacked;
                     }
                 }
-                //if user faction is in a faction and is not in the clanFaction (might be null). Leave the current faction
-                if (Faction != null && Faction != clanFaction)
-                {
 
-                    if (this.Faction.HasOwner(this))
-                    {
-                        Instance.Factions.Disband(this.Faction);
-                        SetFaction(null);
-                    }
-                    else
-                    {
-                        Faction.RemoveMember(this);
-                        SetFaction(null);
-                    }
-                }
-                //set own faction if not equal clan faction
-                if (Faction != clanFaction)
-                    SetFaction(clanFaction);
+                // If the structure is in a raidable area, it can be damaged subject to the defensive bonus.
+                if (IsRaidableArea(area))
+                    return DamageResult.BeingAttacked;
 
+                // Prevent the damage.
+                return DamageResult.Prevent;
             }
 
-            private void CheckZones()
+            public static object HandleIncidentalDamage(BaseEntity entity, HitInfo hit)
             {
-            }
-        }
-    }
-}
-
-namespace Oxide.Plugins
-{
-    using System.Collections.Generic;
-    using System.Linq;
-
-    public partial class Imperium
-    {
-        private class UserManager
-        {
-            private Dictionary<string, User> Users = new Dictionary<string, User>();
-            private Dictionary<string, string> OriginalNames = new Dictionary<string, string>();
-
-            public User[] GetAll()
-            {
-                return Users.Values.ToArray();
-            }
-
-            public User Get(BasePlayer player)
-            {
-                if (player == null) return null;
-                return Get(player.UserIDString);
-            }
-
-            public User Get(string userId)
-            {
-                User user;
-                if (Users.TryGetValue(userId, out user))
-                    return user;
-                else
+                if (entity == null || hit == null)
                     return null;
-            }
-
-            public User Find(string searchString)
-            {
-                User user = Get(searchString);
-
-                if (user != null)
-                    return user;
-
-                return Users.Values
-                    .Where(u => u.UserName.ToLowerInvariant().Contains(searchString.ToLowerInvariant()))
-                    .OrderBy(u =>
-                        Util.GetLevenshteinDistance(searchString.ToLowerInvariant(), u.UserName.ToLowerInvariant()))
-                    .FirstOrDefault();
-            }
-
-            public User Add(BasePlayer player)
-            {
-                Remove(player);
-
-                string originalName;
-                if (OriginalNames.TryGetValue(player.UserIDString, out originalName))
-                    player.displayName = originalName;
-                else
-                    OriginalNames[player.UserIDString] = player.displayName;
-
-                User user = player.gameObject.AddComponent<User>();
-                user.Init(player);
-
-                Faction faction = Instance.Factions.GetByMember(user);
-                if (faction != null)
-                    user.SetFaction(faction);
-                else
-                    user.SetFaction(null);
-
-                Users[user.Player.UserIDString] = user;
-
-                if (Instance.Options.Factions.UseClansPlugin)
-                {
-                    user.SyncWithClan();
-                }
-
-                return user;
-            }
-
-            public bool Remove(BasePlayer player)
-            {
-                User user = Get(player);
-                if (user == null) return false;
-
-                UnityEngine.Object.DestroyImmediate(user);
-                Users.Remove(player.UserIDString);
-
-                return true;
-            }
-
-            public void SetOriginalName(string userId, string name)
-            {
-                OriginalNames[userId] = name;
-            }
-
-            public void Init()
-            {
-                var players = BasePlayer.activePlayerList;
-
-                Instance.Puts($"Creating user objects for {players.Count} players...");
-
-                foreach (BasePlayer player in players)
-                    Add(player);
-
-                Instance.Puts($"Created {Users.Count} user objects.");
-            }
-
-            public void Destroy()
-            {
-                User[] users = UnityEngine.Object.FindObjectsOfType<User>();
-
-                if (users == null)
-                    return;
-
-                Instance.Puts($"Destroying {users.Length} user objects.");
-
-                foreach (var user in users)
-                    UnityEngine.Object.DestroyImmediate(user);
-
-                Users.Clear();
-
-                Instance.Puts("User objects destroyed.");
-            }
-        }
-    }
-}
-
-namespace Oxide.Plugins
-{
-    using System;
-
-    public partial class Imperium
-    {
-        private class UserPreferences
-        {
-            public UserMapLayer VisibleMapLayers { get; private set; }
-
-            public void ShowMapLayer(UserMapLayer layer)
-            {
-                VisibleMapLayers |= layer;
-            }
-
-            public void HideMapLayer(UserMapLayer layer)
-            {
-                VisibleMapLayers &= ~layer;
-            }
-
-            public void ToggleMapLayer(UserMapLayer layer)
-            {
-                if (IsMapLayerVisible(layer))
-                    HideMapLayer(layer);
-                else
-                    ShowMapLayer(layer);
-            }
-
-            public bool IsMapLayerVisible(UserMapLayer layer)
-            {
-                return (VisibleMapLayers & layer) == layer;
-            }
-
-            public static UserPreferences Default
-            {
-                get
-                {
-                    return new UserPreferences
-                    {
-                        VisibleMapLayers = UserMapLayer.Claims | UserMapLayer.Headquarters | UserMapLayer.Monuments |
-                                           UserMapLayer.Pins
-                    };
-                }
-            }
-        }
-
-        [Flags]
-        private enum UserMapLayer
-        {
-            Claims = 1,
-            Headquarters = 2,
-            Monuments = 4,
-            Pins = 8
-        }
-    }
-}
-#endregion
-
-#region > War
-namespace Oxide.Plugins
-{
-    using System;
-    using System.Collections.Generic;
-    public partial class Imperium
-    {
-        private class War
-        {
-
-            public string AttackerId { get; set; }
-            public string DefenderId { get; set; }
-            public string DeclarerId { get; set; }
-            public string CassusBelli { get; set; }
-
-            public DateTime? AttackerPeaceOfferingTime { get; set; }
-            public DateTime? DefenderPeaceOfferingTime { get; set; }
-
-            public DateTime StartTime { get; private set; }
-            public DateTime? EndTime { get; set; }
-            public WarEndReason? EndReason { get; set; }
-
-            public bool AdminApproved { get; set; }
-
-            public bool DefenderApproved { get; set; }
-
-            public bool IsActive
-            {
-                get { return EndTime == null && AdminApproved && DefenderApproved; }
-            }
-
-            public bool IsAttackerOfferingPeace
-            {
-                get { return AttackerPeaceOfferingTime != null; }
-            }
-
-            public bool IsDefenderOfferingPeace
-            {
-                get { return DefenderPeaceOfferingTime != null; }
-            }
-
-            public War(Faction attacker, Faction defender, User declarer, string cassusBelli)
-            {
-                AttackerId = attacker.Id;
-                DefenderId = defender.Id;
-                DeclarerId = declarer.Id;
-                AdminApproved = !Instance.Options.War.AdminApprovalRequired;
-                DefenderApproved = !Instance.Options.War.DefenderApprovalRequired;
-                CassusBelli = cassusBelli;
-                StartTime = DateTime.UtcNow;
-            }
-
-            public War(WarInfo info)
-            {
-                AttackerId = info.AttackerId;
-                DefenderId = info.DefenderId;
-                DeclarerId = info.DeclarerId;
-                CassusBelli = info.CassusBelli;
-                AdminApproved = info.AdminApproved;
-                DefenderApproved = info.DefenderApproved;
-                AttackerPeaceOfferingTime = info.AttackerPeaceOfferingTime;
-                DefenderPeaceOfferingTime = info.DefenderPeaceOfferingTime;
-                StartTime = info.StartTime;
-                EndTime = info.EndTime;
-            }
-
-            public void OfferPeace(Faction faction)
-            {
-                if (AttackerId == faction.Id)
-                    AttackerPeaceOfferingTime = DateTime.UtcNow;
-                else if (DefenderId == faction.Id)
-                    DefenderPeaceOfferingTime = DateTime.UtcNow;
-                else
-                    throw new InvalidOperationException(String.Format(
-                        "{0} tried to offer peace but the faction wasn't involved in the war!", faction.Id));
-            }
-
-            public bool IsOfferingPeace(Faction faction)
-            {
-                return IsOfferingPeace(faction.Id);
-            }
-
-            public bool IsOfferingPeace(string factionId)
-            {
-                return (factionId == AttackerId && IsAttackerOfferingPeace) ||
-                       (factionId == DefenderId && IsDefenderOfferingPeace);
-            }
-
-            public WarInfo Serialize()
-            {
-                return new WarInfo
-                {
-                    AttackerId = AttackerId,
-                    DefenderId = DefenderId,
-                    DeclarerId = DeclarerId,
-                    CassusBelli = CassusBelli,
-                    AdminApproved = AdminApproved,
-                    DefenderApproved = DefenderApproved,
-                    AttackerPeaceOfferingTime = AttackerPeaceOfferingTime,
-                    DefenderPeaceOfferingTime = DefenderPeaceOfferingTime,
-                    StartTime = StartTime,
-                    EndTime = EndTime,
-                    EndReason = EndReason
-                };
-            }
-        }
-    }
-}
-
-namespace Oxide.Plugins
-{
-    public partial class Imperium : RustPlugin
-    {
-        private enum WarEndReason
-        {
-            Treaty,
-            AttackerEliminatedDefender,
-            DefenderEliminatedAttacker,
-            AdminDenied,
-            DefenderDenied
-        }
-    }
-}
-
-namespace Oxide.Plugins
-{
-    using System;
-
-    public partial class Imperium
-    {
-        private enum WarPhase
-        {
-            Preparation,
-            Combat,
-            Raiding
-        }
-    }
-}
-
-namespace Oxide.Plugins
-{
-    using System;
-    using System.Collections.Generic;
-    using Newtonsoft.Json;
-    using Newtonsoft.Json.Converters;
-    using Newtonsoft.Json.Linq;
-
-    public partial class Imperium : RustPlugin
-    {
-        private class WarInfo
-        {
-            [JsonProperty("attackerId")] public string AttackerId;
-
-            [JsonProperty("defenderId")] public string DefenderId;
-
-            [JsonProperty("declarerId")] public string DeclarerId;
-
-            [JsonProperty("cassusBelli")] public string CassusBelli;
-
-            [JsonProperty("adminApproved")] public bool AdminApproved;
-
-            [JsonProperty("defenderApproved")] public bool DefenderApproved;
-
-            [JsonProperty("attackerPeaceOfferingTime"), JsonConverter(typeof(IsoDateTimeConverter))]
-            public DateTime? AttackerPeaceOfferingTime;
-
-            [JsonProperty("defenderPeaceOfferingTime"), JsonConverter(typeof(IsoDateTimeConverter))]
-            public DateTime? DefenderPeaceOfferingTime;
-
-            [JsonProperty("startTime"), JsonConverter(typeof(IsoDateTimeConverter))]
-            public DateTime StartTime;
-
-            [JsonProperty("endTime"), JsonConverter(typeof(IsoDateTimeConverter))]
-            public DateTime? EndTime;
-
-            [JsonProperty("endReason"), JsonConverter(typeof(StringEnumConverter))]
-            public WarEndReason? EndReason;
-        }
-    }
-}
-
-namespace Oxide.Plugins
-{
-    using System;
-    using System.Collections.Generic;
-    using System.Linq;
-
-    public partial class Imperium
-    {
-        private class WarManager
-        {
-            private List<War> Wars = new List<War>();
-
-            public War[] GetAllActiveWars()
-            {
-                return Wars.Where(war => war.IsActive).OrderBy(war => war.StartTime).ToArray();
-            }
-
-            public War[] GetAllInactiveWars()
-            {
-                return Wars.Where(war => !war.IsActive).OrderBy(war => war.StartTime).ToArray();
-            }
-
-            public War[] GetAllActiveWarsByFaction(Faction faction)
-            {
-                return GetAllActiveWarsByFaction(faction.Id);
-            }
-
-            public War[] GetAllAdminUnnaprovedWars()
-            {
-                return GetAllInactiveWars().Where(war => !war.AdminApproved && war.EndTime == null)
-                    .ToArray();
-            }
-
-            public War[] GetAllUnapprovedWarsByFaction(Faction faction)
-            {
-                return GetAllInactiveWars().Where(war => !war.IsActive && war.EndTime == null)
-                    .ToArray();
-            }
-
-            public War[] GetAllActiveWarsByFaction(string factionId)
-            {
-                return GetAllActiveWars().Where(war => war.AttackerId == factionId || war.DefenderId == factionId)
-                    .ToArray();
-            }
-
-            public War GetActiveWarBetween(Faction firstFaction, Faction secondFaction)
-            {
-                return GetActiveWarBetween(firstFaction.Id, secondFaction.Id);
-            }
-
-            public War GetActiveWarBetween(string firstFactionId, string secondFactionId)
-            {
-                return GetAllActiveWars().SingleOrDefault(war =>
-                    (war.AttackerId == firstFactionId && war.DefenderId == secondFactionId) ||
-                    (war.DefenderId == firstFactionId && war.AttackerId == secondFactionId)
-                );
-            }
-
-            public bool AreFactionsAtWar(Faction firstFaction, Faction secondFaction)
-            {
-                return AreFactionsAtWar(firstFaction.Id, secondFaction.Id);
-            }
-
-            public bool AreFactionsAtWar(string firstFactionId, string secondFactionId)
-            {
-                return GetActiveWarBetween(firstFactionId, secondFactionId) != null;
-            }
-
-            public War DeclareWar(Faction attacker, Faction defender, User user, string cassusBelli)
-            {
-                var war = new War(attacker, defender, user, cassusBelli);
-                Wars.Add(war);
-                Instance.OnDiplomacyChanged();
-                if (war.IsActive)
-                {
-                    Util.BroadcastEffect("assets/prefabs/missions/effects/mission_accept.prefab");
-                }
-                return war;
-            }
-
-            public bool TryShopfrontTreaty(BasePlayer player1, BasePlayer player2)
-            {
-                if (!Instance.Options.War.EnableShopfrontPeace)
-                    return false;
-
-                var user1 = Instance.Users.Get(player1);
-                var user2 = Instance.Users.Get(player2);
-
-                if (user1 == null || user2 == null)
-                    return false;
-                if (user1.Faction == null || user2.Faction == null)
-                    return false;
-                if (!Instance.Wars.AreFactionsAtWar(user1.Faction, user2.Faction))
-                    return false;
-                if (!user1.Faction.HasLeader(user1) || !user2.Faction.HasLeader(user2))
-                    return false;
-                EndWar(GetActiveWarBetween(user1.Faction, user2.Faction), WarEndReason.Treaty);
-                Util.PrintToChat(nameof(Messages.WarEndedTreatyAcceptedAnnouncement), user1.Faction.Id, user2.Faction.Id);
-                Instance.Log($"{Util.Format(user1)} and {Util.Format(user2)} accepted the peace by trading on a shop front");
-                return true;
-            }
-
-            public void AdminApproveWar(War war)
-            {
-                war.AdminApproved = true;
-                Instance.OnDiplomacyChanged();
-                if (war.IsActive)
-                {
-                    Util.BroadcastEffect("assets/prefabs/missions/effects/mission_accept.prefab");
-                }
-            }
-
-            public void AdminDenyeWar(War war)
-            {
-                war.AdminApproved = false;
-                EndWar(war, WarEndReason.AdminDenied);
-            }
-
-            public void DefenderApproveWar(War war)
-            {
-                war.DefenderApproved = true;
-                Instance.OnDiplomacyChanged();
-                if (war.IsActive)
-                {
-                    Util.BroadcastEffect("assets/prefabs/missions/effects/mission_accept.prefab");
-                }
-            }
-
-            public void DefenderDenyWar(War war)
-            {
-                war.DefenderApproved = false;
-                EndWar(war, WarEndReason.DefenderDenied);
-            }
-
-            public void EndWar(War war, WarEndReason reason)
-            {
-                war.EndTime = DateTime.UtcNow;
-                war.EndReason = reason;
-                Instance.OnDiplomacyChanged();
-            }
-
-            public void EndAllWarsForEliminatedFactions()
-            {
-                bool dirty = false;
-
-                foreach (War war in Wars)
-                {
-                    if (Instance.Areas.GetAllClaimedByFaction(war.AttackerId).Length == 0)
-                    {
-                        war.EndTime = DateTime.UtcNow;
-                        war.EndReason = WarEndReason.DefenderEliminatedAttacker;
-                        dirty = true;
-                    }
-
-                    if (Instance.Areas.GetAllClaimedByFaction(war.DefenderId).Length == 0)
-                    {
-                        war.EndTime = DateTime.UtcNow;
-                        war.EndReason = WarEndReason.AttackerEliminatedDefender;
-                        dirty = true;
-                    }
-                }
-
-                if (dirty)
-                    Instance.OnDiplomacyChanged();
-            }
-
-            public void Init(IEnumerable<WarInfo> warInfos)
-            {
-                Instance.Puts($"Loading {warInfos.Count()} wars...");
-
-                foreach (WarInfo info in warInfos)
-                {
-                    var war = new War(info);
-                    Wars.Add(war);
-                    Instance.Log($"[LOAD] War {war.AttackerId} vs {war.DefenderId}, isActive = {war.IsActive}");
-                }
-
-                Instance.Puts("Wars loaded.");
-            }
-            public void Destroy()
-            {
-                Wars.Clear();
-            }
-
-            public WarInfo[] Serialize()
-            {
-                return Wars.Select(war => war.Serialize()).ToArray();
-            }
-        }
-    }
-}
-#endregion
-
-#region > Zone
-namespace Oxide.Plugins
-{
-    using Rust;
-    using System;
-    using System.Collections.Generic;
-    using UnityEngine;
-
-    public partial class Imperium
-    {
-        private class Zone : MonoBehaviour
-        {
-            private const string SpherePrefab = "assets/prefabs/visualization/sphere.prefab";
-            private List<BaseEntity> Spheres = new List<BaseEntity>();
-
-            public ZoneType Type { get; private set; }
-            public string Name { get; private set; }
-            public MonoBehaviour Owner { get; private set; }
-            public DateTime? EndTime { get; set; }
-
-            public void Init(ZoneType type, string name, MonoBehaviour owner, float radius, int darkness,
-                DateTime? endTime)
-            {
-                Type = type;
-                Name = name;
-                Owner = owner;
-                EndTime = endTime;
-
-                Vector3 position = GetGroundPosition(owner.transform.position);
-
-                gameObject.layer = (int)Layer.Reserved1;
-                gameObject.name = $"imperium_zone_{name.ToLowerInvariant()}";
-                transform.position = position;
-                transform.rotation = Quaternion.Euler(new Vector3(0, 0, 0));
-
-                for (var idx = 0; idx < darkness; idx++)
-                {
-                    var sphere = GameManager.server.CreateEntity(SpherePrefab, position);
-
-                    SphereEntity entity = sphere.GetComponent<SphereEntity>();
-                    entity.lerpRadius = radius * 2;
-                    entity.currentRadius = radius * 2;
-                    entity.lerpSpeed = 0f;
-
-                    sphere.Spawn();
-                    Spheres.Add(sphere);
-                }
-
-                var collider = gameObject.AddComponent<SphereCollider>();
-                collider.radius = radius;
-                collider.isTrigger = true;
-                collider.enabled = true;
-
-                //Pin this zone to cargo ship so it follows it
-                if (type == ZoneType.CargoShip)
-                {
-                    transform.SetParent(owner.transform, false);
-                }
-
-                if (endTime != null)
-                    InvokeRepeating("CheckIfShouldDestroy", 10f, 5f);
-            }
-
-            private void OnDestroy()
-            {
-                var collider = GetComponent<SphereCollider>();
-
-                if (collider != null)
-                    Destroy(collider);
-
-                foreach (BaseEntity sphere in Spheres)
-                    sphere.KillMessage();
-
-                if (IsInvoking("CheckIfShouldDestroy"))
-                    CancelInvoke("CheckIfShouldDestroy");
-            }
-
-            private void OnTriggerEnter(Collider collider)
-            {
-                if (collider.gameObject.layer != (int)Layer.Player_Server)
-                    return;
-
-                var user = collider.GetComponentInParent<User>();
-
-                if (user != null && !user.CurrentZones.Contains(this))
-                    Events.OnUserEnteredZone(user, this);
-            }
-
-            private void OnTriggerExit(Collider collider)
-            {
-                if (collider.gameObject.layer != (int)Layer.Player_Server)
-                    return;
-
-                var user = collider.GetComponentInParent<User>();
-
-                if (user != null && user.CurrentZones.Contains(this))
-                    Events.OnUserLeftZone(user, this);
-            }
-
-            private void CheckIfShouldDestroy()
-            {
-                if (DateTime.UtcNow >= EndTime)
-                    Instance.Zones.Remove(this);
-            }
-
-            private Vector3 GetGroundPosition(Vector3 pos)
-            {
-                return new Vector3(pos.x, TerrainMeta.HeightMap.GetHeight(pos), pos.z);
-            }
-        }
-    }
-}
-
-namespace Oxide.Plugins
-{
-    using System;
-    using System.Collections.Generic;
-    using System.Linq;
-    using UnityEngine;
-
-    public partial class Imperium
-    {
-        private class ZoneManager
-        {
-            private Dictionary<MonoBehaviour, Zone> Zones = new Dictionary<MonoBehaviour, Zone>();
-
-            public void Init()
-            {
-                if (!Instance.Options.Zones.Enabled || Instance.Options.Zones.MonumentZones == null)
-                    return;
-
-                MonumentInfo[] monuments = UnityEngine.Object.FindObjectsOfType<MonumentInfo>();
-                foreach (MonumentInfo monument in monuments)
-                {
-                    float? radius = GetMonumentZoneRadius(monument);
-                    if (radius != null)
-                    {
-                        Vector3 position = monument.transform.position;
-                        Vector3 size = monument.Bounds.size;
-                        Create(ZoneType.Monument, monument.displayPhrase.english, monument, (float)radius);
-                    }
-                }
-            }
-
-            public Zone GetByOwner(MonoBehaviour owner)
-            {
-                Zone zone;
-
-                if (Zones.TryGetValue(owner, out zone))
-                    return zone;
-
-                return null;
-            }
-
-            public void CreateForDebrisField(BaseHelicopter helicopter)
-            {
-                Vector3 position = helicopter.transform.position;
-                float radius = Instance.Options.Zones.EventZoneRadius;
-                Create(ZoneType.Debris, "Debris Field", helicopter, radius, GetEventEndTime());
-            }
-
-            public void CreateForSupplyDrop(SupplyDrop drop)
-            {
-                Vector3 position = drop.transform.position;
-                float radius = Instance.Options.Zones.EventZoneRadius;
-                float lifespan = Instance.Options.Zones.EventZoneLifespanSeconds;
-                Create(ZoneType.SupplyDrop, "Supply Drop", drop, radius, GetEventEndTime());
-            }
-
-            public void CreateForCargoShip(CargoShip cargoShip)
-            {
-                Vector3 position = cargoShip.transform.position;
-                float radius = Instance.Options.Zones.EventZoneRadius;
-                float lifespan = Instance.Options.Zones.EventZoneLifespanSeconds;
-                Create(ZoneType.CargoShip, "Cargo Ship", cargoShip, radius, GetEventEndTime());
-            }
-
-            public void CreateForRaid(BuildingPrivlidge cupboard)
-            {
-                // If the building was already being raided, just extend the lifespan of the existing zone.
-                Zone existingZone = GetByOwner(cupboard);
-                if (existingZone)
-                {
-                    existingZone.EndTime = GetEventEndTime();
-                    Instance.Puts(
-                        $"Extending raid zone end time to {existingZone.EndTime} ({existingZone.EndTime.Value.Subtract(DateTime.UtcNow).ToShortString()} from now)");
-                    return;
-                }
-
-                Vector3 position = cupboard.transform.position;
-                float radius = Instance.Options.Zones.EventZoneRadius;
-
-                Create(ZoneType.Raid, "Raid", cupboard, radius, GetEventEndTime());
-            }
-
-            public void Remove(Zone zone)
-            {
-                Instance.Puts($"Destroying zone {zone.name}");
-
-                foreach (User user in Instance.Users.GetAll())
-                    user.CurrentZones.Remove(zone);
-
-                Zones.Remove(zone.Owner);
-
-                UnityEngine.Object.Destroy(zone);
-            }
-
-            public void Destroy()
-            {
-                Zone[] zones = UnityEngine.Object.FindObjectsOfType<Zone>();
-
-                if (zones != null)
-                {
-                    Instance.Puts($"Destroying {zones.Length} zone objects...");
-                    foreach (Zone zone in zones)
-                        UnityEngine.Object.DestroyImmediate(zone);
-                }
-
-                Zones.Clear();
-
-                Instance.Puts("Zone objects destroyed.");
-            }
-
-            private void Create(ZoneType type, string name, MonoBehaviour owner, float radius, DateTime? endTime = null)
-            {
-                var zone = new GameObject().AddComponent<Zone>();
-                zone.Init(type, name, owner, radius, Instance.Options.Zones.DomeDarkness, endTime);
-
-                Instance.Puts($"Created zone {zone.Name} at {zone.transform.position} with radius {radius}");
-
-                if (endTime != null)
-                    Instance.Puts(
-                        $"Zone {zone.Name} will be destroyed at {endTime} ({endTime.Value.Subtract(DateTime.UtcNow).ToShortString()} from now)");
-
-                Zones.Add(owner, zone);
-            }
-
-            private float? GetMonumentZoneRadius(MonumentInfo monument)
-            {
-                if (monument.Type == MonumentType.Cave)
+                if (!Instance.Options.Raiding.RestrictRaiding)
                     return null;
 
-                foreach (var entry in Instance.Options.Zones.MonumentZones)
-                {
-                    if (monument.name.ToLowerInvariant().Contains(entry.Key))
-                        return entry.Value;
-                }
-
-                return null;
-            }
-
-            private DateTime GetEventEndTime()
-            {
-                return DateTime.UtcNow.AddSeconds(Instance.Options.Zones.EventZoneLifespanSeconds);
-            }
-        }
-    }
-}
-
-namespace Oxide.Plugins
-{
-    public partial class Imperium
-    {
-        public enum ZoneType
-        {
-            Monument,
-            Debris,
-            SupplyDrop,
-            Raid,
-            CargoShip
-        }
-    }
-}
-#endregion
-
-#region > Recruit
-namespace Oxide.Plugins
-{
-    using Rust;
-    using UnityEngine;
-    public partial class Imperium
-    {
-        public class Recruit : MonoBehaviour
-        {
-        }
-    }
-}
-namespace Oxide.Plugins
-{
-    public partial class Imperium
-    {
-        public class RecruitInfo
-        {
-            //Existing bots serialized info
-        }
-    }
-}
-namespace Oxide.Plugins
-{
-    public partial class Imperium
-    {
-        public class RecruitManager
-        {
-            //Bot management
-        }
-    }
-}
-#endregion
-
-#region > Faction Colors
-namespace Oxide.Plugins
-{
-    using System.Collections.Generic;
-    using System.Drawing;
-    public partial class Imperium
-    {
-        private class FactionColorPicker
-        {
-            private static string[] Colors = new[]
-            {
-                "#00FF00", "#0000FF", "#FF0000", "#01FFFE", "#FFA6FE",
-                "#FFDB66", "#006401", "#010067", "#95003A", "#007DB5",
-                "#FF00F6", "#FFEEE8", "#774D00", "#90FB92", "#0076FF",
-                "#D5FF00", "#FF937E", "#6A826C", "#FF029D", "#FE8900",
-                "#7A4782", "#7E2DD2", "#85A900", "#FF0056", "#A42400",
-                "#00AE7E", "#683D3B", "#BDC6FF", "#263400", "#BDD393",
-                "#00B917", "#9E008E", "#001544", "#C28C9F", "#FF74A3",
-                "#01D0FF", "#004754", "#E56FFE", "#788231", "#0E4CA1",
-                "#91D0CB", "#BE9970", "#968AE8", "#BB8800", "#43002C",
-                "#DEFF74", "#00FFC6", "#FFE502", "#620E00", "#008F9C",
-                "#98FF52", "#7544B1", "#B500FF", "#00FF78", "#FF6E41",
-                "#005F39", "#6B6882", "#5FAD4E", "#A75740", "#A5FFD2",
-                "#FFB167", "#009BFF", "#E85EBE"
-            };
-            private Dictionary<string, Color> AssignedColors;
-            private int NextColor = 0;
-
-            public FactionColorPicker()
-            {
-                AssignedColors = new Dictionary<string, Color>();
-            }
-
-            public Color GetColorForFaction(string factionId)
-            {
-                Color color;
-
-                if (!AssignedColors.TryGetValue(factionId, out color))
-                {
-                    color = Color.FromArgb(128, ColorTranslator.FromHtml(Colors[NextColor]));
-                    AssignedColors.Add(factionId, color);
-                    NextColor = (NextColor + 1) % Colors.Length;
-                }
-
-                return color;
-            }
-
-            public string GetHexColorForFaction(string factionId)
-            {
-                string hexcolor;
-                Color color;
-
-                if (!AssignedColors.TryGetValue(factionId, out color))
-                {
-                    color = Color.FromArgb(128, ColorTranslator.FromHtml(Colors[NextColor]));
-                    AssignedColors.Add(factionId, color);
-                    NextColor = (NextColor + 1) % Colors.Length;
-                }
-                hexcolor = $"#{color.R:X2}{color.G:X2}{color.B:X2}";
-
-                return hexcolor;
-            }
-        }
-    }
-}
-#endregion
-
-#region > Map
-namespace Oxide.Plugins
-{
-    using System;
-    using UnityEngine;
-
-    public partial class Imperium
-    {
-        public class MapGrid
-        {
-            public float GRID_CELL_SIZE = 146.3f;
-
-            public float MapSize
-            {
-                get; set;
-            }
-            public float MapWidth
-            {
-                get; set;
-            }
-
-            public float MapHeight
-            {
-                get; set;
-            }
-            public float MapOffsetX
-            {
-                get; set;
-            }
-
-            public float MapOffsetZ
-            {
-                get; set;
-            }
-
-            public float CellSize
-            {
-                get; set;
-            }
-
-            public float CellSizeRatio
-            {
-                get { return (float)MapSize / CellSize; }
-            }
-
-            public float CellSizeRatioWidth
-            {
-                get { return (float)MapWidth / CellSize; }
-            }
-
-            public float CellSizeRatioHeight
-            {
-                get { return (float)MapHeight / CellSize; }
-            }
-
-            public int NumberOfCells { get; private set; }
-            public int NumberOfColumns { get; private set; }
-            public int NumberOfRows { get; private set; }
-
-            private string[] RowIds;
-            private string[] ColumnIds;
-            private string[,] AreaIds;
-            private Vector3[,] Positions;
-
-            public MapGrid()
-            {
-
-                MapSize = TerrainMeta.Size.x;
-
-                NumberOfRows = Mathf.FloorToInt((MapSize * 7) / 1024);
-                NumberOfColumns = Mathf.FloorToInt((MapSize * 7) / 1024);
-
-                CellSize = MapSize / NumberOfRows;
-
-                MapWidth = Mathf.Floor(TerrainMeta.Size.x / CellSize) * CellSize;
-                MapHeight = Mathf.Floor(TerrainMeta.Size.z / CellSize) * CellSize;
-
-                MapWidth = NumberOfColumns * CellSize;
-                MapHeight = NumberOfRows * CellSize;
-
-                MapOffsetX = 0f;
-                MapOffsetZ = 0f;
-                RowIds = new string[NumberOfRows];
-                ColumnIds = new string[NumberOfColumns];
-                AreaIds = new string[NumberOfColumns, NumberOfRows];
-                Positions = new Vector3[NumberOfColumns, NumberOfRows];
-                Build();
-            }
-
-            public string GetRowId(int row)
-            {
-                return RowIds[row];
-            }
-
-            public string GetColumnId(int col)
-            {
-                return ColumnIds[col];
-            }
-
-            public string GetAreaId(int row, int col)
-            {
-                return AreaIds[row, col];
-            }
-
-            public Vector3 GetPosition(int row, int col)
-            {
-                return Positions[row, col];
-            }
-
-            private void Build()
-            {
-                string prefix = "";
-                char letter = 'A';
-
-                for (int col = 0; col < NumberOfColumns; col++)
-                {
-                    ColumnIds[col] = prefix + letter;
-                    if (letter == 'Z')
-                    {
-                        prefix = "A";
-                        letter = 'A';
-                    }
-                    else
-                    {
-                        letter++;
-                    }
-                }
-
-                for (int row = 0; row < NumberOfRows; row++)
-                    RowIds[row] = row.ToString();
-
-                float z = (MapHeight / 2) - CellSize / 2 - (MapOffsetZ / 2) + (CellSize * Instance.Options.Map.MapGridYOffset);
-                for (int row = 0; row < NumberOfRows; row++)
-                {
-                    float x = -(MapWidth / 2) + CellSize / 2 - (MapOffsetX / 2);
-                    for (int col = 0; col < NumberOfColumns; col++)
-                    {
-                        var areaId = ColumnIds[col] + RowIds[row];
-                        AreaIds[row, col] = areaId;
-                        Positions[row, col] = new Vector3(x, 0, z);
-                        x += CellSize;
-                    }
-
-                    z -= CellSize;
-                }
-            }
-        }
-    }
-}
-
-namespace Oxide.Plugins
-{
-    using System.Collections;
-    using System.Drawing;
-    using System.Drawing.Drawing2D;
-
-    public partial class Imperium
-    {
-        private class MapOverlayGenerator : UnityEngine.MonoBehaviour
-        {
-            public bool IsGenerating { get; private set; }
-
-            public void Generate()
-            {
-                if (!IsGenerating)
-                    StartCoroutine(GenerateOverlayImage());
-            }
-
-            private IEnumerator GenerateOverlayImage()
-            {
-                IsGenerating = true;
-                Instance.Puts("Generating new map overlay image...");
-
-                using (var bitmap = new Bitmap(Instance.Options.Map.ImageSize, Instance.Options.Map.ImageSize))
-                using (var graphics = Graphics.FromImage(bitmap))
-                {
-                    var grid = Instance.Areas.MapGrid;
-                    var tileSize = (int)(Instance.Options.Map.ImageSize / grid.CellSizeRatio);
-
-                    var colorPicker = new FactionColorPicker();
-                    var textBrush = new SolidBrush(Color.FromArgb(255, 255, 255, 255));
-
-                    for (int row = 0; row < grid.NumberOfRows; row++)
-                    {
-                        for (int col = 0; col < grid.NumberOfColumns; col++)
-                        {
-                            Area area = Instance.Areas.Get(row, col);
-                            var x = (col * tileSize);
-                            var y = (row * tileSize);
-                            var rect = new Rectangle(x, y, tileSize, tileSize);
-
-                            if (area.Type == AreaType.Badlands)
-                            {
-                                // If the tile is badlands, color it in black.
-                                var brush = new HatchBrush(HatchStyle.BackwardDiagonal, Color.FromArgb(32, 0, 0, 0),
-                                    Color.FromArgb(255, 0, 0, 0));
-                                graphics.FillRectangle(brush, rect);
-                            }
-                            else if (area.Type != AreaType.Wilderness)
-                            {
-                                // If the tile is claimed, fill it with a color indicating the faction.
-                                var brush = new SolidBrush(colorPicker.GetColorForFaction(area.FactionId));
-                                graphics.FillRectangle(brush, rect);
-                            }
-
-                            yield return null;
-                        }
-                    }
-
-                    var gridLabelFont = new Font("Consolas", 14, FontStyle.Bold);
-                    var gridLabelOffset = 5;
-                    var gridLinePen = new Pen(Color.FromArgb(192, 0, 0, 0), 2);
-
-                    for (int row = 0; row < grid.NumberOfRows; row++)
-                    {
-                        if (row > 0)
-                            graphics.DrawLine(gridLinePen, 0, (row * tileSize), (grid.NumberOfRows * tileSize),
-                                (row * tileSize));
-                        graphics.DrawString(grid.GetRowId(row), gridLabelFont, textBrush, gridLabelOffset,
-                            (row * tileSize) + gridLabelOffset);
-                    }
-
-                    for (int col = 1; col < grid.NumberOfColumns; col++)
-                    {
-                        graphics.DrawLine(gridLinePen, (col * tileSize), 0, (col * tileSize),
-                            (grid.NumberOfColumns * tileSize));
-                        graphics.DrawString(grid.GetColumnId(col), gridLabelFont, textBrush,
-                            (col * tileSize) + gridLabelOffset, gridLabelOffset);
-                    }
-
-                    var converter = new ImageConverter();
-                    var imageData = (byte[])converter.ConvertTo(bitmap, typeof(byte[]));
-
-                    Image image = Instance.Hud.RegisterImage(UI.MapOverlayImageUrl, imageData, true);
-
-                    Instance.Puts($"Generated new map overlay image {image.Id}.");
-                    Instance.Log($"Created new map overlay image {image.Id}.");
-
-                    IsGenerating = false;
-                }
-            }
-        }
-    }
-}
-
-namespace Oxide.Plugins
-{
-    public partial class Imperium
-    {
-        public static class MonumentPrefab
-        {
-            private const string PrefabPrefix = "assets/bundled/prefabs/autospawn/monument/";
-
-            public const string Airfield = PrefabPrefix + "large/airfield_1.prefab";
-            public const string BanditTown = PrefabPrefix + "medium/bandit_town.prefab";
-            public const string Compound = PrefabPrefix + "medium/compound.prefab";
-            public const string Dome = PrefabPrefix + "small/sphere_tank.prefab";
-            public const string Harbor1 = PrefabPrefix + "harbor/harbor_1.prefab";
-            public const string Harbor2 = PrefabPrefix + "harbor/harbor_2.prefab";
-            public const string GasStation = PrefabPrefix + "small/gas_station_1.prefab";
-            public const string Junkyard = PrefabPrefix + "large/junkyard_1.prefab";
-            public const string LaunchSite = PrefabPrefix + "large/launch_site_1.prefab";
-            public const string Lighthouse = PrefabPrefix + "lighthouse/lighthouse.prefab";
-            public const string MilitaryTunnel = PrefabPrefix + "large/military_tunnel_1.prefab";
-            public const string MiningOutpost = PrefabPrefix + "small/warehouse.prefab";
-            public const string QuarryStone = PrefabPrefix + "small/mining_quarry_a.prefab";
-            public const string QuarrySulfur = PrefabPrefix + "small/mining_quarry_b.prefab";
-            public const string QuaryHqm = PrefabPrefix + "small/mining_quarry_c.prefab";
-            public const string PowerPlant = PrefabPrefix + "large/powerplant_1.prefab";
-            public const string Trainyard = PrefabPrefix + "large/trainyard_1.prefab";
-            public const string SatelliteDish = PrefabPrefix + "small/satellite_dish.prefab";
-            public const string SewerBranch = PrefabPrefix + "medium/radtown_small_3.prefab";
-            public const string Supermarket = PrefabPrefix + "small/supermarket_1.prefab";
-            public const string WaterTreatmentPlant = PrefabPrefix + "large/water_treatment_plant_1.prefab";
-            public const string WaterWellA = PrefabPrefix + "tiny/water_well_a.prefab";
-            public const string WaterWellB = PrefabPrefix + "tiny/water_well_b.prefab";
-            public const string WaterWellC = PrefabPrefix + "tiny/water_well_c.prefab";
-            public const string WaterWellD = PrefabPrefix + "tiny/water_well_d.prefab";
-            public const string WaterWellE = PrefabPrefix + "tiny/water_well_e.prefab";
-        }
-    }
-}
-#endregion
-
-#region > Permissions
-namespace Oxide.Plugins
-{
-    using System.Reflection;
-
-    public partial class Imperium : RustPlugin
-    {
-        public static class Permission
-        {
-            public const string AdminFactions = "imperium.factions.admin";
-            public const string AdminClaims = "imperium.claims.admin";
-            public const string AdminBadlands = "imperium.badlands.admin";
-            public const string AdminWars = "imperium.wars.admin";
-            public const string AdminPins = "imperium.pins.admin";
-            public const string ManageFactions = "imperium.factions";
-
-            public static void RegisterAll(Imperium instance)
-            {
-                foreach (FieldInfo field in typeof(Permission).GetFields(BindingFlags.Public | BindingFlags.Static))
-                    instance.permission.RegisterPermission((string)field.GetRawConstantValue(), instance);
-            }
-        }
-    }
-}
-#endregion
-
-#region > Utilities
-namespace Oxide.Plugins
-{
-    using System;
-    using Newtonsoft.Json;
-    using UnityEngine;
-
-    public partial class Imperium : RustPlugin
-    {
-        private class UnityVector3Converter : JsonConverter
-        {
-            public override void WriteJson(JsonWriter writer, object value, JsonSerializer serializer)
-            {
-                var vector = (Vector3)value;
-                writer.WriteValue($"{vector.x} {vector.y} {vector.z}");
-            }
-
-            public override object ReadJson(JsonReader reader, Type objectType, object existingValue,
-                JsonSerializer serializer)
-            {
-                string[] tokens = reader.Value.ToString().Trim().Split(' ');
-                float x = Convert.ToSingle(tokens[0]);
-                float y = Convert.ToSingle(tokens[1]);
-                float z = Convert.ToSingle(tokens[2]);
-                return new Vector3(x, y, z);
-            }
-
-            public override bool CanConvert(Type objectType)
-            {
-                return objectType == typeof(Vector3);
-            }
-        }
-    }
-}
-
-namespace Oxide.Plugins
-{
-    using System;
-    using System.Collections;
-    using System.Text;
-    using UnityEngine;
-
-    public partial class Imperium
-    {
-        private static class Util
-        {
-            private const string NullString = "(null)";
-
-            public static string Format(object obj)
-            {
-                if (obj == null) return NullString;
-
-                var user = obj as User;
-                if (user != null) return Format(user);
-
-                var area = obj as Area;
-                if (area != null) return Format(area);
-
-                var entity = obj as BaseEntity;
-                if (entity != null) return Format(entity);
-
-                var list = obj as IEnumerable;
-                if (list != null) return Format(list);
-
-                return obj.ToString();
-            }
-
-            public static string Format(User user)
-            {
-                if (user == null)
-                    return NullString;
-                else
-                    return $"{user.UserName} ({user.Id})";
-            }
-
-            public static string Format(Area area)
-            {
-                if (area == null)
-                    return NullString;
-                else if (!String.IsNullOrEmpty(area.Name))
-                    return $"{area.Id} ({area.Name})";
-                else
-                    return area.Id;
-            }
-
-            public static string Format(BaseEntity entity)
-            {
-                if (entity == null)
-                    return NullString;
-                else if (entity.net == null)
-                    return "(missing networkable)";
-                else
-                    return entity.net.ID.ToString();
-            }
-
-            public static string Format(IEnumerable items)
-            {
-                var sb = new StringBuilder();
-
-                foreach (object item in items)
-                    sb.Append($"{Format(item)}, ");
-
-                sb.Remove(sb.Length - 2, 2);
-
-                return sb.ToString();
-            }
-
-            public static string NormalizeAreaId(string input)
-            {
-                return input.ToUpper().Trim();
-            }
-
-            public static string NormalizeAreaName(string input)
-            {
-                return RemoveSpecialCharacters(input.Trim());
-            }
-
-            public static string NormalizePinName(string input)
-            {
-                return RemoveSpecialCharacters(input.Trim());
-            }
-
-            public static string NormalizeFactionId(string input)
-            {
-                string factionId = input.Trim();
-
-                if (factionId.StartsWith("[") && factionId.EndsWith("]"))
-                    factionId = factionId.Substring(1, factionId.Length - 2);
-
-                return factionId;
-            }
-
-            public static string RemoveSpecialCharacters(string str)
-            {
-                if (String.IsNullOrEmpty(str))
-                    return String.Empty;
-
-                StringBuilder sb = new StringBuilder(str.Length);
-                foreach (char c in str)
-                {
-                    if ((c >= '0' && c <= '9') || (c >= 'A' && c <= 'Z') || (c >= 'a' && c <= 'z') ||
-                        (c >= 'А' && c <= 'Я') || (c >= 'а' && c <= 'я') || c == ' ' || c == '.' || c == '_')
-                        sb.Append(c);
-                }
-
-                return sb.ToString();
-            }
-
-            public static int GetLevenshteinDistance(string source, string target)
-            {
-                if (string.IsNullOrEmpty(source) && string.IsNullOrEmpty(target))
-                    return 0;
-
-                if (source.Length == target.Length)
-                    return source.Length;
-
-                if (source.Length == 0)
-                    return target.Length;
-
-                if (target.Length == 0)
-                    return source.Length;
-
-                var distance = new int[source.Length + 1, target.Length + 1];
-
-                for (int idx = 0; idx <= source.Length; distance[idx, 0] = idx++) ;
-                for (int idx = 0; idx <= target.Length; distance[0, idx] = idx++) ;
-
-                for (int i = 1; i <= source.Length; i++)
-                {
-                    for (int j = 1; j <= target.Length; j++)
-                    {
-                        int cost = target[j - 1] == source[i - 1] ? 0 : 1;
-                        distance[i, j] = Math.Min(
-                            Math.Min(distance[i - 1, j] + 1, distance[i, j - 1] + 1),
-                            distance[i - 1, j - 1] + cost
-                        );
-                    }
-                }
-
-                return distance[source.Length, target.Length];
-            }
-
-            public static bool TryParseEnum<T>(string str, out T value) where T : struct
-            {
-                if (!typeof(T).IsEnum)
-                    throw new ArgumentException("Type parameter must be an enum");
-
-                foreach (var name in Enum.GetNames(typeof(T)))
-                {
-                    if (String.Equals(name, str, StringComparison.OrdinalIgnoreCase))
-                    {
-                        value = (T)Enum.Parse(typeof(T), name);
-                        return true;
-                    }
-                }
-
-                value = default(T);
-                return false;
-            }
-
-            public static void RunEffect(Vector3 position, string prefab, BasePlayer player = null)
-            {
-                var effect = new Effect();
-                effect.Init(Effect.Type.Generic, position, Vector3.zero);
-                effect.pooledString = prefab;
-
-                if (player != null)
-                {
-                    EffectNetwork.Send(effect, player.net.connection);
-                }
-                else
-                {
-                    EffectNetwork.Send(effect);
-                }
-            }
-
-            public static void BroadcastEffect(string prefab)
-            {
-                Vector3 position;
-                BasePlayer player;
-                foreach (User user in Instance.Users.GetAll())
-                {
-                    player = user.Player;
-                    position = user.transform.position;
-                    if (player)
-                    {
-                        var effect = new Effect();
-                        effect.Init(Effect.Type.Generic, position, Vector3.zero);
-                        effect.pooledString = prefab;
-                        EffectNetwork.Send(effect, player.net.connection);
-                    }
-                }
-            }
-
-            public static void PrintToChat(string format, params object[] args)
-            {
-                foreach (User user in Instance.Users.GetAll())
-                {
-                    if (user.Player)
-                    {
-                        string message = Instance.lang.GetMessage(format, Instance, user.Player.userID.ToString());
-                        user.SendChatMessage(message, args);
-                    }
-                }
-
-            }
-
-            public static int GetSecondsBetween(DateTime start, DateTime end)
-            {
-                return (int)(start - end).TotalSeconds;
-            }
-
-            public static Color ConvertSystemToUnityColor(System.Drawing.Color color)
-            {
-                Color result;
-                result.r = color.R;
-                result.g = color.G;
-                result.b = color.B;
-                result.a = 255f;
-                return result;
-            }
-        }
-    }
-}
-#endregion
-
-#region > Interactions
-namespace Oxide.Plugins
-{
-    using System;
-    using System.Collections.Generic;
-
-    public partial class Imperium
-    {
-        private class AddingClaimInteraction : Interaction
-        {
-            public Faction Faction { get; private set; }
-
-            public AddingClaimInteraction(Faction faction)
-            {
-                Faction = faction;
-            }
-
-            public override bool TryComplete(HitInfo hit)
-            {
-                var cupboard = hit.HitEntity as BuildingPrivlidge;
-                Area area = User.CurrentArea;
+                Area area = Instance.Areas.GetByEntityPosition(entity);
 
                 if (area == null)
-                    return false;
-
-                if (!Instance.EnsureUserCanChangeFactionClaims(User, Faction))
-                    return false;
-
-                if (!Instance.EnsureCupboardCanBeUsedForClaim(User, cupboard))
-                    return false;
-
-                if (!Instance.EnsureFactionCanClaimArea(User, Faction, area))
-                    return false;
-
-                Area[] claimedAreas = Instance.Areas.GetAllClaimedByFaction(Faction);
-                AreaType type = (claimedAreas.Length == 0) ? AreaType.Headquarters : AreaType.Claimed;
-
-                if (area.Type == AreaType.Wilderness)
                 {
-                    int cost = area.GetClaimCost(Faction);
-
-                    if (cost > 0)
-                    {
-                        ItemDefinition scrapDef = ItemManager.FindItemDefinition("scrap");
-                        List<Item> stacks = User.Player.inventory.FindItemsByItemID(scrapDef.itemid);
-
-                        if (!Instance.TryCollectFromStacks(scrapDef, stacks, cost))
-                        {
-                            User.SendChatMessage(nameof(Messages.CannotClaimAreaCannotAfford), cost);
-                            return false;
-                        }
-                    }
-
-                    User.SendChatMessage(nameof(Messages.ClaimAdded), area.Id);
-
-                    if (type == AreaType.Headquarters)
-                    {
-                        Util.PrintToChat(nameof(Messages.AreaClaimedAsHeadquartersAnnouncement), Faction.Id, area.Id);
-                        Faction.NextUpkeepPaymentTime =
-                            DateTime.UtcNow.AddHours(Instance.Options.Upkeep.CollectionPeriodHours);
-                    }
-                    else
-                    {
-                        Util.PrintToChat(nameof(Messages.AreaClaimedAnnouncement), Faction.Id, area.Id);
-                    }
-                    Util.RunEffect(User.transform.position, "assets/prefabs/missions/effects/mission_objective_complete.prefab");
-                    Instance.Log($"{Util.Format(User)} claimed {area.Id} on behalf of {Faction.Id}");
-                    Instance.Areas.Claim(area, type, Faction, User, cupboard);
-
-                    return true;
+                    return null;
                 }
 
-                if (area.FactionId == Faction.Id)
+                if (hit.Initiator == null)
                 {
-                    if (area.ClaimCupboard.net.ID == cupboard.net.ID)
+                    if (EnableTestMode)
+                        Instance.Log("Incidental damage to {0} with no initiator", entity.ShortPrefabName);
+
+                    return null;
+                }
+
+                // If the damage is coming from something other than a blocked prefab, allow it.
+                if (!BlockedPrefabs.Contains(hit.Initiator.ShortPrefabName))
+                {
+
+                    if (EnableTestMode)
                     {
-                        User.SendChatMessage(nameof(Messages.CannotClaimAreaAlreadyOwned), area.Id);
-                        return false;
+                        Instance.Log("Incidental damage to {0} caused by {1}, allowing since it isn't a blocked prefab",
+                            entity.ShortPrefabName, hit.Initiator.ShortPrefabName);
                     }
-                    else
-                    {
-                        // If the same faction claims a new cupboard within the same area, move the claim to the new cupboard.
-                        User.SendChatMessage(nameof(Messages.ClaimCupboardMoved), area.Id);
+
+
+                    return null;
+                }
+
+                // If the player is in a PVP area or in PVP mode, allow the damage.
+                if (IsRaidableArea(area))
+                {
+                    if (EnableTestMode)
                         Instance.Log(
-                            $"{Util.Format(User)} moved {area.FactionId}'s claim on {area.Id} from cupboard {Util.Format(area.ClaimCupboard)} to cupboard {Util.Format(cupboard)}");
-                        area.ClaimantId = User.Id;
-                        area.ClaimCupboard = cupboard;
-                        Util.RunEffect(User.transform.position, "assets/prefabs/missions/effects/mission_objective_complete.prefab");
-                        return true;
-                    }
+                            "Incidental damage to {0} caused by {1}, allowing since target is in raidable area",
+                            entity.ShortPrefabName, hit.Initiator.ShortPrefabName);
+
+                    return null;
                 }
 
-                if (area.FactionId != Faction.Id)
-                {
-                    if (area.ClaimCupboard.net.ID != cupboard.net.ID)
-                    {
-                        // A new faction can't make a claim on a new cabinet within an area that is already claimed by another faction.
-                        User.SendChatMessage(nameof(Messages.CannotClaimAreaAlreadyClaimed), area.Id, area.FactionId);
-                        return false;
-                    }
+                if (EnableTestMode)
+                    Instance.Log("Incidental damage to {0} caused by {1}, stopping since it is a blocked prefab",
+                        entity.ShortPrefabName, hit.Initiator.ShortPrefabName);
 
-                    string previousFactionId = area.FactionId;
+                return true;
+            }
 
-                    // If a new faction claims the claim cabinet for an area, they take control of that area.
-                    User.SendChatMessage(nameof(Messages.ClaimCaptured), area.Id, area.FactionId);
-                    Util.PrintToChat(nameof(Messages.AreaCapturedAnnouncement), Faction.Id, area.Id, area.FactionId);
-                    Instance.Log(
-                        $"{Util.Format(User)} captured the claim on {area.Id} from {area.FactionId} on behalf of {Faction.Id}");
+            private static bool IsProtectedEntity(BaseEntity entity)
+            {
+                var buildingBlock = entity as BuildingBlock;
 
-                    Instance.Areas.Claim(area, type, Faction, User, cupboard);
-                    Util.RunEffect(User.transform.position, "assets/prefabs/missions/effects/mission_objective_complete.prefab");
+                // All building blocks except for twig are protected.
+                if (buildingBlock != null)
+                    return buildingBlock.grade != BuildingGrade.Enum.Twigs;
+
+                // Some additional entities (doors, boxes, etc.) are also protected.
+                if (ProtectedPrefabs.Any(prefab => entity.ShortPrefabName.Contains(prefab)))
                     return true;
-                }
 
-                Instance.PrintWarning(
-                    "Area was in an unknown state during completion of AddingClaimInteraction. This shouldn't happen.");
                 return false;
             }
-        }
-    }
-}
 
-namespace Oxide.Plugins
-{
-    public partial class Imperium
-    {
-        private class AssigningClaimInteraction : Interaction
-        {
-            public Faction Faction { get; private set; }
-
-            public AssigningClaimInteraction(Faction faction)
+            private static bool IsRaidTriggeringEntity(BaseEntity entity)
             {
-                Faction = faction;
+                var buildingBlock = entity as BuildingBlock;
+
+                // All building blocks except for twig are protected.
+                if (buildingBlock != null)
+                    return buildingBlock.grade != BuildingGrade.Enum.Twigs;
+
+                // Destriction of some additional entities (doors, etc.) will also trigger raids.
+                if (RaidTriggeringPrefabs.Any(prefab => entity.ShortPrefabName.Contains(prefab)))
+                    return true;
+
+                return false;
             }
 
-            public override bool TryComplete(HitInfo hit)
+            private static bool IsRaidableArea(Area area)
             {
-                var cupboard = hit.HitEntity as BuildingPrivlidge;
+                if (!Instance.Options.Raiding.RestrictRaiding)
+                    return true;
 
-                Area area = User.CurrentArea;
-
-                if (area == null)
+                switch (area.Type)
                 {
-                    User.SendChatMessage(nameof(Messages.YouAreInTheGreatUnknown));
-                    return false;
+                    case AreaType.Badlands:
+                        return Instance.Options.Raiding.AllowedInBadlands;
+                    case AreaType.Claimed:
+                    case AreaType.Headquarters:
+                        return Instance.Options.Raiding.AllowedInClaimedLand;
+                    case AreaType.Wilderness:
+                        return Instance.Options.Raiding.AllowedInWilderness;
+                    default:
+                        throw new InvalidOperationException($"Unknown area type {area.Type}");
+                }
+            }
+
+
+        }
+    }
+}
+#endregion
+
+#region Taxes.cs
+﻿namespace Oxide.Plugins
+{
+    using UnityEngine;
+    public partial class Imperium
+    {
+        private static class Taxes
+        {
+            public static void ProcessTaxesIfApplicable(ResourceDispenser dispenser, BaseEntity entity, Item item)
+            {
+                if (!Instance.Options.Taxes.Enabled)
+                    return;
+
+                var player = entity as BasePlayer;
+                if (player == null)
+                    return;
+
+                User user = Instance.Users.Get(player);
+                if (user == null)
+                    return;
+
+                Area area = user.CurrentArea;
+                if (area == null || !area.IsClaimed)
+                    return;
+
+                Faction faction = Instance.Factions.Get(area.FactionId);
+                if (!faction.CanCollectTaxes || faction.TaxChest.inventory.IsFull())
+                    return;
+
+                ItemDefinition itemDef = ItemManager.FindItemDefinition(item.info.itemid);
+                if (itemDef == null)
+                    return;
+
+                float landBonus = Instance.Options.Taxes.ClaimedLandGatherBonus;
+                float upgradeBonus = 0f;
+                int bonus = (int)(item.amount * landBonus);
+
+                if (Instance.Options.Upgrading.Enabled && Instance.Options.Upgrading.MaxTaxChestBonus > 0)
+                {
+                    upgradeBonus = area.GetLevelTaxBonus();
+                    upgradeBonus = Mathf.Floor(landBonus * 100f) / 100f;
                 }
 
-                if (area.Type == AreaType.Badlands)
+                var tax = (int)(item.amount * faction.TaxRate);
+
+                faction.TaxChest.inventory.AddItem(itemDef, (int)((tax + bonus) * (1 + upgradeBonus)));
+                item.amount -= tax;
+            }
+
+            public static void AwardBadlandsBonusIfApplicable(ResourceDispenser dispenser, BaseEntity entity, Item item)
+            {
+                if (!Instance.Options.Badlands.Enabled)
+                    return;
+
+                var player = entity as BasePlayer;
+                if (player == null) return;
+
+                User user = Instance.Users.Get(player);
+
+                if (user.CurrentArea != null && user.CurrentArea.Type == AreaType.Badlands)
                 {
-                    User.SendChatMessage(nameof(Messages.AreaIsBadlands), area.Id);
-                    return false;
+                    var bonus = (int)(item.amount * Instance.Options.Taxes.BadlandsGatherBonus);
+                    item.amount += bonus;
                 }
-
-                Area[] ownedAreas = Instance.Areas.GetAllClaimedByFaction(Faction);
-                AreaType type = (ownedAreas.Length == 0) ? AreaType.Headquarters : AreaType.Claimed;
-
-                Util.PrintToChat(nameof(Messages.AreaClaimAssignedAnnouncement), Faction.Id, area.Id);
-                Instance.Log($"{Util.Format(User)} assigned {area.Id} to {Faction.Id}");
-
-                Instance.Areas.Claim(area, type, Faction, User, cupboard);
-                Util.RunEffect(User.transform.position, "assets/prefabs/missions/effects/mission_objective_complete.prefab");
-                return true;
             }
         }
     }
 }
+#endregion
 
-namespace Oxide.Plugins
+#region Upkeep.cs
+﻿namespace Oxide.Plugins
 {
-    public partial class Imperium
-    {
-        private abstract class Interaction
-        {
-            public User User { get; set; }
-            public abstract bool TryComplete(HitInfo hit);
-        }
-    }
-}
-
-namespace Oxide.Plugins
-{
+    using System;
+    using System.Collections.Generic;
     using System.Linq;
+    using UnityEngine;
+
     public partial class Imperium
     {
-        private class RemovingClaimInteraction : Interaction
+        private static class Upkeep
         {
-            public Faction Faction { get; private set; }
-
-            public RemovingClaimInteraction(Faction faction)
+            public static void CollectForAllFactions()
             {
-                Faction = faction;
+                foreach (Faction faction in Instance.Factions.GetAll())
+                    Collect(faction);
             }
 
-            public override bool TryComplete(HitInfo hit)
+            public static void Collect(Faction faction)
             {
-                var cupboard = hit.HitEntity as BuildingPrivlidge;
-                var fAreas = Instance.Areas.GetAllClaimedByFaction(Faction).ToList();
-                if (!Instance.EnsureUserCanChangeFactionClaims(User, Faction) ||
-                    !Instance.EnsureCupboardCanBeUsedForClaim(User, cupboard))
-                    return false;
+                DateTime now = DateTime.UtcNow;
+                Area[] areas = Instance.Areas.GetAllTaxableClaimsByFaction(faction);
 
-                Area area = Instance.Areas.GetByClaimCupboard(cupboard);
+                if (areas.Length == 0)
+                    return;
 
-                if (area == null)
+                if (now < faction.NextUpkeepPaymentTime)
                 {
-                    User.SendChatMessage(nameof(Messages.SelectingCupboardFailedNotClaimCupboard));
-                    return false;
+                    Instance.Log($"[UPKEEP] {faction.Id}: Upkeep not due until {faction.NextUpkeepPaymentTime}");
+                    return;
                 }
 
+                int amountOwed = faction.GetUpkeepPerPeriod();
+                var hoursSincePaid = (int)now.Subtract(faction.NextUpkeepPaymentTime).TotalHours;
 
-
-                if (fAreas.Count > 1 && area.Type == AreaType.Headquarters)
-                {
-                    User.SendChatMessage(nameof(Messages.SelectingCupboardFailedCantUnclaimHeadquarters));
-                    return false;
-                }
-
-                Util.PrintToChat(nameof(Messages.AreaClaimRemovedAnnouncement), Faction.Id, area.Id);
-                Instance.Log($"{Util.Format(User)} removed {Faction.Id}'s claim on {area.Id}");
-
-                Instance.Areas.Unclaim(area);
-                Util.RunEffect(User.transform.position, "assets/prefabs/missions/effects/mission_objective_complete.prefab");
-                return true;
-            }
-        }
-    }
-}
-
-namespace Oxide.Plugins
-{
-    public partial class Imperium
-    {
-        private class SelectingHeadquartersInteraction : Interaction
-        {
-            public Faction Faction { get; private set; }
-
-            public SelectingHeadquartersInteraction(Faction faction)
-            {
-                Faction = faction;
-            }
-
-            public override bool TryComplete(HitInfo hit)
-            {
-                var cupboard = hit.HitEntity as BuildingPrivlidge;
-
-                if (!Instance.EnsureUserCanChangeFactionClaims(User, Faction) ||
-                    !Instance.EnsureCupboardCanBeUsedForClaim(User, cupboard))
-                    return false;
-
-                Area area = Instance.Areas.GetByClaimCupboard(cupboard);
-                if (area == null)
-                {
-                    User.SendChatMessage(nameof(Messages.SelectingCupboardFailedNotClaimCupboard));
-                    return false;
-                }
-
-                Util.PrintToChat(nameof(Messages.HeadquartersChangedAnnouncement), Faction.Id, area.Id);
-                Instance.Log($"{Util.Format(User)} set {Faction.Id}'s headquarters to {area.Id}");
-
-                Instance.Areas.SetHeadquarters(area, Faction);
-                Util.RunEffect(User.transform.position, "assets/prefabs/missions/effects/mission_objective_complete.prefab");
-                return true;
-            }
-        }
-    }
-}
-
-namespace Oxide.Plugins
-{
-    public partial class Imperium
-    {
-        private class SelectingTaxChestInteraction : Interaction
-        {
-            public Faction Faction { get; private set; }
-
-            public SelectingTaxChestInteraction(Faction faction)
-            {
-                Faction = faction;
-            }
-
-            public override bool TryComplete(HitInfo hit)
-            {
-                var container = hit.HitEntity as StorageContainer;
-
-                if (container == null)
-                {
-                    User.SendChatMessage(nameof(Messages.SelectingTaxChestFailedInvalidTarget));
-                    return false;
-                }
-
-                User.SendChatMessage(nameof(Messages.SelectingTaxChestSucceeded), Faction.TaxRate * 100, Faction.Id);
-                Instance.Log($"{Util.Format(User)} set {Faction.Id}'s tax chest to entity {Util.Format(container)}");
-                Instance.Factions.SetTaxChest(Faction, container);
-                Util.RunEffect(User.transform.position, "assets/prefabs/missions/effects/mission_objective_complete.prefab");
-                return true;
-            }
-        }
-    }
-}
-
-namespace Oxide.Plugins
-{
-    public partial class Imperium
-    {
-        private class SelectingArmoryLockerInteraction : Interaction
-        {
-            public Faction Faction { get; private set; }
-
-            public SelectingArmoryLockerInteraction(Faction faction)
-            {
-                Faction = faction;
-            }
-
-            public override bool TryComplete(HitInfo hit)
-            {
-                var container = hit.HitEntity as Locker;
-                if (container == null)
-                {
-                    User.SendChatMessage(nameof(Messages.SelectingArmoryLockerFailedInvalidTarget));
-                    return false;
-                }
-                var area = Instance.Areas.GetByEntityPosition(container);
-                if (!Instance.EnsureLockerCanBeUsedForArmory(User, container, area))
-                    return false;
-                User.SendChatMessage(nameof(Messages.SelectingArmoryLockerSucceeded), area.Id);
-                Instance.Log($"{Util.Format(User)} set {Faction.Id}'s armory locker to entity {Util.Format(container)} at {area.Id}");
-                Instance.Areas.SetArmory(area, container);
-                Util.RunEffect(User.transform.position, "assets/prefabs/missions/effects/mission_objective_complete.prefab");
-                return true;
-            }
-        }
-    }
-}
-
-namespace Oxide.Plugins
-{
-    using System.Linq;
-    public partial class Imperium
-    {
-        private class TransferringClaimInteraction : Interaction
-        {
-            public Faction SourceFaction { get; }
-            public Faction TargetFaction { get; }
-
-            public TransferringClaimInteraction(Faction sourceFaction, Faction targetFaction)
-            {
-                SourceFaction = sourceFaction;
-                TargetFaction = targetFaction;
-            }
-
-            public override bool TryComplete(HitInfo hit)
-            {
-                var cupboard = hit.HitEntity as BuildingPrivlidge;
-                var fAreas = Instance.Areas.GetAllClaimedByFaction(SourceFaction).ToList();
-                if (!Instance.EnsureUserCanChangeFactionClaims(User, SourceFaction) ||
-                    !Instance.EnsureCupboardCanBeUsedForClaim(User, cupboard))
-                    return false;
-
-                Area area = Instance.Areas.GetByClaimCupboard(cupboard);
-
-                if (area == null)
-                {
-                    User.SendChatMessage(nameof(Messages.SelectingCupboardFailedNotClaimCupboard));
-                    return false;
-                }
-
-                if (area.FactionId != SourceFaction.Id)
-                {
-                    User.SendChatMessage(nameof(Messages.AreaNotOwnedByYourFaction), area.Id);
-                    return false;
-                }
-
-                if (!Instance.EnsureFactionCanClaimArea(User, TargetFaction, area))
-                    return false;
-
-
-
-                if (fAreas.Count > 1 && area.Type == AreaType.Headquarters)
-                {
-                    User.SendChatMessage(nameof(Messages.SelectingCupboardFailedCantUnclaimHeadquarters));
-                    return false;
-                }
-
-                Area[] claimedAreas = Instance.Areas.GetAllClaimedByFaction(TargetFaction);
-                AreaType type = (claimedAreas.Length == 0) ? AreaType.Headquarters : AreaType.Claimed;
-
-                Util.PrintToChat(nameof(Messages.AreaClaimTransferredAnnouncement), SourceFaction.Id, area.Id,
-                    TargetFaction.Id);
                 Instance.Log(
-                    $"{Util.Format(User)} transferred {SourceFaction.Id}'s claim on {area.Id} to {TargetFaction.Id}");
-                Util.RunEffect(User.transform.position, "assets/prefabs/missions/effects/mission_objective_complete.prefab");
-                Instance.Areas.Claim(area, type, TargetFaction, User, cupboard);
+                    $"[UPKEEP] {faction.Id}: {hoursSincePaid} hours since upkeep paid, trying to collect {amountOwed} scrap for {areas.Length} area claims");
 
-                return true;
+                var headquarters = areas.Where(a => a.Type == AreaType.Headquarters).FirstOrDefault();
+                if (headquarters == null || headquarters.ClaimCupboard == null)
+                {
+                    Instance.Log($"[UPKEEP] {faction.Id}: Couldn't collect upkeep, faction has no headquarters");
+                }
+                else
+                {
+                    ItemDefinition scrapDef = ItemManager.FindItemDefinition("scrap");
+                    ItemContainer container = headquarters.ClaimCupboard.inventory;
+                    List<Item> stacks = new List<Item>();
+                    container.FindItemsByItemID(stacks, scrapDef.itemid);
+
+                    if (Instance.TryCollectFromStacks(scrapDef, stacks, amountOwed))
+                    {
+                        faction.NextUpkeepPaymentTime =
+                            faction.NextUpkeepPaymentTime.AddHours(Instance.Options.Upkeep.CollectionPeriodHours);
+
+                        faction.IsUpkeepPastDue = false;
+                        Instance.Log(
+                            $"[UPKEEP] {faction.Id}: {amountOwed} scrap upkeep collected, next payment due {faction.NextUpkeepPaymentTime}");
+                        return;
+                    }
+                }
+
+                faction.IsUpkeepPastDue = true;
+
+                if (hoursSincePaid <= Instance.Options.Upkeep.GracePeriodHours)
+                {
+                    Instance.Log(
+                        $"[UPKEEP] {faction.Id}: Couldn't collect upkeep, but still within {Instance.Options.Upkeep.GracePeriodHours} hour grace period");
+                    return;
+                }
+                Area lostArea = null;
+                Area[] NonHQAreas = areas.Where(a => a.Type != AreaType.Headquarters).ToArray();
+                if (NonHQAreas.Length > 0)
+                {
+                    lostArea = NonHQAreas.OrderBy(area => Instance.Areas.GetDepthInsideFriendlyTerritory(area)).First();
+                }
+
+
+                if (lostArea == null)
+                    lostArea = headquarters;
+                Instance.Log(
+                    $"[UPKEEP] {faction.Id}: Upkeep not paid in {hoursSincePaid} hours, seizing claim on {lostArea.Id}");
+                Util.PrintToChat(nameof(Messages.AreaClaimLostUpkeepNotPaidAnnouncement), faction.Id, lostArea.Id);
+                BuildingPrivlidge cupboard = lostArea.ClaimCupboard;
+                Instance.Areas.Unclaim(lostArea);
+                if (cupboard)
+                    cupboard.Kill(BaseNetworkable.DestroyMode.Gib);
             }
         }
     }
 }
 #endregion
 
-#region > Options
-namespace Oxide.Plugins
-{
-    using Newtonsoft.Json;
-
-    public partial class Imperium : RustPlugin
-    {
-        private class BadlandsOptions
-        {
-            [JsonProperty("enabled")] public bool Enabled;
-
-            public static BadlandsOptions Default = new BadlandsOptions
-            {
-                Enabled = true
-            };
-        }
-    }
-}
-
-namespace Oxide.Plugins
-{
-    using Newtonsoft.Json;
-    using System.Collections.Generic;
-
-    public partial class Imperium : RustPlugin
-    {
-        private class ClaimOptions
-        {
-            [JsonProperty("enabled")] public bool Enabled;
-
-            [JsonProperty("costs")] public List<int> Costs = new List<int>();
-
-            [JsonProperty("maxClaims")] public int? MaxClaims;
-
-            [JsonProperty("minAreaNameLength")] public int MinAreaNameLength;
-
-            [JsonProperty("maxAreaNameLength")] public int MaxAreaNameLength;
-
-            [JsonProperty("minFactionMembers")] public int MinFactionMembers;
-
-            [JsonProperty("requireContiguousClaims")]
-            public bool RequireContiguousClaims;
-
-            public static ClaimOptions Default = new ClaimOptions
-            {
-                Enabled = true,
-                Costs = new List<int> { 50, 100, 200, 300, 400, 500 },
-                MaxClaims = null,
-                MinAreaNameLength = 3,
-                MaxAreaNameLength = 20,
-                MinFactionMembers = 1,
-                RequireContiguousClaims = true
-            };
-        }
-    }
-}
-
-namespace Oxide.Plugins
-{
-    using Newtonsoft.Json;
-
-    public partial class Imperium : RustPlugin
-    {
-        private class DecayOptions
-        {
-            [JsonProperty("enabled")] public bool Enabled;
-
-            [JsonProperty("claimedLandDecayReduction")]
-            public float ClaimedLandDecayReduction;
-
-            public static DecayOptions Default = new DecayOptions
-            {
-                Enabled = false,
-                ClaimedLandDecayReduction = 0.5f
-            };
-        }
-    }
-}
-
-namespace Oxide.Plugins
-{
-    using Newtonsoft.Json;
-
-    public partial class Imperium : RustPlugin
-    {
-        private class FactionOptions
-        {
-            [JsonProperty("minFactionNameLength")] public int MinFactionNameLength = 1;
-
-            [JsonProperty("maxFactionNameLength")] public int MaxFactionNameLength = 8;
-
-            [JsonProperty("maxMembers")] public int? MaxMembers;
-
-            [JsonProperty("allowFactionBadlands")] public bool AllowFactionBadlands = false;
-
-            [JsonProperty("factionBadlandsCommandCooldownSeconds")] public int CommandCooldownSeconds = 300;
-
-            [JsonProperty("overrideInGameTeamSystem")] public bool OverrideInGameTeamSystem = false;
-
-            [JsonProperty("memberOwnLandEcoRaidingDamageScale")] public float MemberOwnLandEcoRaidingDamageScale = 1f;
-
-            [JsonProperty("memberOwnLandExplosiveRaidingDamageScale")] public float MemberOwnLandExplosiveRaidingDamageScale = 1f;
-
-            [JsonProperty("useClansPlugin")] private bool _UseClansPlugin = false;
-
-            [JsonIgnore]
-            public bool UseClansPlugin { get { return (_UseClansPlugin && Instance.Clans != null); } }
-
-            public static FactionOptions Default = new FactionOptions
-            {
-                MinFactionNameLength = 1,
-                MaxFactionNameLength = 8,
-                MaxMembers = null,
-                AllowFactionBadlands = false,
-                CommandCooldownSeconds = 600,
-                OverrideInGameTeamSystem = true,
-                MemberOwnLandEcoRaidingDamageScale = 1f,
-                MemberOwnLandExplosiveRaidingDamageScale = 1f,
-                _UseClansPlugin = false
-            };
-
-
-        }
-    }
-}
-
-namespace Oxide.Plugins
-{
-    using Newtonsoft.Json;
-    using System.Collections.Generic;
-    public partial class Imperium : RustPlugin
-    {
-        private class UpgradingOptions
-        {
-            [JsonProperty("enabled [THIS IS NOT AVAILABLE YET]")] public bool Enabled = false;
-            [JsonProperty("maxUpgradeLevel")] public int MaxUpgradeLevel = 10;
-            [JsonProperty("maxProduceBonus")] public float MaxProduceBonus = 0.5f;
-            [JsonProperty("maxTaxChestBonus")] public float MaxTaxChestBonus = 1f;
-            [JsonProperty("maxRaidDefenseBonus")] public float MaxRaidDefenseBonus = 0.2f;
-            [JsonProperty("maxDecayExtraReduction")] public float MaxDecayExtraReduction = 1f;
-            [JsonProperty("maxRecruitBotBuffs")] public float MaxRecruitBotsBuffs = 0.2f;
-            [JsonProperty("costs")] public List<int> Costs = new List<int>();
-
-            public static UpgradingOptions Default = new UpgradingOptions
-            {
-                Enabled = false,
-                MaxUpgradeLevel = 10,
-                MaxProduceBonus = 0.5f,
-                MaxTaxChestBonus = 1f,
-                MaxRaidDefenseBonus = 0.2f,
-                MaxDecayExtraReduction = 1f,
-                MaxRecruitBotsBuffs = 0.2f,
-                Costs = new List<int> { 0, 100, 200, 300, 400, 500 }
-            };
-        }
-    }
-}
-
-namespace Oxide.Plugins
-{
-    using Newtonsoft.Json;
-
-    public partial class Imperium : RustPlugin
-    {
-        private class MapOptions
-        {
-
-            [JsonProperty("mapGridYOffset")] public int MapGridYOffset;
-
-            [JsonProperty("pinsEnabled")] public bool PinsEnabled;
-
-            [JsonProperty("minPinNameLength")] public int MinPinNameLength;
-
-            [JsonProperty("maxPinNameLength")] public int MaxPinNameLength;
-
-            [JsonProperty("pinCost")] public int PinCost;
-
-            [JsonProperty("commandCooldownSeconds")]
-            public int CommandCooldownSeconds;
-
-            [JsonProperty("imageUrl")] public string ImageUrl;
-
-            [JsonProperty("imageSize")] public int ImageSize;
-
-            [JsonProperty("serverLogoUrl")] public string ServerLogoUrl;
-
-            public static MapOptions Default = new MapOptions
-            {
-                MapGridYOffset = 0,
-                PinsEnabled = true,
-                MinPinNameLength = 2,
-                MaxPinNameLength = 20,
-                PinCost = 100,
-                CommandCooldownSeconds = 10,
-                ImageUrl = "",
-                ImageSize = 1440,
-                ServerLogoUrl = ""
-            };
-        }
-    }
-}
-
-namespace Oxide.Plugins
-{
-    using Newtonsoft.Json;
-
-    public partial class Imperium : RustPlugin
-    {
-        private class ImperiumOptions
-        {
-            [JsonProperty("badlands")] public BadlandsOptions Badlands = new BadlandsOptions();
-
-            [JsonProperty("claims")] public ClaimOptions Claims = new ClaimOptions();
-
-            [JsonProperty("decay")] public DecayOptions Decay = new DecayOptions();
-
-            [JsonProperty("factions")] public FactionOptions Factions = new FactionOptions();
-
-            [JsonProperty("hud")] public HudOptions Hud = new HudOptions();
-
-            [JsonProperty("map")] public MapOptions Map = new MapOptions();
-
-            [JsonProperty("pvp")] public PvpOptions Pvp = new PvpOptions();
-
-            [JsonProperty("raiding")] public RaidingOptions Raiding = new RaidingOptions();
-
-            [JsonProperty("taxes")] public TaxOptions Taxes = new TaxOptions();
-
-            [JsonProperty("upkeep")] public UpkeepOptions Upkeep = new UpkeepOptions();
-
-            [JsonProperty("war")] public WarOptions War = new WarOptions();
-
-            [JsonProperty("zones")] public ZoneOptions Zones = new ZoneOptions();
-
-            [JsonProperty("recruiting")] public RecruitingOptions Recruiting = new RecruitingOptions();
-
-            [JsonProperty("upgrading")] public UpgradingOptions Upgrading = new UpgradingOptions();
-
-            public static ImperiumOptions Default = new ImperiumOptions
-            {
-                Badlands = BadlandsOptions.Default,
-                Claims = ClaimOptions.Default,
-                Decay = DecayOptions.Default,
-                Factions = FactionOptions.Default,
-                Hud = HudOptions.Default,
-                Map = MapOptions.Default,
-                Pvp = PvpOptions.Default,
-                Raiding = RaidingOptions.Default,
-                Taxes = TaxOptions.Default,
-                Upkeep = UpkeepOptions.Default,
-                War = WarOptions.Default,
-                Zones = ZoneOptions.Default,
-                Recruiting = RecruitingOptions.Default,
-                Upgrading = UpgradingOptions.Default
-            };
-        }
-
-        protected override void LoadDefaultConfig()
-        {
-            PrintWarning("Loading default configuration.");
-            Config.WriteObject(ImperiumOptions.Default, true);
-        }
-    }
-}
-
-namespace Oxide.Plugins
-{
-    using Newtonsoft.Json;
-
-    public partial class Imperium : RustPlugin
-    {
-        private class PvpOptions
-        {
-            [JsonProperty("restrictPvp")] public bool RestrictPvp;
-
-            [JsonProperty("allowedInBadlands")] public bool AllowedInBadlands;
-
-            [JsonProperty("allowedInClaimedLand")] public bool AllowedInClaimedLand;
-
-            [JsonProperty("allowedInWilderness")] public bool AllowedInWilderness;
-
-            [JsonProperty("allowedInEventZones")] public bool AllowedInEventZones;
-
-            [JsonProperty("allowedInMonumentZones")]
-            public bool AllowedInMonumentZones;
-
-            [JsonProperty("allowedInRaidZones")] public bool AllowedInRaidZones;
-
-            [JsonProperty("allowedInDeepWater")] public bool AllowedInDeepWater;
-
-            [JsonProperty("allowedUnderground")] public bool AllowedUnderground;
-
-            [JsonProperty("enablePvpCommand")] public bool EnablePvpCommand;
-
-
-            [JsonProperty("commandCooldownSeconds")]
-            public int CommandCooldownSeconds;
-
-            public static PvpOptions Default = new PvpOptions
-            {
-                RestrictPvp = false,
-                AllowedInBadlands = true,
-                AllowedInClaimedLand = true,
-                AllowedInEventZones = true,
-                AllowedInMonumentZones = true,
-                AllowedInRaidZones = true,
-                AllowedInWilderness = true,
-                AllowedInDeepWater = true,
-                AllowedUnderground = true,
-                EnablePvpCommand = false,
-                CommandCooldownSeconds = 60
-            };
-        }
-    }
-}
-
-namespace Oxide.Plugins
-{
-    using Newtonsoft.Json;
-
-    public partial class Imperium : RustPlugin
-    {
-        private class RaidingOptions
-        {
-            [JsonProperty("restrictRaiding")] public bool RestrictRaiding;
-
-            [JsonProperty("allowedInBadlands")] public bool AllowedInBadlands;
-
-            [JsonProperty("allowedInClaimedLand")] public bool AllowedInClaimedLand;
-
-            [JsonProperty("allowedInWilderness")] public bool AllowedInWilderness;
-
-            public static RaidingOptions Default = new RaidingOptions
-            {
-                RestrictRaiding = false,
-                AllowedInBadlands = true,
-                AllowedInClaimedLand = true,
-                AllowedInWilderness = true
-            };
-        }
-    }
-}
-
-namespace Oxide.Plugins
-{
-    using Newtonsoft.Json;
-
-    public partial class Imperium : RustPlugin
-    {
-        private class TaxOptions
-        {
-            [JsonProperty("enabled")] public bool Enabled;
-
-            [JsonProperty("defaultTaxRate")] public float DefaultTaxRate;
-
-            [JsonProperty("maxTaxRate")] public float MaxTaxRate;
-
-            [JsonProperty("claimedLandGatherBonus")]
-            public float ClaimedLandGatherBonus;
-
-            [JsonProperty("badlandsGatherBonus")] public float BadlandsGatherBonus;
-
-            public static TaxOptions Default = new TaxOptions
-            {
-                Enabled = true,
-                DefaultTaxRate = 0.1f,
-                MaxTaxRate = 0.2f,
-                ClaimedLandGatherBonus = 0.1f,
-                BadlandsGatherBonus = 0.1f
-            };
-        }
-    }
-}
-
-namespace Oxide.Plugins
-{
-    using Newtonsoft.Json;
-
-    public partial class Imperium : RustPlugin
-    {
-        private class RecruitingOptions
-        {
-            [JsonProperty("enabled [THIS IS NOT AVAILABLE YET]")] public bool Enabled;
-
-            public static RecruitingOptions Default = new RecruitingOptions
-            {
-                Enabled = false
-            };
-        }
-    }
-}
-
-namespace Oxide.Plugins
-{
-    using Newtonsoft.Json;
-
-    public partial class Imperium : RustPlugin
-    {
-        private class HudOptions
-        {
-            [JsonProperty("showEventsHud")] public bool ShowEventsHUD;
-            [JsonProperty("leftPanelXOffset")] public float LeftPanelXOffset = 0f;
-            [JsonProperty("leftPanelYOffset")] public float LeftPanelYOffset = 0f;
-            [JsonProperty("rightPanelXOffset")] public float RightPanelXOffset = 0f;
-            [JsonProperty("rightPanelYOffset")] public float RightPanelYOffset = 0f;
-
-            public static HudOptions Default = new HudOptions
-            {
-                ShowEventsHUD = true,
-                LeftPanelXOffset = 0f,
-                LeftPanelYOffset = 0f,
-                RightPanelXOffset = 0f,
-                RightPanelYOffset = 0f
-            };
-        }
-    }
-}
-
-namespace Oxide.Plugins
-{
-    using Newtonsoft.Json;
-    using System.Collections.Generic;
-
-    public partial class Imperium : RustPlugin
-    {
-        private class UpkeepOptions
-        {
-            [JsonProperty("enabled")] public bool Enabled;
-
-            [JsonProperty("costs")] public List<int> Costs = new List<int>();
-
-            [JsonProperty("checkIntervalMinutes")] public int CheckIntervalMinutes;
-
-            [JsonProperty("collectionPeriodHours")]
-            public int CollectionPeriodHours;
-
-            [JsonProperty("gracePeriodHours")] public int GracePeriodHours;
-
-            public static UpkeepOptions Default = new UpkeepOptions
-            {
-                Enabled = false,
-                Costs = new List<int> { 10, 10, 20, 30, 40, 50, 60, 70, 80, 90, 100 },
-                CheckIntervalMinutes = 15,
-                CollectionPeriodHours = 24,
-                GracePeriodHours = 12
-            };
-
-        }
-    }
-}
-
-namespace Oxide.Plugins
-{
-    using Newtonsoft.Json;
-    using System.Collections.Generic;
-
-    public partial class Imperium : RustPlugin
-    {
-        private class WarOptions
-        {
-            [JsonProperty("enabled")] public bool Enabled;
-
-            [JsonProperty("noobFactionProtectionInSeconds")] public int NoobFactionProtectionInSeconds;
-
-            [JsonProperty("declarationCost")] public int DeclarationCost;
-
-            [JsonProperty("onlineDefendersRequired")] public int OnlineDefendersRequired;
-
-            [JsonProperty("adminApprovalRequired")] public bool AdminApprovalRequired;
-
-            [JsonProperty("defenderApprovalRequired")] public bool DefenderApprovalRequired;
-
-            [JsonProperty("enableShopfrontPeace")] public bool EnableShopfrontPeace;
-
-            [JsonProperty("priorAggressionRequired")] public bool PriorAggressionRequired;
-
-            [JsonProperty("spamPreventionSeconds")] public int SpamPreventionSeconds;
-
-            [JsonProperty("minCassusBelliLength")] public int MinCassusBelliLength;
-
-            [JsonProperty("defensiveBonuses")] public List<float> DefensiveBonuses = new List<float>();
-
-            public static WarOptions Default = new WarOptions
-            {
-                Enabled = true,
-                NoobFactionProtectionInSeconds = 0,
-                DeclarationCost = 0,
-                OnlineDefendersRequired = 0,
-                AdminApprovalRequired = false,
-                DefenderApprovalRequired = false,
-                PriorAggressionRequired = false,
-                EnableShopfrontPeace = true,
-                SpamPreventionSeconds = 0,
-                MinCassusBelliLength = 50,
-                DefensiveBonuses = new List<float> { 0, 0.5f, 1f }
-            };
-
-
-        }
-    }
-}
-
-namespace Oxide.Plugins
-{
-    using Newtonsoft.Json;
-    using System.Collections.Generic;
-
-    public partial class Imperium : RustPlugin
-    {
-        private class ZoneOptions
-        {
-            [JsonProperty("enabled")] public bool Enabled;
-
-            [JsonProperty("domeDarkness")] public int DomeDarkness;
-
-            [JsonProperty("eventZoneRadius")] public float EventZoneRadius;
-
-            [JsonProperty("eventZoneLifespanSeconds")]
-            public float EventZoneLifespanSeconds;
-
-            [JsonProperty("monumentZones")]
-            public Dictionary<string, float> MonumentZones = new Dictionary<string, float>();
-
-            public static ZoneOptions Default = new ZoneOptions
-            {
-                Enabled = true,
-                DomeDarkness = 3,
-                EventZoneRadius = 150f,
-                EventZoneLifespanSeconds = 600f,
-                MonumentZones = new Dictionary<string, float>
-                {
-                    {"airfield", 200},
-                    {"sphere_tank", 120},
-                    {"junkyard", 150},
-                    {"launch_site", 300},
-                    {"military_tunnel", 150},
-                    {"powerplant", 175},
-                    {"satellite_dish", 130},
-                    {"trainyard", 180},
-                    {"water_treatment_plant", 180 },
-                    {"oilrig_1",200},
-                    {"oilrig_2",200},
-                    {"military_base",150},
-                    {"research_base",150}
-                }
-            };
-        }
-    }
-}
-#endregion
-
-#region > Game Event Watcher
-namespace Oxide.Plugins
+#region GameEventWatcher.cs
+﻿namespace Oxide.Plugins
 {
     using System.Collections.Generic;
     using UnityEngine;
 
+    //TODO: Refactor this. This currently uses FindObjectOfType which is bad for performance. Should use hooks instead (but this might not work for server restarts)
     public partial class Imperium
     {
         private class GameEventWatcher : MonoBehaviour
@@ -9831,8 +6214,1213 @@ namespace Oxide.Plugins
 }
 #endregion
 
-#region > Hud
-namespace Oxide.Plugins
+#region _Hooks.TEMPLATE.cs
+﻿namespace Oxide.Plugins
+{
+    using Network;
+    using Oxide.Core;
+    using UnityEngine;
+    using Newtonsoft.Json.Linq;
+    using System.Collections.Generic;
+    using Rust.Ai;
+    public partial class Imperium : RustPlugin
+    {
+
+    }
+}
+#endregion
+
+#region Hooks.OnAreaChanged.cs
+﻿namespace Oxide.Plugins
+{
+    using Network;
+    using Oxide.Core;
+    using UnityEngine;
+    using Newtonsoft.Json.Linq;
+    using System.Collections.Generic;
+    using Rust.Ai;
+    public partial class Imperium : RustPlugin
+    {
+        private void OnAreaChanged(Area area)
+        {
+            Areas.UpdateAreaMarkers();
+            Wars.EndAllWarsForEliminatedFactions();
+            Pins.RemoveAllPinsInUnclaimedAreas();
+            Hud.GenerateMapOverlayImage();
+            Hud.RefreshForAllPlayers();
+        }
+    }
+}
+#endregion
+
+#region Hooks.OnDiplomacyChanged.cs
+﻿namespace Oxide.Plugins
+{
+    using Network;
+    using Oxide.Core;
+    using UnityEngine;
+    using Newtonsoft.Json.Linq;
+    using System.Collections.Generic;
+    using Rust.Ai;
+    public partial class Imperium : RustPlugin
+    {
+        private void OnDiplomacyChanged()
+        {
+            Hud.RefreshForAllPlayers();
+        }
+    }
+}
+#endregion
+
+#region Hooks.OnFactionArmoryChanged.cs
+﻿namespace Oxide.Plugins
+{
+    using Network;
+    using Oxide.Core;
+    using UnityEngine;
+    using Newtonsoft.Json.Linq;
+    using System.Collections.Generic;
+    using Rust.Ai;
+    public partial class Imperium : RustPlugin
+    {
+        private void OnFactionArmoryChanged(Faction faction)
+        {
+
+        }
+    }
+}
+#endregion
+
+#region Hooks.OnFactionCreated.cs
+﻿namespace Oxide.Plugins
+{
+    using Network;
+    using Oxide.Core;
+    using UnityEngine;
+    using Newtonsoft.Json.Linq;
+    using System.Collections.Generic;
+    using Rust.Ai;
+    public partial class Imperium : RustPlugin
+    {
+        private void OnFactionCreated(Faction faction)
+        {
+            Hud.RefreshForAllPlayers();
+        }
+    }
+}
+#endregion
+
+#region Hooks.OnFactionDisbanded.cs
+﻿namespace Oxide.Plugins
+{
+    using Network;
+    using Oxide.Core;
+    using UnityEngine;
+    using Newtonsoft.Json.Linq;
+    using System.Collections.Generic;
+    using Rust.Ai;
+    public partial class Imperium : RustPlugin
+    {
+        private void OnFactionDisbanded(Faction faction)
+        {
+            Area[] areas = Instance.Areas.GetAllClaimedByFaction(faction);
+
+            if (areas.Length > 0)
+            {
+                foreach (Area area in areas)
+                    PrintToChat(Messages.AreaClaimLostFactionDisbandedAnnouncement, area.FactionId, area.Id);
+
+                Areas.Unclaim(areas);
+            }
+
+            Wars.EndAllWarsForEliminatedFactions();
+            Hud.RefreshForAllPlayers();
+        }
+    }
+}
+#endregion
+
+#region Hooks.OnFactionTaxesChanged.cs
+﻿namespace Oxide.Plugins
+{
+    using Network;
+    using Oxide.Core;
+    using UnityEngine;
+    using Newtonsoft.Json.Linq;
+    using System.Collections.Generic;
+    using Rust.Ai;
+    public partial class Imperium : RustPlugin
+    {
+        private void OnFactionTaxesChanged(Faction faction)
+        {
+            Hud.RefreshForAllPlayers();
+        }
+    }
+}
+#endregion
+
+#region Hooks.OnUserEnteredArea.cs
+﻿namespace Oxide.Plugins
+{
+    using Network;
+    using Oxide.Core;
+    using UnityEngine;
+    using Newtonsoft.Json.Linq;
+    using System.Collections.Generic;
+    using Rust.Ai;
+    public partial class Imperium : RustPlugin
+    {
+        private void OnUserEnteredArea(User user, Area area)
+        {
+
+            Area previousArea = user.CurrentArea;
+
+            user.CurrentArea = area;
+            user.Hud.Refresh();
+
+            if (area == null || previousArea == null)
+                return;
+            if (area.Type == AreaType.Badlands && previousArea.Type != AreaType.Badlands)
+            {
+                // The player has entered the badlands.
+                user.SendChatMessage(nameof(Messages.EnteredBadlands));
+            }
+            else if (area.Type == AreaType.Wilderness && previousArea.Type != AreaType.Wilderness)
+            {
+                // The player has entered the wilderness.
+                user.SendChatMessage(nameof(Messages.EnteredWilderness));
+            }
+            else if (area.IsClaimed && !previousArea.IsClaimed)
+            {
+                // The player has entered a faction's territory.
+                user.SendChatMessage(nameof(Messages.EnteredClaimedArea), area.FactionId);
+            }
+            else if (area.IsClaimed && previousArea.IsClaimed && area.FactionId != previousArea.FactionId)
+            {
+                // The player has crossed a border between the territory of two factions.
+                user.SendChatMessage(nameof(Messages.EnteredClaimedArea), area.FactionId);
+            }
+        }
+    }
+}
+#endregion
+
+#region Hooks.OnUserEnteredZone.cs
+﻿namespace Oxide.Plugins
+{
+    using Network;
+    using Oxide.Core;
+    using UnityEngine;
+    using Newtonsoft.Json.Linq;
+    using System.Collections.Generic;
+    using Rust.Ai;
+    public partial class Imperium : RustPlugin
+    {
+        private void OnUserEnteredZone(User user, Zone zone)
+        {
+            user.CurrentZones.Add(zone);
+            user.Hud.Refresh();
+        }
+    }
+}
+#endregion
+
+#region Hooks.OnUserLeftArea.cs
+﻿namespace Oxide.Plugins
+{
+    using Network;
+    using Oxide.Core;
+    using UnityEngine;
+    using Newtonsoft.Json.Linq;
+    using System.Collections.Generic;
+    using Rust.Ai;
+    public partial class Imperium : RustPlugin
+    {
+        private void OnUserLeftArea(User user, Area area)
+        {
+
+        }
+    }
+}
+#endregion
+
+#region Hooks.OnUserLeftZone.cs
+﻿namespace Oxide.Plugins
+{
+    using Network;
+    using Oxide.Core;
+    using UnityEngine;
+    using Newtonsoft.Json.Linq;
+    using System.Collections.Generic;
+    using Rust.Ai;
+    public partial class Imperium : RustPlugin
+    {
+        private void OnUserLeftZone(User user, Zone zone)
+        {
+            user.CurrentZones.Remove(zone);
+            user.Hud.Refresh();
+        }
+    }
+}
+#endregion
+
+#region Hooks.Clans.cs
+﻿namespace Oxide.Plugins
+{
+    using Network;
+    using Oxide.Core;
+    using UnityEngine;
+    using Newtonsoft.Json.Linq;
+    using System.Collections.Generic;
+    using Rust.Ai;
+    public partial class Imperium : RustPlugin
+    {
+        private void OnPluginLoaded(CSharpPlugin plugin)
+        {
+            if (plugin == Clans)
+            {
+                if (Instance)
+                    Instance.Factions.SyncAllWithClans();
+            }
+        }
+
+        private void OnClanCreate(string tag)
+        {
+            if (Instance.Options.Factions.UseClansPlugin)
+            {
+                Faction faction = Factions.Get(tag);
+                JObject clanInfo = Clans.CallHook("GetClan", tag) as JObject;
+                if (clanInfo != null)
+                {
+                    string ownerid = clanInfo.GetValue("owner").Value<string>();
+                    User owner = Users.Get(ownerid);
+                    faction = Factions.Create(tag, owner);
+                    owner.SetFaction(faction);
+                }
+            }
+        }
+
+        private void OnClanDisbanded(string tag, List<string> memberUserIDs)
+        {
+            if (Clans)
+            {
+                Factions.Disband(Factions.Get(tag));
+            }
+        }
+
+        private void OnClanMemberJoined(string userID, string tag)
+        {
+            if (Clans)
+            {
+                User user = Users.Get(userID);
+                Faction faction = Factions.Get(tag);
+                if (faction != null && user != null)
+                {
+                    faction.AddMember(user);
+                    user.SetFaction(faction);
+                }
+            }
+        }
+
+        private void OnClanMemberGone(string userID, string tag)
+        {
+            if (Instance.Options.Factions.UseClansPlugin)
+            {
+                User user = Users.Get(userID);
+                Faction faction = Factions.Get(tag);
+                if (faction != null && user != null)
+                {
+                    if (faction.HasOwner(user))
+                    {
+                        JObject jClan = (JObject)Clans.CallHook("GetClan", tag);
+                        string clanOwnerId = jClan["owner"].Value<string>();
+                        if (clanOwnerId != null)
+                        {
+                            faction.OwnerId = clanOwnerId;
+                        }
+                    }
+                    faction.RemoveMember(user);
+                    user.SetFaction(null);
+                }
+            }
+        }
+    }
+}
+#endregion
+
+#region Hooks.NpcSpawn.cs
+﻿namespace Oxide.Plugins
+{
+    using Network;
+    using Oxide.Core;
+    using UnityEngine;
+    using Newtonsoft.Json.Linq;
+    using System.Collections.Generic;
+    using Rust.Ai;
+    public partial class Imperium : RustPlugin
+    {
+        private object OnCustomNpcTarget(BasePlayer attacker, BasePlayer victim)
+        {
+            return CanNpcSpawnTargetBasePlayer(attacker, victim);
+        }
+    }
+}
+#endregion
+
+#region Hooks.RaidableBases.cs
+﻿namespace Oxide.Plugins
+{
+    using Network;
+    using Oxide.Core;
+    using UnityEngine;
+    using Newtonsoft.Json.Linq;
+    using System.Collections.Generic;
+    using Rust.Ai;
+    public partial class Imperium : RustPlugin
+    {
+        private void OnPlayerEnteredRaidableBase(BasePlayer player, Vector3 raidPos, bool allowPVP, int mode)
+        {
+            User user = Instance.Users.Get(player);
+            if (user == null)
+                return;
+            user.IsInsideRaidableBase = true;
+        }
+        private void OnPlayerExitedRaidableBase(BasePlayer player, Vector3 raidPos, bool allowPVP, int mode)
+        {
+            User user = Instance.Users.Get(player);
+            if (user == null)
+                return;
+            user.IsInsideRaidableBase = false;
+
+        }
+
+        private void OnRaidableBaseStarted(Vector3 raidPos, int mode, bool allowPVP)
+        {
+            Puts(raidPos.ToString() + " started with mode: " + mode + " and allowPVP: " + allowPVP);
+        }
+    }
+}
+#endregion
+
+#region Hooks.CanBeTargeted.cs
+﻿namespace Oxide.Plugins
+{
+    using Network;
+    using Oxide.Core;
+    using UnityEngine;
+    using Newtonsoft.Json.Linq;
+    using System.Collections.Generic;
+    using Rust.Ai;
+    public partial class Imperium : RustPlugin
+    {
+        private object CanBeTargeted(BaseCombatEntity target, MonoBehaviour turret)
+        {
+            if (target == null || turret == null)
+                return null;
+
+            // Don't interfere with the helicopter.
+            if (turret is HelicopterTurret)
+                return null;
+
+            var player = target as BasePlayer;
+
+            if (player == null)
+                return null;
+
+            if (Users == null)
+            {
+                return null;
+            }
+
+            User defender = Users.Get(player);
+            Recruit defenderRecruit;
+            recruitInstances.TryGetValue(player, out defenderRecruit);
+            BaseCombatEntity entity = turret as BaseCombatEntity;
+
+            if ((defender == null && defenderRecruit == null) || entity == null)
+                return null;
+            if (defender != null)
+                return Pvp.HandleTurretTarget(entity, defender);
+            if (defenderRecruit != null)
+                return Pvp.HandleRecruitTurretTarget(entity, defenderRecruit);
+            return null;
+        }
+    }
+}
+#endregion
+
+#region Hooks.CanUseGesture.cs
+﻿namespace Oxide.Plugins
+{
+    using Network;
+    using Oxide.Core;
+    using UnityEngine;
+    using Newtonsoft.Json.Linq;
+    using System.Collections.Generic;
+    using Rust.Ai;
+    public partial class Imperium : RustPlugin
+    {
+        private bool? CanUseGesture(BasePlayer player, GestureConfig gesture)
+        {
+            User user = player.GetComponent<User>();
+            if (user == null)
+                return null;
+            user.BroadcastRecruitGesture(gesture.gestureId);
+            return null;
+        }
+    }
+}
+#endregion
+
+#region Hooks.OnCorpsePopulate.cs
+﻿namespace Oxide.Plugins
+{
+    using Network;
+    using Oxide.Core;
+    using UnityEngine;
+    using Newtonsoft.Json.Linq;
+    using System.Collections.Generic;
+    using Rust.Ai;
+    public partial class Imperium : RustPlugin
+    {
+        private BaseCorpse OnCorpsePopulate(ScientistNPC npc, NPCPlayerCorpse corpse)
+        {
+            if (npc == null || corpse == null)
+                return null;
+            if (IsRecruit(npc))
+            {
+                ItemContainer main = npc.inventory.containerMain;
+                corpse.containers[0].Clear();
+                corpse.containers[1].Clear();
+                corpse.containers[2].Clear();
+                foreach (Item item in main.itemList)
+                {
+                    item.MoveToContainer(corpse.containers[0]);
+                }
+                corpse.Invoke("AdminKill", 2f);
+                return corpse;
+            }
+            return null;
+        }
+    }
+}
+#endregion
+
+#region Hooks.OnDispenserBonus.cs
+﻿namespace Oxide.Plugins
+{
+    using Network;
+    using Oxide.Core;
+    using UnityEngine;
+    using Newtonsoft.Json.Linq;
+    using System.Collections.Generic;
+    using Rust.Ai;
+    public partial class Imperium : RustPlugin
+    {
+        private void OnDispenserBonus(ResourceDispenser dispenser, BaseEntity entity, Item item)
+        {
+            Taxes.ProcessTaxesIfApplicable(dispenser, entity, item);
+            Taxes.AwardBadlandsBonusIfApplicable(dispenser, entity, item);
+        }
+    }
+}
+#endregion
+
+#region Hooks.OnDispenserGather.cs
+﻿namespace Oxide.Plugins
+{
+    using Network;
+    using Oxide.Core;
+    using UnityEngine;
+    using Newtonsoft.Json.Linq;
+    using System.Collections.Generic;
+    using Rust.Ai;
+    public partial class Imperium : RustPlugin
+    {
+        private void OnDispenserGather(ResourceDispenser dispenser, BaseEntity entity, Item item)
+        {
+            Taxes.ProcessTaxesIfApplicable(dispenser, entity, item);
+            Taxes.AwardBadlandsBonusIfApplicable(dispenser, entity, item);
+        }
+    }
+}
+#endregion
+
+#region Hooks.OnEntityDeath.cs
+﻿namespace Oxide.Plugins
+{
+    using Network;
+    using Oxide.Core;
+    using UnityEngine;
+    using Newtonsoft.Json.Linq;
+    using System.Collections.Generic;
+    using Rust.Ai;
+    public partial class Imperium : RustPlugin
+    {
+        private object OnEntityDeath(BasePlayer player, HitInfo hit)
+        {
+            if (player == null)
+                return null;
+
+            // When a player dies, remove them from the area and any zones they were in.
+            User user = Users.Get(player);
+            if (user != null)
+            {
+                user.CurrentArea = null;
+                user.CurrentZones.Clear();
+            }
+
+            return null;
+        }
+
+    }
+}
+#endregion
+
+#region Hooks.OnEntityKill.cs
+﻿namespace Oxide.Plugins
+{
+    using Network;
+    using Oxide.Core;
+    using UnityEngine;
+    using Newtonsoft.Json.Linq;
+    using System.Collections.Generic;
+    using Rust.Ai;
+    public partial class Imperium : RustPlugin
+    {
+        private void OnEntityKill(BaseNetworkable networkable)
+        {
+            var entity = networkable as BaseEntity;
+
+            if (!Ready || entity == null)
+                return;
+
+            // If a claim TC was destroyed, remove the claim from the area.
+            var cupboard = entity as BuildingPrivlidge;
+            if (cupboard != null)
+            {
+                var area = Areas.GetByClaimCupboard(cupboard);
+                if (area != null)
+                {
+                    if (area.IsCupboardChangingSkin)
+                    {
+                        PrintWarning("Attempt to unclaim area blocked because cupboard was reskinned!");
+                        return;
+                    }
+                    PrintToChat(Messages.AreaClaimLostCupboardDestroyedAnnouncement, area.FactionId, area.Id);
+                    Log(
+                        $"{area.FactionId} lost their claim on {area.Id} because the tool cupboard was destroyed (hook function)");
+                    Areas.Unclaim(area);
+                }
+
+                return;
+            }
+
+            // If a tax chest was destroyed, remove it from the faction data.
+            var container = entity as StorageContainer;
+            if (Options.Taxes.Enabled && container != null)
+            {
+                Faction faction = Factions.GetByTaxChest(container);
+                if (faction != null)
+                {
+                    Log($"{faction.Id}'s tax chest was destroyed (hook function)");
+                    faction.TaxChest = null;
+                }
+
+                return;
+            }
+
+            // If an armory locker was destroyed, remove it from the faction data.
+            var locker = entity as Locker;
+            if (Options.Recruiting.Enabled && locker != null)
+            {
+                var area = Areas.GetByArmoryLocker(locker);
+                if (area != null)
+                {
+                    Log($"{area.FactionId}'s armory locker was destroyed at {area.Id} (hook function)");
+                    Instance.Areas.RemoveArmory(area);
+                }
+
+                return;
+            }
+
+            var bag = entity as SleepingBag;
+            if (Options.Recruiting.Enabled && bag != null)
+            {
+                var area = Areas.GetByRecruitSleepingBag(bag);
+                if (area != null)
+                {
+                    Log($"{area.Id}'s recruit spawn bag was destroyed (hook function)");
+                    Instance.Areas.RemoveArmory(area);
+                }
+                return;
+            }
+
+            // If a helicopter was destroyed, create an event zone around it.
+            var helicopter = entity as BaseHelicopter;
+            if (Options.Zones.Enabled && helicopter != null)
+                Zones.CreateForDebrisField(helicopter);
+
+            // If a recruit was killed, remove it from the recruit instance lists
+            BasePlayer basePlayer = entity as BasePlayer;
+            Recruit recruit = null;
+            if (basePlayer != null)
+            {
+                recruitInstances.TryGetValue(basePlayer, out recruit);
+                if (recruit != null)
+                {
+                    UnregisterRecruitInstance(basePlayer);
+                    if (recruit.hasLeader)
+                    {
+                        recruit.SetLeader(null);
+                    }
+                }
+            }
+        }
+    }
+}
+#endregion
+
+#region Hooks.OnEntityReskin.cs
+﻿namespace Oxide.Plugins
+{
+    using Network;
+    using Oxide.Core;
+    using UnityEngine;
+    using Newtonsoft.Json.Linq;
+    using System.Collections.Generic;
+    using Rust.Ai;
+    public partial class Imperium : RustPlugin
+    {
+        private object OnEntityReskin(BaseEntity entity, ItemSkinDirectory.Skin skin, BasePlayer player)
+        {
+            BuildingPrivlidge cupboard = entity as BuildingPrivlidge;
+            if (cupboard == null)
+                return null;
+            Area area = Instance.Areas.GetByClaimCupboard(cupboard);
+            if (area == null)
+                return null;
+            //Mark area as changing cupboard skin so the old cupboard Kill() does not trigger Unclaim()
+            area.IsCupboardChangingSkin = true;
+            //Remember player that reskinned the cupboard
+            area.ClaimReskinningPlayer = player;
+            area.ReskinnedCupboardLastPosition = cupboard.transform.position;
+            return null;
+        }
+    }
+}
+#endregion
+
+#region Hooks.OnEntityReskinned.cs
+﻿namespace Oxide.Plugins
+{
+    using Network;
+    using Oxide.Core;
+    using UnityEngine;
+    using Newtonsoft.Json.Linq;
+    using System.Collections.Generic;
+    using Rust.Ai;
+    public partial class Imperium : RustPlugin
+    {
+        private object OnEntityReskinned(BaseEntity entity, ItemSkinDirectory.Skin skin, BasePlayer player)
+        {
+            BuildingPrivlidge cupboard = entity as BuildingPrivlidge;
+            if (cupboard == null)
+                return null;
+
+            Area area = null;
+
+            if (player != null)
+                area = Instance.Areas.GetByClaimReskinningPlayer(player);
+            if (area == null)
+                area = Instance.Areas.GetByReskinnedCupboardLastPosition(cupboard.transform.position);
+            if (area == null)
+                return null;
+            if (!area.IsCupboardChangingSkin)
+                return null;
+            area.IsCupboardChangingSkin = false;
+            area.ClaimReskinningPlayer = null;
+            area.ClaimCupboard = cupboard;
+            return null;
+        }
+    }
+}
+#endregion
+
+#region Hooks.OnEntitySpawned.cs
+﻿namespace Oxide.Plugins
+{
+    using Network;
+    using Oxide.Core;
+    using UnityEngine;
+    using Newtonsoft.Json.Linq;
+    using System.Collections.Generic;
+    using Rust.Ai;
+    public partial class Imperium : RustPlugin
+    {
+        private void OnEntitySpawned(BaseNetworkable entity)
+        {
+            if (entity == null)
+                return;
+            if (Hud == null)
+                return;
+            if (Options == null)
+                return;
+            var plane = entity as CargoPlane;
+            if (plane != null)
+                Hud.GameEvents.BeginEvent(plane);
+
+            var drop = entity as SupplyDrop;
+            if (Options.Zones.Enabled && drop != null)
+                Zones.CreateForSupplyDrop(drop);
+
+            var heli = entity as BaseHelicopter;
+            if (heli != null)
+                Hud.GameEvents.BeginEvent(heli);
+
+            var chinook = entity as CH47Helicopter;
+            if (chinook != null)
+                Hud.GameEvents.BeginEvent(chinook);
+
+            var crate = entity as HackableLockedCrate;
+            if (crate != null)
+                Hud.GameEvents.BeginEvent(crate);
+            var cargoship = entity as CargoShip;
+            if (Options.Zones.Enabled && cargoship != null)
+                Zones.CreateForCargoShip(cargoship);
+        }
+    }
+}
+#endregion
+
+#region Hooks.OnEntityTakeDamage.cs
+﻿namespace Oxide.Plugins
+{
+    using Network;
+    using Oxide.Core;
+    using UnityEngine;
+    using Newtonsoft.Json.Linq;
+    using System.Collections.Generic;
+    using Rust.Ai;
+    public partial class Imperium : RustPlugin
+    {
+        private object OnEntityTakeDamage(BaseCombatEntity entity, HitInfo hit)
+        {
+            if (entity == null || hit == null)
+                return null;
+            BasePlayer initiatorPlayer = hit.InitiatorPlayer;
+            BasePlayer victimPlayer = entity as BasePlayer;
+            HumanNPC attackerNpc = initiatorPlayer as HumanNPC;
+            HumanNPC defenderNpc = initiatorPlayer as HumanNPC;
+            Recruit defenderRecruit = null;
+            User defender = null;
+            Recruit attackerRecruit = null;
+
+            if (hit.InitiatorPlayer != null && victimPlayer)
+            {
+                recruitInstances.TryGetValue(initiatorPlayer, out attackerRecruit);
+                recruitInstances.TryGetValue(victimPlayer, out defenderRecruit);
+                defender = Users.Get(victimPlayer);
+                if (attackerRecruit != null)
+                {
+                    if (defenderRecruit)
+                    {
+                        if (attackerRecruit.ShouldAttackOnSight(entity as BasePlayer) == true)
+                        {
+                            hit.damageTypes.ScaleAll(2f);
+                            defenderRecruit.npc.SetHealth(defenderRecruit.npc.health - hit.damageTypes.Total());
+                            attackerRecruit.NotifyHitToLeader(hit);
+                            defenderRecruit.SetFactionHostile(attackerRecruit.faction);
+                            defenderRecruit.SetKnown(attackerRecruit.npc);
+                            return null;
+                        }
+                        else
+                        {
+                            return true;
+                        }
+                    }
+                    else if (IsNpcSpawn(entity))
+                    {
+                        hit.damageTypes.ScaleAll(2f);
+                        entity.SetHealth(entity.health - hit.damageTypes.Total());
+                        attackerRecruit.NotifyHitToLeader(hit);
+                        ScientistNPC scientist = entity as ScientistNPC;
+                        scientist.Brain.Senses.Memory.SetKnown(attackerRecruit.npc, entity, scientist.Brain.Senses);
+                        return null;
+                    }
+                    else if (defender)
+                    {
+                        if (attackerRecruit.ShouldAttackOnSight(entity as BasePlayer) == false)
+                        {
+                            return true;
+                        }
+
+                    }
+                    else if (entity as BaseAnimalNPC || entity as NPCPlayer)
+                    {
+                        attackerRecruit.NotifyHitToLeader(hit);
+                        return null;
+                    }
+                }
+                else if (IsNpcSpawn(initiatorPlayer) && defenderRecruit != null)
+                {
+                    hit.damageTypes.ScaleAll(2f);
+                    defenderRecruit.npc.SetHealth(defenderRecruit.npc.health - hit.damageTypes.Total());
+                    defenderRecruit.SetKnown(initiatorPlayer);
+                    return null;
+                }
+            }
+
+            object externalResult = Interface.CallHook("CanEntityTakeDamage", new object[] { entity, hit });
+
+            if (externalResult != null)
+            {
+                if ((bool)externalResult == false)
+                    return true;
+            }
+
+            if (hit.damageTypes.Has(Rust.DamageType.Decay))
+                return Decay.AlterDecayDamage(entity, hit);
+
+            User attacker = null;
+            defender = entity.GetComponent<User>();
+
+            if (hit.InitiatorPlayer != null)
+            {
+                attacker = hit.InitiatorPlayer.GetComponent<User>();
+            }
+
+            // A player is being injured by something other than a player/NPC.
+            if (attacker == null && defender != null)
+                return Pvp.HandleIncidentalDamage(defender, hit);
+
+            // One player is damaging another player.
+            if (attacker != null && defender != null)
+                return Pvp.HandleDamageBetweenPlayers(attacker, defender, hit);
+
+            //A player is damaging a recruit
+            if (attacker != null && defenderRecruit != null)
+            {
+                defenderRecruit.DamagedByUser(attacker);
+                return null;
+            }
+
+            // A player is damaging a structure.
+            if (attacker != null && defender == null)
+                return Raiding.HandleDamageAgainstStructure(attacker, entity, hit);
+
+            // A structure is taking damage from something that isn't a player.
+            return Raiding.HandleIncidentalDamage(entity, hit);
+        }
+    }
+}
+#endregion
+
+#region Hooks.OnHammerHit.cs
+﻿namespace Oxide.Plugins
+{
+    using Network;
+    using Oxide.Core;
+    using UnityEngine;
+    using Newtonsoft.Json.Linq;
+    using System.Collections.Generic;
+    using Rust.Ai;
+    public partial class Imperium : RustPlugin
+    {
+        private void OnHammerHit(BasePlayer player, HitInfo hit)
+        {
+            User user = Users.Get(player);
+            if (user != null && user.CurrentInteraction != null)
+                user.CompleteInteraction(hit);
+        }
+    }
+}
+#endregion
+
+#region Hooks.OnNpcTargetSense.cs
+﻿namespace Oxide.Plugins
+{
+    using Network;
+    using Oxide.Core;
+    using UnityEngine;
+    using Newtonsoft.Json.Linq;
+    using System.Collections.Generic;
+    using Rust.Ai;
+    public partial class Imperium : RustPlugin
+    {
+        private object OnNpcTargetSense(BaseEntity owner, BaseEntity entity, AIBrainSenses brainSenses)
+        {
+            bool isVanillaNpc = !IsNpcSpawn(owner) && !IsRecruit(owner.net?.ID.Value);
+            bool targetIsRecruit = IsRecruit(entity.net?.ID.Value);
+
+            if (isVanillaNpc && targetIsRecruit)
+            {
+                BasePlayer entityPlayer = entity as BasePlayer;
+                HumanNPC npc = owner as HumanNPC;
+                if (brainSenses == null)
+                {
+                    brainSenses = npc.Brain.Senses;
+                }
+                SimpleAIMemory memory = brainSenses.Memory;
+                if (brainSenses != null)
+                {
+                    brainSenses.LastThreatTimestamp = UnityEngine.Time.realtimeSinceStartup;
+                }
+                brainSenses.Players.Add(entityPlayer);
+                npc.Brain.Navigator.SetFacingDirectionEntity(entity);
+
+                BaseProjectile projectile = npc.GetAttackEntity() as BaseProjectile;
+                if (projectile)
+                {
+                    if (projectile.primaryMagazine.contents == 0)
+                        projectile.ServerReload();
+                    else if (npc.CanSee(npc.eyes.position, entity.CenterPoint()))
+                        npc.ShotTest(1f);
+                }
+
+                if (memory.All.Count > 0)
+                {
+                    for (int i = 0; i < memory.All.Count; i++)
+                    {
+                        if (memory.All[i].Entity == entity)
+                        {
+                            SimpleAIMemory.SeenInfo value = memory.All[i];
+                            value.Position = entity.transform.position;
+                            value.Timestamp = Mathf.Max(UnityEngine.Time.realtimeSinceStartup, value.Timestamp);
+                            memory.All[i] = value;
+                            if (!memory.Threats.Contains(entity))
+                                memory.Threats.Add(entity);
+                            if (memory.Friendlies.Contains(entity))
+                                memory.Friendlies.Remove(entity);
+
+                            return true;
+                        }
+                    }
+                }
+                memory.Threats.Add(entity);
+                if (memory.Friendlies.Contains(entity))
+                    memory.Friendlies.Remove(entity);
+                memory.All.Add(new SimpleAIMemory.SeenInfo
+                {
+                    Entity = entity,
+                    Position = entity.transform.position,
+                    Timestamp = UnityEngine.Time.realtimeSinceStartup
+                });
+
+
+                return true;
+
+            }
+            return null;
+        }
+    }
+}
+#endregion
+
+#region Hooks.OnShopAcceptClick.cs
+﻿namespace Oxide.Plugins
+{
+    using Network;
+    using Oxide.Core;
+    using UnityEngine;
+    using Newtonsoft.Json.Linq;
+    using System.Collections.Generic;
+    using Rust.Ai;
+    public partial class Imperium : RustPlugin
+    {
+        private object OnShopAcceptClick(ShopFront entity, BasePlayer player)
+        {
+            if (!Instance.Options.War.EnableShopfrontPeace)
+                return null;
+
+            var user1 = Instance.Users.Get(entity.vendorPlayer);
+            var user2 = Instance.Users.Get(entity.customerPlayer);
+
+            if (user1 == null || user2 == null)
+                return null;
+            if (user1.Faction == null || user2.Faction == null)
+                return null;
+            if (!Instance.Wars.AreFactionsAtWar(user1.Faction, user2.Faction))
+                return null;
+            if (user1.Faction.HasLeader(user1) && user2.Faction.HasLeader(user2))
+                return null;
+            user1.SendChatMessage("Only owners or managers of both enemy factions can trade right now. Trading will end the war");
+            user2.SendChatMessage("Only owners or managers of both enemy factions can trade right now. Trading will end the war");
+            return true;
+        }
+    }
+}
+#endregion
+
+#region Hooks.OnShopCompleteTrade.cs
+﻿namespace Oxide.Plugins
+{
+    using Network;
+    using Oxide.Core;
+    using UnityEngine;
+    using Newtonsoft.Json.Linq;
+    using System.Collections.Generic;
+    using Rust.Ai;
+    public partial class Imperium : RustPlugin
+    {
+        private object OnShopCompleteTrade(ShopFront entity)
+        {
+            Instance.Wars.TryShopfrontTreaty(entity.vendorPlayer, entity.customerPlayer);
+            return null;
+        }
+    }
+}
+#endregion
+
+#region Hooks.OnTrapTrigger.cs
+﻿namespace Oxide.Plugins
+{
+    using Network;
+    using Oxide.Core;
+    using UnityEngine;
+    using Newtonsoft.Json.Linq;
+    using System.Collections.Generic;
+    using Rust.Ai;
+    public partial class Imperium : RustPlugin
+    {
+        private object OnTrapTrigger(BaseTrap trap, GameObject obj)
+        {
+            var player = obj.GetComponent<BasePlayer>();
+
+            if (trap == null || player == null)
+                return null;
+
+            User defender = Users.Get(player);
+            return Pvp.HandleTrapTrigger(trap, defender);
+        }
+    }
+}
+#endregion
+
+#region Hooks.PlayerConnection.cs
+﻿namespace Oxide.Plugins
+{
+    using Network;
+    using Oxide.Core;
+    using UnityEngine;
+    using Newtonsoft.Json.Linq;
+    using System.Collections.Generic;
+    using Rust.Ai;
+    public partial class Imperium : RustPlugin
+    {
+        private void OnUserApprove(Connection connection)
+        {
+            Users.SetOriginalName(connection.userid.ToString(), connection.username);
+        }
+
+        private void OnPlayerConnected(BasePlayer player)
+        {
+            if (player == null) return;
+
+            // If the player hasn't fully connected yet, try again in 2 seconds.
+            if (player.IsReceivingSnapshot)
+            {
+                timer.In(2, () => OnPlayerConnected(player));
+                return;
+            }
+            Users.Add(player);
+        }
+
+        private void OnPlayerSleepEnded(BasePlayer player)
+        {
+            User user = player.GetComponent<User>();
+            if (user != null && !user.UpdatedMarkers)
+            {
+                Areas.UpdateAreaMarkers();
+                user.UpdatedMarkers = true;
+            }
+
+        }
+
+        private void OnPlayerDisconnected(BasePlayer player)
+        {
+            if (player != null)
+                Users.Remove(player);
+        }
+    }
+}
+#endregion
+
+#region Hooks.Team.cs
+﻿namespace Oxide.Plugins
+{
+    using Network;
+    using Oxide.Core;
+    using UnityEngine;
+    using Newtonsoft.Json.Linq;
+    using System.Collections.Generic;
+    using Rust.Ai;
+    public partial class Imperium : RustPlugin
+    {
+        private object OnTeamCreate(BasePlayer player)
+        {
+            if (Instance.Options.Factions.OverrideInGameTeamSystem)
+            {
+                User user = Instance.Users.Get(player);
+                if (user)
+                {
+                    user.SendChatMessage("You can't create a team. Say <color=#ffd479>/i</color> to create your faction");
+                }
+                return true;
+            }
+            return null;
+        }
+
+        private object OnTeamInvite(BasePlayer inviter, BasePlayer target)
+        {
+            if (Instance.Options.Factions.OverrideInGameTeamSystem)
+            {
+                return true;
+            }
+            return null;
+        }
+
+        private object OnTeamPromote(RelationshipManager.PlayerTeam team, BasePlayer newLeader)
+        {
+            if (Instance.Options.Factions.OverrideInGameTeamSystem)
+            {
+                return true;
+            }
+            return null;
+        }
+
+        private object OnTeamKick(ulong currentTeam, ulong newTeam, BasePlayer player)
+        {
+            if (Instance.Options.Factions.OverrideInGameTeamSystem)
+            {
+                return true;
+            }
+            return null;
+        }
+
+        private object OnTeamLeave(RelationshipManager.PlayerTeam team, BasePlayer player)
+        {
+            if (Instance.Options.Factions.OverrideInGameTeamSystem)
+            {
+                return true;
+            }
+            return null;
+        }
+
+        private object OnTeamDisband(RelationshipManager.PlayerTeam team)
+        {
+            if (Instance.Options.Factions.OverrideInGameTeamSystem)
+            {
+                return true;
+            }
+            return null;
+        }
+    }
+}
+#endregion
+
+#region HudManager.cs
+﻿namespace Oxide.Plugins
 {
     using System;
     using System.Collections.Generic;
@@ -9968,8 +7556,10 @@ namespace Oxide.Plugins
         }
     }
 }
+#endregion
 
-namespace Oxide.Plugins
+#region Image.cs
+﻿namespace Oxide.Plugins
 {
     using System;
 
@@ -10014,13 +7604,16 @@ namespace Oxide.Plugins
         }
     }
 }
+#endregion
 
-namespace Oxide.Plugins
+#region ImageDownloader.cs
+﻿namespace Oxide.Plugins
 {
     using System;
     using System.Collections;
     using System.Collections.Generic;
     using UnityEngine;
+    using UnityEngine.Networking;
 
     public partial class Imperium
     {
@@ -10052,149 +7645,36 @@ namespace Oxide.Plugins
 
             private IEnumerator DownloadImage(Image image)
             {
-                var www = new WWW(image.Url);
-                yield return www;
+                using (UnityWebRequest www = UnityWebRequestTexture.GetTexture(image.Url))
+                {
+                    yield return www.SendWebRequest();
 
-                if (!String.IsNullOrEmpty(www.error))
-                {
-                    Instance.Puts($"Error while downloading image {image.Url}: {www.error}");
-                }
-                else if (www.bytes == null || www.bytes.Length == 0)
-                {
-                    Instance.Puts($"Error while downloading image {image.Url}: No data received");
-                }
-                else
-                {
-                    byte[] data = ImageConversion.EncodeToPNG(www.texture);
-                    image.Save(data);
-                    DestroyImmediate(www.texture);
-                    Instance.Puts($"Stored {image.Url} as id {image.Id}");
-                    DownloadNext();
+                    if (!string.IsNullOrEmpty(www.error))
+                    {
+                        Instance.Puts($"Error while downloading image {image.Url}: {www.error}");
+                    }
+                    else if (www.downloadedBytes == 0)
+                    {
+                        Instance.Puts($"Error while downloading image {image.Url}: No data received");
+                    }
+                    else
+                    {
+                        Texture2D texture = DownloadHandlerTexture.GetContent(www);
+                        byte[] data = ImageConversion.EncodeToPNG(texture);
+                        image.Save(data);
+                        DestroyImmediate(texture);
+                        Instance.Puts($"Stored {image.Url} as id {image.Id}");
+                        DownloadNext();
+                    }
                 }
             }
         }
     }
 }
+#endregion
 
-namespace Oxide.Plugins
-{
-    using System;
-    using System.Collections.Generic;
-
-    public partial class Imperium
-    {
-        private class ImperiumMapMarker
-        {
-            public string IconUrl;
-            public string Label;
-            public float X;
-            public float Z;
-
-            public static ImperiumMapMarker ForUser(User user)
-            {
-                return new ImperiumMapMarker
-                {
-                    IconUrl = UI.MapIcon.Player,
-                    X = TranslatePositionX(user.Player.transform.position.x),
-                    Z = TranslatePositionZ(user.Player.transform.position.z)
-                };
-            }
-
-            public static ImperiumMapMarker ForHeadquarters(Area area, Faction faction)
-            {
-                return new ImperiumMapMarker
-                {
-                    IconUrl = UI.MapIcon.Headquarters,
-                    Label = Util.RemoveSpecialCharacters(faction.Id),
-                    X = TranslatePositionX(area.ClaimCupboard.transform.position.x),
-                    Z = TranslatePositionZ(area.ClaimCupboard.transform.position.z)
-                };
-            }
-
-            public static ImperiumMapMarker ForMonument(MonumentInfo monument)
-            {
-                string iconUrl = GetIconForMonument(monument);
-                return new ImperiumMapMarker
-                {
-                    IconUrl = iconUrl,
-                    Label = (iconUrl == UI.MapIcon.Unknown) ? monument.displayPhrase.english : null,
-                    X = TranslatePositionX(monument.transform.position.x),
-                    Z = TranslatePositionZ(monument.transform.position.z)
-                };
-            }
-
-            public static ImperiumMapMarker ForPin(Pin pin)
-            {
-                string iconUrl = GetIconForPin(pin);
-                return new ImperiumMapMarker
-                {
-                    IconUrl = iconUrl,
-                    Label = pin.Name,
-                    X = TranslatePositionX(pin.Position.x),
-                    Z = TranslatePositionZ(pin.Position.z)
-                };
-            }
-
-            private static float TranslatePositionX(float pos)
-            {
-                var mapHeight = TerrainMeta.Size.x;
-                return (pos + mapHeight / 2f) / mapHeight;
-            }
-
-            private static float TranslatePositionZ(float pos)
-            {
-                var mapWidth = TerrainMeta.Size.z;
-                return (pos + mapWidth / 2f) / mapWidth;
-            }
-
-            private static string GetIconForMonument(MonumentInfo monument)
-            {
-                if (monument.Type == MonumentType.Cave) return UI.MapIcon.Cave;
-                if (monument.name.Contains("airfield")) return UI.MapIcon.Airfield;
-                if (monument.name.Contains("bandit_town")) return UI.MapIcon.BanditTown;
-                if (monument.name.Contains("compound")) return UI.MapIcon.Compound;
-                if (monument.name.Contains("sphere_tank")) return UI.MapIcon.Dome;
-                if (monument.name.Contains("harbor")) return UI.MapIcon.Harbor;
-                if (monument.name.Contains("gas_station")) return UI.MapIcon.GasStation;
-                if (monument.name.Contains("junkyard")) return UI.MapIcon.Junkyard;
-                if (monument.name.Contains("launch_site")) return UI.MapIcon.LaunchSite;
-                if (monument.name.Contains("lighthouse")) return UI.MapIcon.Lighthouse;
-                if (monument.name.Contains("military_tunnel")) return UI.MapIcon.MilitaryTunnel;
-                if (monument.name.Contains("warehouse")) return UI.MapIcon.MiningOutpost;
-                if (monument.name.Contains("powerplant")) return UI.MapIcon.PowerPlant;
-                if (monument.name.Contains("quarry")) return UI.MapIcon.Quarry;
-                if (monument.name.Contains("satellite_dish")) return UI.MapIcon.SatelliteDish;
-                if (monument.name.Contains("radtown_small_3")) return UI.MapIcon.SewerBranch;
-                if (monument.name.Contains("power_sub")) return UI.MapIcon.Substation;
-                if (monument.name.Contains("supermarket")) return UI.MapIcon.Supermarket;
-                if (monument.name.Contains("trainyard")) return UI.MapIcon.Trainyard;
-                if (monument.name.Contains("water_treatment_plant")) return UI.MapIcon.WaterTreatmentPlant;
-                return UI.MapIcon.Unknown;
-            }
-        }
-
-        private static string GetIconForPin(Pin pin)
-        {
-            switch (pin.Type)
-            {
-                case PinType.Arena:
-                    return UI.MapIcon.Arena;
-                case PinType.Hotel:
-                    return UI.MapIcon.Hotel;
-                case PinType.Marina:
-                    return UI.MapIcon.Marina;
-                case PinType.Shop:
-                    return UI.MapIcon.Shop;
-                case PinType.Town:
-                    return UI.MapIcon.Town;
-                default:
-                    return UI.MapIcon.Unknown;
-            }
-        }
-    }
-}
-
-namespace Oxide.Plugins
+#region UI.cs
+﻿namespace Oxide.Plugins
 {
     using Oxide.Game.Rust.Cui;
     using System;
@@ -10498,8 +7978,10 @@ namespace Oxide.Plugins
     }
 
 }
+#endregion
 
-namespace Oxide.Plugins
+#region UserHud.cs
+﻿namespace Oxide.Plugins
 {
     using Oxide.Game.Rust.Cui;
     using System;
@@ -10781,7 +8263,7 @@ namespace Oxide.Plugins
 
             private string GetLeftPanelBackgroundColor()
             {
-                if(User == null)
+                if (User == null)
                 {
                     Instance.PrintWarning($"An UserHud is trying to update but has no User associated with it. This shouldn't happen");
                     return PanelColor.BackgroundNormal;
@@ -10930,983 +8412,910 @@ namespace Oxide.Plugins
         }
     }
 }
+#endregion
 
-namespace Oxide.Plugins
+#region Integrations.BetterChat.cs
+﻿namespace Oxide.Plugins
 {
-    using Oxide.Game.Rust.Cui;
-    using System.Collections.Generic;
     using System;
+    using System.Collections.Generic;
     using System.Linq;
-    using UnityEngine;
+    using System.Text;
+    using System.Threading.Tasks;
+    using Oxide.Core.Plugins;
+    using Oxide.Core.Libraries.Covalence;
+    public partial class Imperium
+    {
+        private string BetterChat_FormattedFactionTag(IPlayer player)
+        {
+            if (Clans)
+                return null;
+            Faction faction = Factions.GetByMember(player.Id);
+            if (faction == null)
+                return string.Empty;
+            FactionColorPicker colorPicker = new FactionColorPicker();
+            return "[" + colorPicker.GetHexColorForFaction(faction.Id) + "][" + faction.Id + "][/#]";
+        }
+
+    }
+}
+
+#endregion
+
+#region AddingClaimInteraction.cs
+﻿namespace Oxide.Plugins
+{
+    using System;
+    using System.Collections.Generic;
 
     public partial class Imperium
     {
-        private class UserPanel
+        private class AddingClaimInteraction : Interaction
         {
-            public static List<UIChatCommandDef> UiCommands = new List<UIChatCommandDef>();
-            public static void InitializeUserPanelCommandDefs()
+            public Faction Faction { get; private set; }
+
+            public AddingClaimInteraction(Faction faction)
             {
-                UiCommands =
-                new List<UIChatCommandDef>()
+                Faction = faction;
+            }
+
+            public override bool TryComplete(HitInfo hit)
+            {
+                var cupboard = hit.HitEntity as BuildingPrivlidge;
+                Area area = User.CurrentArea;
+
+                if (area == null)
+                    return false;
+
+                if (!Instance.Factions.EnsureUserCanChangeFactionClaims(User, Faction))
+                    return false;
+
+                if (!Instance.EnsureCupboardCanBeUsedForClaim(User, cupboard))
+                    return false;
+
+                if (!Instance.EnsureFactionCanClaimArea(User, Faction, area))
+                    return false;
+
+                Area[] claimedAreas = Instance.Areas.GetAllClaimedByFaction(Faction);
+                AreaType type = (claimedAreas.Length == 0) ? AreaType.Headquarters : AreaType.Claimed;
+
+                if (area.Type == AreaType.Wilderness)
                 {
-                    //faction create
-                    new UIChatCommandDef()
+                    int cost = area.GetClaimCost(Faction);
+
+                    if (cost > 0)
                     {
-                        category = "faction",
-                        displayName = "CREATE",
-                        shortDescription = "Create a new faction with the given name (Max 8 name length)",
-                        command = "faction create",
-                        auth = UIChatCommandDef.FactionAuth.NotFactionMember,
-                        authExclusive = true,
-                        args =
+                        ItemDefinition scrapDef = ItemManager.FindItemDefinition("scrap");
+                        List<Item> stacks = new List<Item>();
+                        User.Player.inventory.GetAllItems(stacks);
+                        for (int i = stacks.Count - 1; i >= 0; i--)
                         {
-                            new UIChatCommandArg()
-                            {
-                                label = "Faction Name",
-                                description = "The name of your new faction",
-                                isSubstring = false,
-                            }
+                            if (stacks[i].info.itemid != scrapDef.itemid)
+                                stacks.RemoveAt(i);
                         }
-                    },
-                    //faction join
-                    new UIChatCommandDef()
-                    {
-                        category = "faction",
-                        displayName = "JOIN",
-                        shortDescription = "Accept a faction invite, as long as you have been invited",
-                        command = "faction join",
-                        auth = UIChatCommandDef.FactionAuth.NotFactionMember,
-                        authExclusive = true,
-                        args =
-                        {
-                            new UIChatCommandArg()
-                            {
-                                label = "Faction Name",
-                                description = "The name of the faction you want to join",
-                                isSubstring = false,
-                            }
-                        }
-                    },
-                    //faction show
-                    new UIChatCommandDef()
-                    {
-                        category = "faction",
-                        displayName = "INFO",
-                        shortDescription = "Show information about your faction in the chat",
-                        command = "faction",
-                        auth = UIChatCommandDef.FactionAuth.Member,
-                        authExclusive = false
-                    },
 
-                    //faction invite
-                    new UIChatCommandDef()
-                    {
-                        category = "faction",
-                        displayName = "INVITE MEMBER",
-                        shortDescription = "Invite a player to your faction. \nThe player must then accept with FACTION JOIN",
-                        command = "faction invite",
-                        auth = UIChatCommandDef.FactionAuth.Leader,
-                        authExclusive = true,
-                        args =
+                        if (!Instance.TryCollectFromStacks(scrapDef, stacks, cost))
                         {
-                            new UIChatCommandArg()
-                            {
-                                label = "Player name",
-                                description = "The player to invite to your faction",
-                                isSubstring = true,
-                            }
-                        }
-                    },
-                    //faction promote
-                    new UIChatCommandDef()
-                    {
-                        category = "faction",
-                        displayName = "PROMOTE MEMBER",
-                        shortDescription = "Promote a member to manager role",
-                        command = "faction promote",
-                        auth = UIChatCommandDef.FactionAuth.Leader,
-                        authExclusive = true,
-                        args =
-                        {
-                            new UIChatCommandArg()
-                            {
-                                label = "Player name",
-                                description = "The player to promote to manager role",
-                                isSubstring = true,
-                            }
-                        }
-                    },
-                    //faction demote
-                    new UIChatCommandDef()
-                    {
-                        category = "faction",
-                        displayName = "DEMOTE MEMBER",
-                        shortDescription = "Demote a manager to member role",
-                        command = "faction demote",
-                        auth = UIChatCommandDef.FactionAuth.Leader,
-                        authExclusive = true,
-                        args =
-                        {
-                            new UIChatCommandArg()
-                            {
-                                label = "Player name",
-                                description = "The player to demote to member role",
-                                isSubstring = true,
-                            }
-                        }
-                    },
-                    //faction kick
-                    new UIChatCommandDef()
-                    {
-                        category = "faction",
-                        displayName = "KICK MEMBER",
-                        shortDescription = "Kick a player from your faction",
-                        command = "faction kick",
-                        auth = UIChatCommandDef.FactionAuth.Leader,
-                        authExclusive = true,
-                        args =
-                        {
-                            new UIChatCommandArg()
-                            {
-                                label = "Player name",
-                                description = "The player to kick from your faction",
-                                isSubstring = true,
-                            }
-                        }
-                    },
-
-                    //faction badlands confirm
-                    new UIChatCommandDef()
-                    {
-                        category = "faction",
-                        displayName = "TOGGLE BADLANDS",
-                        shortDescription = "Allows/Deny PVP in all of your faction's lands.",
-                        command = "faction badlands confirm",
-                        auth = UIChatCommandDef.FactionAuth.Leader,
-                        authExclusive = true
-                    },
-                    //faction leave
-                    new UIChatCommandDef()
-                    {
-                        category = "faction",
-                        displayName = "LEAVE",
-                        shortDescription = "Leave your current faction",
-                        command = "faction leave",
-                        auth = UIChatCommandDef.FactionAuth.Member,
-                        authExclusive = false
-                    },
-
-                    //faction disband forever
-                    new UIChatCommandDef()
-                    {
-                        category = "faction",
-                        displayName = "DISBAND",
-                        shortDescription = "Disband your entire faction. \nThis action cannot be undone",
-                        command = "faction disband forever",
-                        auth = UIChatCommandDef.FactionAuth.Leader,
-                        authExclusive = true
-                    },
-
-                    //CLAIM
-                    //claim add
-                    new UIChatCommandDef()
-                    {
-                        category = "claim",
-                        displayName = "CLAIM LAND",
-                        shortDescription = "Starts claim interaction. \nHit a tool cupboard with a hammer to complete the interaction",
-                        command = "claim add",
-                        auth = UIChatCommandDef.FactionAuth.Leader,
-                        authExclusive = true,
-                        closesUI = true
-                    },
-                    //claim remove
-                    new UIChatCommandDef()
-                    {
-                        category = "claim",
-                        displayName = "UNCLAIM LAND",
-                        shortDescription = "Starts unclaim interaction. \nHit a tool cupboard with a hammer to complete the interaction",
-                        command = "claim remove",
-                        auth = UIChatCommandDef.FactionAuth.Leader,
-                        authExclusive = true,
-                        closesUI = true
-                    },
-                    //claim hq
-                    new UIChatCommandDef()
-                    {
-                        category = "claim",
-                        displayName = "SET HEADQUARTERS",
-                        shortDescription = "Starts set headquarters interaction. \nHit a tool cupboard with a hammer to complete the interaction",
-                        command = "claim hq",
-                        auth = UIChatCommandDef.FactionAuth.Leader,
-                        authExclusive = true,
-                        closesUI = true
-                    },
-                    
-                    //claim give
-                    new UIChatCommandDef()
-                    {
-                        category = "claim",
-                        displayName = "GIVE LAND",
-                        shortDescription = "Gives the selected land to a target faction. \nHit a tool cupboard with a hammer to complete the interaction",
-                        command = "claim give",
-                        auth = UIChatCommandDef.FactionAuth.Leader,
-                        authExclusive = true,
-                        args =
-                        {
-                            new UIChatCommandArg()
-                            {
-                                label = "Faction Name",
-                                description = "The faction to receive the land",
-                                isSubstring = false,
-                            }
-                        },
-                        closesUI = true
-                    },
-                    //claim rename
-                    new UIChatCommandDef()
-                    {
-                        category = "claim",
-                        displayName = "RENAME LAND",
-                        shortDescription = "Rename the target land with the specified name",
-                        command = "claim rename",
-                        auth = UIChatCommandDef.FactionAuth.Leader,
-                        authExclusive = true,
-                        args =
-                        {
-                            new UIChatCommandArg()
-                            {
-                                label = "Land coordinates [XY]",
-                                description = "The land to rename (Example usage: C6)",
-                                isSubstring = false,
-                            },
-                            new UIChatCommandArg()
-                            {
-                                label = "Name",
-                                description = "The new name for the land",
-                                isSubstring = true,
-                            },
-                        }
-                    },
-                    //claim cost
-                    new UIChatCommandDef()
-                    {
-                        category = "claim",
-                        displayName = "CHECK CLAIM COST",
-                        shortDescription = "Shows the scrap claim cost for a given land in the chat",
-                        command = "claim cost",
-                        auth = UIChatCommandDef.FactionAuth.Leader,
-                        authExclusive = true,
-                        args =
-                        {
-                            new UIChatCommandArg()
-                            {
-                                label = "Land coordinates [XY]",
-                                description = "The land to check the claim cost (Example usage: C6)",
-                                isSubstring = false,
-                            }
-                        }
-                    },
-                    //claim list
-                    new UIChatCommandDef()
-                    {
-                        category = "claim",
-                        displayName = "CLAIM LIST",
-                        shortDescription = "Shows a list of areas claimed by a faction",
-                        command = "claim list",
-                        auth = UIChatCommandDef.FactionAuth.Member,
-                        authExclusive = false,
-                        args =
-                        {
-                            new UIChatCommandArg()
-                            {
-                                label = "Faction Name",
-                                description = "Target faction to check for claimed areas",
-                                isSubstring = false,
-                            }
-                        }
-                    },
-                    //claim upkeep
-                    new UIChatCommandDef()
-                    {
-                        category = "claim",
-                        displayName = "CHECK LAND UPKEEP",
-                        shortDescription = "Show current land upkeep status",
-                        command = "claim upkeep",
-                        auth = UIChatCommandDef.FactionAuth.Member,
-                        authExclusive = false
-                    },
-
-                    //claim assign
-                    new UIChatCommandDef()
-                    {
-                        category = "claim",
-                        displayName = "CLAIM ASSIGN (ADMIN)",
-                        shortDescription = "Assigns a land to a target faction. \nHit a tool cupboard with a hammer to complete the interaction",
-                        command = "claim assign",
-                        auth = UIChatCommandDef.FactionAuth.ServerAdmin,
-                        authExclusive = true,
-                        closesUI = true,
-                        args =
-                        {
-                            new UIChatCommandArg()
-                            {
-                                label = "Faction Name",
-                                description = "Target faction to assign the land to",
-                                isSubstring = false,
-                            }
-                        }
-                    },
-
-                    //claim delete
-                    new UIChatCommandDef()
-                    {
-                        category = "claim",
-                        displayName = "CLAIM DELETE (ADMIN)",
-                        shortDescription = "Deletes an existing land claim",
-                        command = "claim delete",
-                        auth = UIChatCommandDef.FactionAuth.ServerAdmin,
-                        authExclusive = true,
-                        args =
-                        {
-                            new UIChatCommandArg()
-                            {
-                                label = "Land coordinates [XY]",
-                                description = "The land to remove the current claim. (Example usage: C6)",
-                                isSubstring = false,
-                            }
-                        }
-                    },
-
-
-
-                    //TAX
-                    //tax chest
-                    new UIChatCommandDef()
-                    {
-                        category = "tax",
-                        displayName = "SELECT TAX CHEST",
-                        shortDescription = "Select a tax chest for your faction. \nHit a chest with a hammer to complete the interaction",
-                        command = "tax chest",
-                        auth = UIChatCommandDef.FactionAuth.Leader,
-                        authExclusive = true,
-                        closesUI = true
-                    },
-
-                    //tax rate XX
-                    new UIChatCommandDef()
-                    {
-                        category = "tax",
-                        displayName = "SET TAX PERCENTAGE",
-                        shortDescription = "Select your faction's tax percentage. \nThis percentage will be taken from any resources gathered \nand automatically appear in your faction's Tax Chest",
-                        command = "tax rate",
-                        auth = UIChatCommandDef.FactionAuth.Leader,
-                        authExclusive = true,
-                        args =
-                        {
-                            new UIChatCommandArg()
-                            {
-                                label = "Tax Percentage [XX]",
-                                description = "The farming percentage to charge in your land (Example usage: 10)",
-                                isSubstring = false,
-                            }
-                        }
-                    },
-
-                    //WAR
-                    //war status
-                    new UIChatCommandDef()
-                    {
-                        category = "war",
-                        displayName = "WAR STATUS",
-                        shortDescription = "Shows in the chat all wars your faction is involved",
-                        command = "war status",
-                        auth = UIChatCommandDef.FactionAuth.Member,
-                        authExclusive = false
-                    },
-                    //war declare
-                    new UIChatCommandDef()
-                    {
-                        category = "war",
-                        displayName = "DECLARE WAR",
-                        shortDescription = "Declare war against an enemy faction \nwith a given reason.\nCost to declare war is " +
-                            Instance.Options.War.DeclarationCost + " scrap",
-                        command = "war declare",
-                        auth = UIChatCommandDef.FactionAuth.Leader,
-                        authExclusive = true,
-                        args =
-                        {
-                            new UIChatCommandArg()
-                            {
-                                label = "Target Faction",
-                                description = "The enemy faction's name to declare war against",
-                                isSubstring = false,
-                            },
-                            new UIChatCommandArg()
-                            {
-                                label = "Reason",
-                                description = "The reason behind the war declaration",
-                                isSubstring = true,
-                            }
-                        }
-                    },
-
-                    //war end
-                    new UIChatCommandDef()
-                    {
-                        category = "war",
-                        displayName = "END WAR",
-                        shortDescription = "Ask for peace or accept a peace offer from an enemy faction.\nFaction leaders can also end war by trading in a shopfront",
-                        command = "war end",
-                        auth = UIChatCommandDef.FactionAuth.Leader,
-                        authExclusive = true,
-                        args =
-                        {
-                            new UIChatCommandArg()
-                            {
-                                label = "Enemy Faction",
-                                description = "The enemy faction's name to end war",
-                                isSubstring = false,
-                            }
-                        }
-                    },
-
-                    //war pending
-                    new UIChatCommandDef()
-                    {
-                        category = "war",
-                        displayName = "LIST PENDING WAR REQUESTS",
-                        shortDescription = "Check for pending war requests against your faction that can be approved or denied",
-                        command = "war pending",
-                        auth = UIChatCommandDef.FactionAuth.Leader,
-                        authExclusive = true
-                    },
-
-                    //war approve
-                    new UIChatCommandDef()
-                    {
-                        category = "war",
-                        displayName = "APPROVE PENDING WAR REQUEST",
-                        shortDescription = "Approve a war request from an enemy faction. \nThis will officialy start war between your factions",
-                        command = "war approve",
-                        auth = UIChatCommandDef.FactionAuth.Leader,
-                        authExclusive = true,
-                        args =
-                        {
-                            new UIChatCommandArg()
-                            {
-                                label = "Enemy Faction",
-                                description = "The enemy faction's name to approve a pending war request",
-                                isSubstring = false,
-                            }
-                        }
-                    },
-
-                    //war deny
-                    new UIChatCommandDef()
-                    {
-                        category = "war",
-                        displayName = "DENY PENDING WAR REQUEST",
-                        shortDescription = "Deny pending war request against your faction. \nThis will cancel the war request",
-                        command = "war deny",
-                        auth = UIChatCommandDef.FactionAuth.Leader,
-                        authExclusive = true,
-                        args =
-                        {
-                            new UIChatCommandArg()
-                            {
-                                label = "Enemy Faction",
-                                description = "The enemy faction's name to deny a pending war request",
-                                isSubstring = false,
-                            }
-                        }
-                    },
-
-                    //war admin pending
-                    new UIChatCommandDef()
-                    {
-                        category = "war",
-                        displayName = "LIST PENDING WAR REQUESTS (ADMIN)",
-                        shortDescription = "List all pending war requests waiting for admin approval",
-                        command = "war admin pending",
-                        auth = UIChatCommandDef.FactionAuth.ServerAdmin,
-                        authExclusive = true
-                    },
-
-                    //war approve
-                    new UIChatCommandDef()
-                    {
-                        category = "war",
-                        displayName = "APPROVE PENDING WAR REQUEST (ADMIN)",
-                        shortDescription = "Approve a war request waiting for admin approval. \nThis will officialy start the war between the two factions",
-                        command = "war admin approve",
-                        auth = UIChatCommandDef.FactionAuth.ServerAdmin,
-                        authExclusive = true,
-                        args =
-                        {
-                            new UIChatCommandArg()
-                            {
-                                label = "Faction 1",
-                                description = "The first faction involved in the war declaration",
-                                isSubstring = false,
-                            },
-                            new UIChatCommandArg()
-                            {
-                                label = "Faction 2",
-                                description = "The second faction involved in the war declaration",
-                                isSubstring = false,
-                            }
-                        }
-                    },
-
-                    //war deny
-                    new UIChatCommandDef()
-                    {
-                        category = "war",
-                        displayName = "DENY PENDING WAR REQUEST (ADMIN)",
-                        shortDescription = "Deny a war request waiting for admin approval. \nThis will cancel the war request from the attackers",
-                        command = "war admin deny",
-                        auth = UIChatCommandDef.FactionAuth.ServerAdmin,
-                        authExclusive = true,
-                        args =
-                        {
-                            new UIChatCommandArg()
-                            {
-                                label = "Faction 1",
-                                description = "The first faction involved in the war declaration",
-                                isSubstring = false,
-                            },
-                            new UIChatCommandArg()
-                            {
-                                label = "Faction 2",
-                                description = "The second faction involved in the war declaration",
-                                isSubstring = false,
-                            }
+                            User.SendChatMessage(nameof(Messages.CannotClaimAreaCannotAfford), cost);
+                            return false;
                         }
                     }
-                };
 
-            }
+                    User.SendChatMessage(nameof(Messages.ClaimAdded), area.Id);
 
-            public User User { get; }
-            public bool IsDisabled = true;
-            public string currentCategory = "";
-            public UIChatCommandDef selectedCommand;
-            public string currentCommand = "";
-            public Dictionary<int, string> indexedArgs = new Dictionary<int, string>();
-            public int currentRequiredArgs = 0;
-
-            public const float SPACING = 0.015f;
-
-
-            public class UIChatCommandDef
-            {
-                public string displayName;
-                public string shortDescription;
-                public string category;
-                public string command;
-                public string uid;
-                public List<UIChatCommandArg> args = new List<UIChatCommandArg>();
-                public FactionAuth auth = FactionAuth.NotFactionMember;
-                public bool authExclusive = true;
-                public bool closesUI = false;
-
-                public UIChatCommandDef()
-                {
-                    uid = Guid.NewGuid().ToString();
-                }
-
-
-                public enum FactionAuth
-                {
-                    NotFactionMember,
-                    Member,
-                    Manager,
-                    Leader,
-                    ServerAdmin
-                }
-            }
-
-            public class UIChatCommandArg
-            {
-                public string label;
-                public string description;
-                public bool isSubstring = false;
-            }
-
-            public UserPanel(User user)
-            {
-                User = user;
-            }
-
-            public void ClearCurrentCommand()
-            {
-                selectedCommand = null;
-                currentCommand = "";
-                indexedArgs.Clear();
-            }
-
-            public void OpenTab(string category)
-            {
-                ClearCurrentCommand();
-                currentCategory = category;
-                Refresh();
-            }
-
-            public void OpenCommand(string uid)
-            {
-                ClearCurrentCommand();
-                currentCategory = null;
-                selectedCommand = UiCommands.Find(c => c.uid == uid);
-                Refresh();
-            }
-
-            private List<CuiElementContainer> Build()
-            {
-                List<CuiElementContainer> result = new List<CuiElementContainer>();
-
-                CuiElementContainer container = UI.Container(UI.Element.PanelWindow,
-                    UI.Color(UI.Colors.Secondary, 0.8f),
-                    new UI4(0.62f, 0.05f, 1f, 0.85f), true);
-
-                CuiElementContainer header = CreatePanelHeader(container);
-                CuiElementContainer sidebar = CreatePanelSidebar(container);
-                CuiElementContainer dialog = UI.Container(UI.Element.PanelDialog,
-                    UI.Color(UI.Colors.Highlight, 0f),
-                    new UI4(0.05f, 0.15f, 0.75f, 0.95f),
-                    false,
-                    UI.Element.PanelWindow);
-                if (selectedCommand != null)
-                {
-                    CreateSelectedCommandDialog(dialog);
-                }
-                else if (currentCategory != null && currentCategory != "")
-                {
-                    CreateSelectedCategoryButtons(dialog);
-                }
-                else
-                {
-                    CreateHomeDialog(dialog);
-                }
-
-
-                result = new List<CuiElementContainer>() { container, header, sidebar, dialog };
-
-                return result;
-            }
-
-            private CuiElementContainer CreatePanelHeader(CuiElementContainer container)
-            {
-                CuiElementContainer header = UI.Container(UI.Element.PanelHeader,
-                    UI.Color(UI.Colors.Primary, 1f),
-                    new UI4(0f, 0f, 1f, 0.1f),
-                    false,
-                    UI.Element.PanelWindow
-                );
-                UI.Label(header, UI.Element.PanelHeader,
-                    "IMPERIUM",
-                    36,
-                    UI4.Full
-                );
-                UI.Button(header, UI.Element.PanelHeader,
-                    UI.Color(UI.Colors.Secondary, 1f),
-                    "X",
-                    12,
-                    new UI4(0.93f, 0.3f, 0.97f, 0.7f),
-                    "imperium.panel.close"
-                );
-
-                return header;
-            }
-
-            private CuiElementContainer CreatePanelSidebar(CuiElementContainer container)
-            {
-                List<string> categories = new List<string>() { "faction", "claim", "tax", "war" };
-                CuiElementContainer sidebar = UI.Container(UI.Element.PanelSidebar,
-                    UI.Color(UI.Colors.Primary, 1f),
-                    new UI4(0.8f, 0.1f, 1f, 1f),
-                    false,
-                    UI.Element.PanelWindow
-                );
-                float sy = SPACING;
-                for (int i = 0; i < categories.Count; i++)
-                {
-                    UI.Button(sidebar, UI.Element.PanelSidebar,
-                        UI.Color(UI.Colors.Primary, 1f),
-                        categories[i].ToUpper(),
-                        20,
-                        new UI4(0f, sy, 1f, sy + 0.1f),
-                        "imperium.panel.opentab " + categories[i].ToString()
-                    );
-                    sy += 0.1f + SPACING;
-                }
-                return sidebar;
-            }
-
-            private void CreateSelectedCommandDialog(CuiElementContainer container)
-            {
-                if (selectedCommand == null)
-                    return;
-                float sy = SPACING;
-
-                UI.Label(container, UI.Element.PanelDialog,
-                    selectedCommand.displayName, 26,
-                    new UI4(0f, sy, 1f, sy + 0.1f),
-                    TextAnchor.MiddleLeft);
-                sy += SPACING + 0.1f;
-
-                UI.Label(container, UI.Element.PanelDialog,
-                    selectedCommand.shortDescription, 12,
-                    new UI4(0f, sy, 1f, sy + 0.1f),
-                    TextAnchor.UpperLeft);
-                sy += SPACING + 0.1f;
-
-                if (selectedCommand.args.Count > 0)
-                {
-                    for (int i = 0; i < selectedCommand.args.Count; i++)
+                    if (type == AreaType.Headquarters)
                     {
-                        UIChatCommandArg arg = selectedCommand.args[i];
-                        UI.Label(container, UI.Element.PanelDialog,
-                            arg.label, 18,
-                            new UI4(0f, sy, 1f, sy + 0.05f),
-                            TextAnchor.MiddleLeft);
-                        sy += SPACING + 0.05f;
+                        Util.PrintToChat(nameof(Messages.AreaClaimedAsHeadquartersAnnouncement), Faction.Id, area.Id);
+                        Faction.NextUpkeepPaymentTime =
+                            DateTime.UtcNow.AddHours(Instance.Options.Upkeep.CollectionPeriodHours);
+                    }
+                    else
+                    {
+                        Util.PrintToChat(nameof(Messages.AreaClaimedAnnouncement), Faction.Id, area.Id);
+                    }
+                    Util.RunEffect(User.transform.position, "assets/prefabs/missions/effects/mission_objective_complete.prefab");
+                    Instance.Log($"{Util.Format(User)} claimed {area.Id} on behalf of {Faction.Id}");
+                    Instance.Areas.Claim(area, type, Faction, User, cupboard);
 
-                        UI.Label(container, UI.Element.PanelDialog,
-                            arg.description, 12,
-                            new UI4(0f, sy, 1f, sy + 0.05f),
-                            TextAnchor.MiddleLeft);
-                        sy += SPACING + 0.05f;
+                    return true;
+                }
 
-                        UI.Input(container, UI.Element.PanelDialog, UI.Color(UI.Colors.Info, 0.75f),
-                            "", 16, "imperium.panel.setarg " + i + " " + arg.isSubstring.ToString().ToLower(),
-                            new UI4(0f, sy, 1f, sy + 0.05f)
-                            );
-                        sy += SPACING + 0.05f;
+                if (area.FactionId == Faction.Id)
+                {
+                    if (area.ClaimCupboard.net.ID == cupboard.net.ID)
+                    {
+                        User.SendChatMessage(nameof(Messages.CannotClaimAreaAlreadyOwned), area.Id);
+                        return false;
+                    }
+                    else
+                    {
+                        // If the same faction claims a new cupboard within the same area, move the claim to the new cupboard.
+                        User.SendChatMessage(nameof(Messages.ClaimCupboardMoved), area.Id);
+                        Instance.Log(
+                            $"{Util.Format(User)} moved {area.FactionId}'s claim on {area.Id} from cupboard {Util.Format(area.ClaimCupboard)} to cupboard {Util.Format(cupboard)}");
+                        area.ClaimantId = User.Id;
+                        area.ClaimCupboard = cupboard;
+                        Util.RunEffect(User.transform.position, "assets/prefabs/missions/effects/mission_objective_complete.prefab");
+                        return true;
                     }
                 }
 
-                UI.Button(container, UI.Element.PanelDialog,
-                    UI.Color(UI.Colors.Success, 1f),
-                    "CONFIRM",
-                    16,
-                    new UI4(0.7f, 0.9f, 1f, 1f),
-                    "imperium.panel.run " + selectedCommand.closesUI.ToString().ToLower(),
-                    TextAnchor.MiddleCenter
-                    );
-            }
-
-            private void CreateSelectedCategoryButtons(CuiElementContainer container)
-            {
-                if (currentCategory == null || currentCategory == "")
-                    return;
-                float sy = SPACING;
-
-                string title = currentCategory.ToUpper();
-
-                if (currentCategory == "faction" && User.Faction != null)
+                if (area.FactionId != Faction.Id)
                 {
-                    title = title + " [" + User.Faction.Id.ToUpper() + "]";
-                }
-
-                UI.Label(container, UI.Element.PanelDialog,
-                    title, 26,
-                    new UI4(0f, sy, 1f, 0.1f),
-                    TextAnchor.MiddleLeft);
-                sy += SPACING + 0.1f;
-
-                List<UIChatCommandDef> categoryCmds = UiCommands.FindAll(c => c.category == currentCategory);
-
-                if (categoryCmds.Count > 0)
-                {
-                    int buttonsAdded = 0;
-                    for (int i = 0; i < categoryCmds.Count; i++)
+                    if (area.ClaimCupboard.net.ID != cupboard.net.ID)
                     {
-                        UIChatCommandDef cmd = categoryCmds[i];
-                        bool skip = false;
-                        if (cmd.authExclusive)
-                        {
-                            if (cmd.auth == UIChatCommandDef.FactionAuth.NotFactionMember && User.Faction != null)
-                                skip = true;
-                            if (cmd.auth == UIChatCommandDef.FactionAuth.Leader && User.Faction == null)
-                                skip = true;
-                            if (cmd.auth == UIChatCommandDef.FactionAuth.Leader && User.Faction != null && !User.Faction.HasLeader(User))
-                                skip = true;
-                            if (cmd.auth == UIChatCommandDef.FactionAuth.ServerAdmin && (User.Player.Connection.authLevel == 0))
-                                skip = true;
-                        }
-                        else
-                        {
-                            if (cmd.auth == UIChatCommandDef.FactionAuth.Leader && User.Faction != null && !User.Faction.HasLeader(User))
-                                skip = true;
-                            if (cmd.auth > UIChatCommandDef.FactionAuth.NotFactionMember && User.Faction == null)
-                                skip = true;
-                            if (cmd.auth == UIChatCommandDef.FactionAuth.ServerAdmin && (User.Player.Connection.authLevel == 0))
-                                skip = true;
-                        }
-                        string color = UI.Color(UI.Colors.Info, 1f);
-                        if (cmd.auth == UIChatCommandDef.FactionAuth.ServerAdmin)
-                            color = UI.Color(UI.Colors.Primary, 1f);
-                        if (!skip)
-                        {
-                            UI.Button(container, UI.Element.PanelDialog,
-                                color,
-                                cmd.displayName,
-                                14,
-                                new UI4(0f, sy, 1f, sy + 0.05f),
-                                "imperium.panel.opencmd " + cmd.uid,
-                                TextAnchor.MiddleCenter);
-                            sy += SPACING + 0.05f;
-                            buttonsAdded++;
-                        }
-
+                        // A new faction can't make a claim on a new cabinet within an area that is already claimed by another faction.
+                        User.SendChatMessage(nameof(Messages.CannotClaimAreaAlreadyClaimed), area.Id, area.FactionId);
+                        return false;
                     }
-                    if (buttonsAdded == 0)
-                    {
-                        UI.Label(container, UI.Element.PanelDialog,
-                            UI.Color(UI.Colors.Disabled, 1f),
-                            "No options available yet.\n\nTry creating or joining a faction first", 18,
-                            new UI4(0f, sy, 1f, sy + 0.5f),
-                            TextAnchor.MiddleCenter);
-                        sy += SPACING + 0.1f;
-                    }
+
+                    string previousFactionId = area.FactionId;
+
+                    // If a new faction claims the claim cabinet for an area, they take control of that area.
+                    User.SendChatMessage(nameof(Messages.ClaimCaptured), area.Id, area.FactionId);
+                    Util.PrintToChat(nameof(Messages.AreaCapturedAnnouncement), Faction.Id, area.Id, area.FactionId);
+                    Instance.Log(
+                        $"{Util.Format(User)} captured the claim on {area.Id} from {area.FactionId} on behalf of {Faction.Id}");
+
+                    Instance.Areas.Claim(area, type, Faction, User, cupboard);
+                    Util.RunEffect(User.transform.position, "assets/prefabs/missions/effects/mission_objective_complete.prefab");
+                    return true;
                 }
-            }
 
-            private void CreateHomeDialog(CuiElementContainer container)
-            {
-                float sy = SPACING;
-                string description = "At its heart, Imperium adds the idea of territory to Rust. \n\nThe game is divided into a grid of tiles matching those displayed on the in-game map. \n\nPlayers can create factions, and these factions can claim these tiles of land and levy taxes on resources harvested therein. \n\nFactions can declare war on one another and battle for control of the territory.";
-                string credits = "Original creator: ChuckleNugget\nImperium 2.0 developer: evict";
-                UI.Label(container, UI.Element.PanelDialog,
-                    UI.Color(UI.Colors.Disabled, 1f),
-                    "IMPERIUM", 26,
-                    new UI4(0f, sy, 1f, 0.1f),
-                    TextAnchor.MiddleCenter);
-                sy += SPACING + 0.12f;
-
-                UI.Label(container, UI.Element.PanelDialog,
-                    UI.Color(UI.Colors.Disabled, 1f),
-                    description, 18,
-                    new UI4(0f, sy, 1f, 0.9f),
-                    TextAnchor.UpperCenter);
-
-                UI.Label(container, UI.Element.PanelDialog,
-                    UI.Color(UI.Colors.Success, 1f),
-                    credits, 12,
-                    new UI4(0f, 0.90f, 1f, 1f),
-                    TextAnchor.LowerLeft);
-            }
-
-            public void Close()
-            {
-                ClearCurrentCommand();
-                Hide();
-            }
-
-            public void SetCommand(string command)
-            {
-                ClearCurrentCommand();
-                currentCommand = command;
-            }
-
-            public string GetFullConsoleCommand()
-            {
-                string s = "";
-                s = s + "\"/";
-                s = s + selectedCommand.command;
-                if (indexedArgs.Count > 0)
-                {
-                    for (int i = 0; i < indexedArgs.Count; i++)
-                    {
-                        s = s + " ";
-                        s = s + indexedArgs[i];
-                    }
-                }
-                s = s + "\"";
-                return s;
-            }
-            public void SetArg(int index, string arg, bool isSubstring = false)
-            {
-                if (!indexedArgs.ContainsKey(index))
-                {
-                    indexedArgs.Add(index, arg);
-                }
-                else
-                {
-                    indexedArgs[index] = arg;
-                }
-                if (isSubstring)
-                {
-                    indexedArgs[index] = "\\\"" + indexedArgs[index] + "\\\"";
-                }
-            }
-
-            public void RemoveArg(int index)
-            {
-                if (indexedArgs.ContainsKey(index))
-                {
-                    indexedArgs.Remove(index);
-                }
-            }
-
-            public bool HasArg(int index)
-            {
-                return indexedArgs.ContainsKey(index);
-            }
-
-            public void Show()
-            {
-                List<CuiElementContainer> containers = Build();
-                foreach (CuiElementContainer container in containers)
-                {
-                    CuiHelper.AddUi(User.Player, container);
-                }
-                IsDisabled = false;
-            }
-
-            public void Hide()
-            {
-                CuiHelper.DestroyUi(User.Player, UI.Element.PanelWindow);
-                CuiHelper.DestroyUi(User.Player, UI.Element.PanelHeader);
-                CuiHelper.DestroyUi(User.Player, UI.Element.PanelSidebar);
-                CuiHelper.DestroyUi(User.Player, UI.Element.PanelDialog);
-                IsDisabled = true;
-
-            }
-
-            public void Toggle()
-            {
-                if (IsDisabled)
-                {
-                    IsDisabled = false;
-                    Show();
-                }
-                else
-                {
-                    IsDisabled = true;
-                    Hide();
-                }
-            }
-
-            public void Refresh()
-            {
-                if (IsDisabled)
-                    return;
-
-                Hide();
-                Show();
+                Instance.PrintWarning(
+                    "Area was in an unknown state during completion of AddingClaimInteraction. This shouldn't happen.");
+                return false;
             }
         }
     }
 }
 #endregion
 
-#region > UI Console Commands
+#region AssigningClaimInteraction.cs
+﻿namespace Oxide.Plugins
+{
+    public partial class Imperium
+    {
+        private class AssigningClaimInteraction : Interaction
+        {
+            public Faction Faction { get; private set; }
 
+            public AssigningClaimInteraction(Faction faction)
+            {
+                Faction = faction;
+            }
+
+            public override bool TryComplete(HitInfo hit)
+            {
+                var cupboard = hit.HitEntity as BuildingPrivlidge;
+
+                Area area = User.CurrentArea;
+
+                if (area == null)
+                {
+                    User.SendChatMessage(nameof(Messages.YouAreInTheGreatUnknown));
+                    return false;
+                }
+
+                if (area.Type == AreaType.Badlands)
+                {
+                    User.SendChatMessage(nameof(Messages.AreaIsBadlands), area.Id);
+                    return false;
+                }
+
+                Area[] ownedAreas = Instance.Areas.GetAllClaimedByFaction(Faction);
+                AreaType type = (ownedAreas.Length == 0) ? AreaType.Headquarters : AreaType.Claimed;
+
+                Util.PrintToChat(nameof(Messages.AreaClaimAssignedAnnouncement), Faction.Id, area.Id);
+                Instance.Log($"{Util.Format(User)} assigned {area.Id} to {Faction.Id}");
+
+                Instance.Areas.Claim(area, type, Faction, User, cupboard);
+                Util.RunEffect(User.transform.position, "assets/prefabs/missions/effects/mission_objective_complete.prefab");
+                return true;
+            }
+        }
+    }
+}
 #endregion
 
-#region > User Map
-namespace Oxide.Plugins
+#region Interaction.cs
+﻿namespace Oxide.Plugins
+{
+    public partial class Imperium
+    {
+        private abstract class Interaction
+        {
+            public User User { get; set; }
+            public abstract bool TryComplete(HitInfo hit);
+        }
+    }
+}
+#endregion
+
+#region RemovingClaimInteraction.cs
+﻿namespace Oxide.Plugins
+{
+    using System.Linq;
+    public partial class Imperium
+    {
+        private class RemovingClaimInteraction : Interaction
+        {
+            public Faction Faction { get; private set; }
+
+            public RemovingClaimInteraction(Faction faction)
+            {
+                Faction = faction;
+            }
+
+            public override bool TryComplete(HitInfo hit)
+            {
+                var cupboard = hit.HitEntity as BuildingPrivlidge;
+                var fAreas = Instance.Areas.GetAllClaimedByFaction(Faction).ToList();
+                if (!Instance.Factions.EnsureUserCanChangeFactionClaims(User, Faction) ||
+                    !Instance.EnsureCupboardCanBeUsedForClaim(User, cupboard))
+                    return false;
+
+                Area area = Instance.Areas.GetByClaimCupboard(cupboard);
+
+                if (area == null)
+                {
+                    User.SendChatMessage(nameof(Messages.SelectingCupboardFailedNotClaimCupboard));
+                    return false;
+                }
+
+
+
+                if (fAreas.Count > 1 && area.Type == AreaType.Headquarters)
+                {
+                    User.SendChatMessage(nameof(Messages.SelectingCupboardFailedCantUnclaimHeadquarters));
+                    return false;
+                }
+
+                Util.PrintToChat(nameof(Messages.AreaClaimRemovedAnnouncement), Faction.Id, area.Id);
+                Instance.Log($"{Util.Format(User)} removed {Faction.Id}'s claim on {area.Id}");
+
+                Instance.Areas.Unclaim(area);
+                Util.RunEffect(User.transform.position, "assets/prefabs/missions/effects/mission_objective_complete.prefab");
+                return true;
+            }
+        }
+    }
+}
+#endregion
+
+#region SelectingArmoryLockerInteraction.cs
+﻿namespace Oxide.Plugins
+{
+    public partial class Imperium
+    {
+        private class SelectingArmoryLockerInteraction : Interaction
+        {
+            public Faction Faction { get; private set; }
+
+            public SelectingArmoryLockerInteraction(Faction faction)
+            {
+                Faction = faction;
+            }
+
+            public override bool TryComplete(HitInfo hit)
+            {
+                var container = hit.HitEntity as Locker;
+                if (container == null)
+                {
+                    User.SendChatMessage(nameof(Messages.SelectingArmoryLockerFailedInvalidTarget));
+                    return false;
+                }
+                var area = Instance.Areas.GetByEntityPosition(container);
+                if (!Instance.EnsureLockerCanBeUsedForArmory(User, container, area))
+                    return false;
+                User.SendChatMessage(nameof(Messages.SelectingArmoryLockerSucceeded), area.Id);
+                Instance.Log($"{Util.Format(User)} set {Faction.Id}'s armory locker to entity {Util.Format(container)} at {area.Id}");
+                Instance.Areas.SetArmory(area, container);
+                Util.RunEffect(User.transform.position, "assets/prefabs/missions/effects/mission_objective_complete.prefab");
+                return true;
+            }
+        }
+    }
+}
+#endregion
+
+#region SelectingHeadquartersInteraction.cs
+﻿namespace Oxide.Plugins
+{
+    public partial class Imperium
+    {
+        private class SelectingHeadquartersInteraction : Interaction
+        {
+            public Faction Faction { get; private set; }
+
+            public SelectingHeadquartersInteraction(Faction faction)
+            {
+                Faction = faction;
+            }
+
+            public override bool TryComplete(HitInfo hit)
+            {
+                var cupboard = hit.HitEntity as BuildingPrivlidge;
+
+                if (!Instance.Factions.EnsureUserCanChangeFactionClaims(User, Faction) ||
+                    !Instance.EnsureCupboardCanBeUsedForClaim(User, cupboard))
+                    return false;
+
+                Area area = Instance.Areas.GetByClaimCupboard(cupboard);
+                if (area == null)
+                {
+                    User.SendChatMessage(nameof(Messages.SelectingCupboardFailedNotClaimCupboard));
+                    return false;
+                }
+
+                Util.PrintToChat(nameof(Messages.HeadquartersChangedAnnouncement), Faction.Id, area.Id);
+                Instance.Log($"{Util.Format(User)} set {Faction.Id}'s headquarters to {area.Id}");
+
+                Instance.Areas.SetHeadquarters(area, Faction);
+                Util.RunEffect(User.transform.position, "assets/prefabs/missions/effects/mission_objective_complete.prefab");
+                return true;
+            }
+        }
+    }
+}
+#endregion
+
+#region SelectingRecruitSpawnPointInteraction.cs
+﻿namespace Oxide.Plugins
+{
+    public partial class Imperium
+    {
+        private class SelectingRecruitSpawnPointInteraction : Interaction
+        {
+            public Area area { get; private set; }
+
+            public SelectingRecruitSpawnPointInteraction(Area area)
+            {
+                this.area = area;
+            }
+
+            public override bool TryComplete(HitInfo hit)
+            {
+                var sleepingBag = hit.HitEntity as SleepingBag;
+                if (sleepingBag == null)
+                {
+                    User.SendChatMessage(nameof(Messages.SelectingSleepingBagFailedInvalidTarget));
+                    return false;
+                }
+
+                if (area.ArmoryLocker == null)
+                {
+                    User.SendChatMessage("Area " + area.Id + " has no armory locker. Set up an armory locker in that land before trying to set a spawn");
+                    return false;
+                }
+
+                var areaHere = Instance.Areas.GetByEntityPosition(sleepingBag);
+                if (!Instance.EnsureSleepingBagCanBeUsedForRecruit(User, sleepingBag, areaHere))
+                    return false;
+                User.SendChatMessage(nameof(Messages.SelectingRecruitSpawnPointSucceeded), area.Id);
+                Instance.Log($"{Util.Format(User)} set {area.Id}'s recruit spawn point to entity {Util.Format(sleepingBag)} at {areaHere.Id}");
+                Instance.Areas.SetRecruitSpawnPoint(area, sleepingBag);
+                Util.RunEffect(User.transform.position, "assets/prefabs/missions/effects/mission_objective_complete.prefab");
+                return true;
+            }
+        }
+    }
+}
+#endregion
+
+#region SelectingTaxChestInteraction.cs
+﻿namespace Oxide.Plugins
+{
+    public partial class Imperium
+    {
+        private class SelectingTaxChestInteraction : Interaction
+        {
+            public Faction Faction { get; private set; }
+
+            public SelectingTaxChestInteraction(Faction faction)
+            {
+                Faction = faction;
+            }
+
+            public override bool TryComplete(HitInfo hit)
+            {
+                var container = hit.HitEntity as StorageContainer;
+
+                if (container == null)
+                {
+                    User.SendChatMessage(nameof(Messages.SelectingTaxChestFailedInvalidTarget));
+                    return false;
+                }
+
+                User.SendChatMessage(nameof(Messages.SelectingTaxChestSucceeded), Faction.TaxRate * 100, Faction.Id);
+                Instance.Log($"{Util.Format(User)} set {Faction.Id}'s tax chest to entity {Util.Format(container)}");
+                Instance.Factions.SetTaxChest(Faction, container);
+                Util.RunEffect(User.transform.position, "assets/prefabs/missions/effects/mission_objective_complete.prefab");
+                return true;
+            }
+        }
+    }
+}
+#endregion
+
+#region TransferringClaimInteraction.cs
+﻿namespace Oxide.Plugins
+{
+    using System.Linq;
+    public partial class Imperium
+    {
+        private class TransferringClaimInteraction : Interaction
+        {
+            public Faction SourceFaction { get; }
+            public Faction TargetFaction { get; }
+
+            public TransferringClaimInteraction(Faction sourceFaction, Faction targetFaction)
+            {
+                SourceFaction = sourceFaction;
+                TargetFaction = targetFaction;
+            }
+
+            public override bool TryComplete(HitInfo hit)
+            {
+                var cupboard = hit.HitEntity as BuildingPrivlidge;
+                var fAreas = Instance.Areas.GetAllClaimedByFaction(SourceFaction).ToList();
+                if (!Instance.Factions.EnsureUserCanChangeFactionClaims(User, SourceFaction) ||
+                    !Instance.EnsureCupboardCanBeUsedForClaim(User, cupboard))
+                    return false;
+
+                Area area = Instance.Areas.GetByClaimCupboard(cupboard);
+
+                if (area == null)
+                {
+                    User.SendChatMessage(nameof(Messages.SelectingCupboardFailedNotClaimCupboard));
+                    return false;
+                }
+
+                if (area.FactionId != SourceFaction.Id)
+                {
+                    User.SendChatMessage(nameof(Messages.AreaNotOwnedByYourFaction), area.Id);
+                    return false;
+                }
+
+                if (!Instance.EnsureFactionCanClaimArea(User, TargetFaction, area))
+                    return false;
+
+
+
+                if (fAreas.Count > 1 && area.Type == AreaType.Headquarters)
+                {
+                    User.SendChatMessage(nameof(Messages.SelectingCupboardFailedCantUnclaimHeadquarters));
+                    return false;
+                }
+
+                Area[] claimedAreas = Instance.Areas.GetAllClaimedByFaction(TargetFaction);
+                AreaType type = (claimedAreas.Length == 0) ? AreaType.Headquarters : AreaType.Claimed;
+
+                Util.PrintToChat(nameof(Messages.AreaClaimTransferredAnnouncement), SourceFaction.Id, area.Id,
+                    TargetFaction.Id);
+                Instance.Log(
+                    $"{Util.Format(User)} transferred {SourceFaction.Id}'s claim on {area.Id} to {TargetFaction.Id}");
+                Util.RunEffect(User.transform.position, "assets/prefabs/missions/effects/mission_objective_complete.prefab");
+                Instance.Areas.Claim(area, type, TargetFaction, User, cupboard);
+
+                return true;
+            }
+        }
+    }
+}
+#endregion
+
+#region ImperiumMapMarker.cs
+﻿namespace Oxide.Plugins
+{
+    using System;
+    using System.Collections.Generic;
+
+    public partial class Imperium
+    {
+        private class ImperiumMapMarker
+        {
+            public string IconUrl;
+            public string Label;
+            public float X;
+            public float Z;
+
+            public static ImperiumMapMarker ForUser(User user)
+            {
+                return new ImperiumMapMarker
+                {
+                    IconUrl = UI.MapIcon.Player,
+                    X = TranslatePositionX(user.Player.transform.position.x),
+                    Z = TranslatePositionZ(user.Player.transform.position.z)
+                };
+            }
+
+            public static ImperiumMapMarker ForHeadquarters(Area area, Faction faction)
+            {
+                return new ImperiumMapMarker
+                {
+                    IconUrl = UI.MapIcon.Headquarters,
+                    Label = Util.RemoveSpecialCharacters(faction.Id),
+                    X = TranslatePositionX(area.ClaimCupboard.transform.position.x),
+                    Z = TranslatePositionZ(area.ClaimCupboard.transform.position.z)
+                };
+            }
+
+            public static ImperiumMapMarker ForMonument(MonumentInfo monument)
+            {
+                string iconUrl = GetIconForMonument(monument);
+                return new ImperiumMapMarker
+                {
+                    IconUrl = iconUrl,
+                    Label = (iconUrl == UI.MapIcon.Unknown) ? monument.displayPhrase.english : null,
+                    X = TranslatePositionX(monument.transform.position.x),
+                    Z = TranslatePositionZ(monument.transform.position.z)
+                };
+            }
+
+            public static ImperiumMapMarker ForPin(Pin pin)
+            {
+                string iconUrl = GetIconForPin(pin);
+                return new ImperiumMapMarker
+                {
+                    IconUrl = iconUrl,
+                    Label = pin.Name,
+                    X = TranslatePositionX(pin.Position.x),
+                    Z = TranslatePositionZ(pin.Position.z)
+                };
+            }
+
+            private static float TranslatePositionX(float pos)
+            {
+                var mapHeight = TerrainMeta.Size.x;
+                return (pos + mapHeight / 2f) / mapHeight;
+            }
+
+            private static float TranslatePositionZ(float pos)
+            {
+                var mapWidth = TerrainMeta.Size.z;
+                return (pos + mapWidth / 2f) / mapWidth;
+            }
+
+            private static string GetIconForMonument(MonumentInfo monument)
+            {
+                if (monument.Type == MonumentType.Cave) return UI.MapIcon.Cave;
+                if (monument.name.Contains("airfield")) return UI.MapIcon.Airfield;
+                if (monument.name.Contains("bandit_town")) return UI.MapIcon.BanditTown;
+                if (monument.name.Contains("compound")) return UI.MapIcon.Compound;
+                if (monument.name.Contains("sphere_tank")) return UI.MapIcon.Dome;
+                if (monument.name.Contains("harbor")) return UI.MapIcon.Harbor;
+                if (monument.name.Contains("gas_station")) return UI.MapIcon.GasStation;
+                if (monument.name.Contains("junkyard")) return UI.MapIcon.Junkyard;
+                if (monument.name.Contains("launch_site")) return UI.MapIcon.LaunchSite;
+                if (monument.name.Contains("lighthouse")) return UI.MapIcon.Lighthouse;
+                if (monument.name.Contains("military_tunnel")) return UI.MapIcon.MilitaryTunnel;
+                if (monument.name.Contains("warehouse")) return UI.MapIcon.MiningOutpost;
+                if (monument.name.Contains("powerplant")) return UI.MapIcon.PowerPlant;
+                if (monument.name.Contains("quarry")) return UI.MapIcon.Quarry;
+                if (monument.name.Contains("satellite_dish")) return UI.MapIcon.SatelliteDish;
+                if (monument.name.Contains("radtown_small_3")) return UI.MapIcon.SewerBranch;
+                if (monument.name.Contains("power_sub")) return UI.MapIcon.Substation;
+                if (monument.name.Contains("supermarket")) return UI.MapIcon.Supermarket;
+                if (monument.name.Contains("trainyard")) return UI.MapIcon.Trainyard;
+                if (monument.name.Contains("water_treatment_plant")) return UI.MapIcon.WaterTreatmentPlant;
+                return UI.MapIcon.Unknown;
+            }
+        }
+
+        private static string GetIconForPin(Pin pin)
+        {
+            switch (pin.Type)
+            {
+                case PinType.Arena:
+                    return UI.MapIcon.Arena;
+                case PinType.Hotel:
+                    return UI.MapIcon.Hotel;
+                case PinType.Marina:
+                    return UI.MapIcon.Marina;
+                case PinType.Shop:
+                    return UI.MapIcon.Shop;
+                case PinType.Town:
+                    return UI.MapIcon.Town;
+                default:
+                    return UI.MapIcon.Unknown;
+            }
+        }
+    }
+}
+#endregion
+
+#region MapGrid.cs
+﻿namespace Oxide.Plugins
+{
+    using System;
+    using UnityEngine;
+
+    public partial class Imperium
+    {
+        public class MapGrid
+        {
+            public float GRID_CELL_SIZE = 146.28571f;
+
+            public float MapSize
+            {
+                get; set;
+            }
+            public float MapWidth
+            {
+                get; set;
+            }
+
+            public float MapHeight
+            {
+                get; set;
+            }
+            public float MapOffsetX
+            {
+                get; set;
+            }
+
+            public float MapOffsetZ
+            {
+                get; set;
+            }
+
+            public float CellSize
+            {
+                get; set;
+            }
+
+            public float CellSizeRatio
+            {
+                get { return (float)MapSize / CellSize; }
+            }
+
+            public float CellSizeRatioWidth
+            {
+                get { return (float)MapWidth / CellSize; }
+            }
+
+            public float CellSizeRatioHeight
+            {
+                get { return (float)MapHeight / CellSize; }
+            }
+
+            public int NumberOfCells { get; private set; }
+            public int NumberOfColumns { get; private set; }
+            public int NumberOfRows { get; private set; }
+
+            private string[] RowIds;
+            private string[] ColumnIds;
+            private string[,] AreaIds;
+            private Vector3[,] Positions;
+
+            public MapGrid()
+            {
+                MapSize = TerrainMeta.Size.x;
+
+                NumberOfRows = Mathf.FloorToInt((MapSize * 7) / 1024);
+                NumberOfColumns = Mathf.FloorToInt((MapSize * 7) / 1024);
+
+                CellSize = MapSize / NumberOfRows;
+
+                MapWidth = Mathf.Floor(TerrainMeta.Size.x / CellSize) * CellSize;
+                MapHeight = Mathf.Floor(TerrainMeta.Size.z / CellSize) * CellSize;
+
+                MapWidth = NumberOfColumns * CellSize;
+                MapHeight = NumberOfRows * CellSize;
+
+                MapOffsetX = 0f;
+                MapOffsetZ = 0f;
+
+                RowIds = new string[NumberOfRows];
+                ColumnIds = new string[NumberOfColumns];
+                AreaIds = new string[NumberOfColumns, NumberOfRows];
+                Positions = new Vector3[NumberOfColumns, NumberOfRows];
+                Build();
+            }
+
+            public string GetRowId(int row)
+            {
+                return RowIds[row];
+            }
+
+            public string GetColumnId(int col)
+            {
+                return ColumnIds[col];
+            }
+
+            public string GetAreaId(int row, int col)
+            {
+                return AreaIds[row, col];
+            }
+
+            public Vector3 GetPosition(int row, int col)
+            {
+                return Positions[row, col];
+            }
+
+            private void Build()
+            {
+                string prefix = "";
+                char letter = 'A';
+
+                for (int col = 0; col < NumberOfColumns; col++)
+                {
+                    ColumnIds[col] = prefix + letter;
+                    if (letter == 'Z')
+                    {
+                        prefix = "A";
+                        letter = 'A';
+                    }
+                    else
+                    {
+                        letter++;
+                    }
+                }
+
+                for (int row = 0; row < NumberOfRows; row++)
+                    RowIds[row] = row.ToString();
+
+                float z = (MapHeight / 2) - CellSize / 2 - (MapOffsetZ / 2) + (CellSize * Instance.Options.Map.MapGridYOffset);
+                for (int row = 0; row < NumberOfRows; row++)
+                {
+                    float x = -(MapWidth / 2) + CellSize / 2 - (MapOffsetX / 2);
+                    for (int col = 0; col < NumberOfColumns; col++)
+                    {
+                        var areaId = ColumnIds[col] + RowIds[row];
+                        AreaIds[row, col] = areaId;
+                        Positions[row, col] = new Vector3(x, 0, z);
+                        x += CellSize;
+                    }
+
+                    z -= CellSize;
+                }
+            }
+        }
+    }
+}
+#endregion
+
+#region MapOverlayGenerator.cs
+﻿namespace Oxide.Plugins
+{
+    using System.Collections;
+    using System.Drawing;
+    using System.Drawing.Drawing2D;
+
+    public partial class Imperium
+    {
+        private class MapOverlayGenerator : UnityEngine.MonoBehaviour
+        {
+            public bool IsGenerating { get; private set; }
+
+            public void Generate()
+            {
+                if (!IsGenerating)
+                    StartCoroutine(GenerateOverlayImage());
+            }
+
+            private IEnumerator GenerateOverlayImage()
+            {
+                IsGenerating = true;
+                Instance.Puts("Generating new map overlay image...");
+                /*
+                using (var bitmap = new Bitmap(Instance.Options.Map.ImageSize, Instance.Options.Map.ImageSize))
+                using (var graphics = Graphics.FromImage(bitmap))
+                {
+                    var grid = Instance.Areas.MapGrid;
+                    var tileSize = (int)(Instance.Options.Map.ImageSize / grid.CellSizeRatio);
+
+                    var colorPicker = new FactionColorPicker();
+                    var textBrush = new SolidBrush(Color.FromArgb(255, 255, 255, 255));
+
+                    for (int row = 0; row < grid.NumberOfRows; row++)
+                    {
+                        for (int col = 0; col < grid.NumberOfColumns; col++)
+                        {
+                            Area area = Instance.Areas.Get(row, col);
+                            var x = (col * tileSize);
+                            var y = (row * tileSize);
+                            var rect = new Rectangle(x, y, tileSize, tileSize);
+
+                            if (area.Type == AreaType.Badlands)
+                            {
+                                // If the tile is badlands, color it in black.
+                                var brush = new HatchBrush(HatchStyle.BackwardDiagonal, Color.FromArgb(32, 0, 0, 0),
+                                    Color.FromArgb(255, 0, 0, 0));
+                                graphics.FillRectangle(brush, rect);
+                            }
+                            else if (area.Type != AreaType.Wilderness)
+                            {
+                                // If the tile is claimed, fill it with a color indicating the faction.
+                                var brush = new SolidBrush(colorPicker.GetColorForFaction(area.FactionId));
+                                graphics.FillRectangle(brush, rect);
+                            }
+
+                            yield return null;
+                        }
+                    }
+
+                    var gridLabelFont = new Font("Consolas", 14, FontStyle.Bold);
+                    var gridLabelOffset = 5;
+                    var gridLinePen = new Pen(Color.FromArgb(192, 0, 0, 0), 2);
+
+                    for (int row = 0; row < grid.NumberOfRows; row++)
+                    {
+                        if (row > 0)
+                            graphics.DrawLine(gridLinePen, 0, (row * tileSize), (grid.NumberOfRows * tileSize),
+                                (row * tileSize));
+                        graphics.DrawString(grid.GetRowId(row), gridLabelFont, textBrush, gridLabelOffset,
+                            (row * tileSize) + gridLabelOffset);
+                    }
+
+                    for (int col = 1; col < grid.NumberOfColumns; col++)
+                    {
+                        graphics.DrawLine(gridLinePen, (col * tileSize), 0, (col * tileSize),
+                            (grid.NumberOfColumns * tileSize));
+                        graphics.DrawString(grid.GetColumnId(col), gridLabelFont, textBrush,
+                            (col * tileSize) + gridLabelOffset, gridLabelOffset);
+                    }
+
+                    var converter = new ImageConverter();
+                    var imageData = (byte[])converter.ConvertTo(bitmap, typeof(byte[]));
+
+                    Image image = Instance.Hud.RegisterImage(UI.MapOverlayImageUrl, imageData, true);
+
+                    Instance.Puts($"Generated new map overlay image {image.Id}.");
+                    Instance.Log($"Created new map overlay image {image.Id}.");
+                    */
+                IsGenerating = false;
+                yield return null;
+            }
+
+        }
+    }
+}
+#endregion
+
+#region MonumentPrefab.cs
+﻿namespace Oxide.Plugins
+{
+    public partial class Imperium
+    {
+        public static class MonumentPrefab
+        {
+            private const string PrefabPrefix = "assets/bundled/prefabs/autospawn/monument/";
+
+            public const string Airfield = PrefabPrefix + "large/airfield_1.prefab";
+            public const string BanditTown = PrefabPrefix + "medium/bandit_town.prefab";
+            public const string Compound = PrefabPrefix + "medium/compound.prefab";
+            public const string Dome = PrefabPrefix + "small/sphere_tank.prefab";
+            public const string Harbor1 = PrefabPrefix + "harbor/harbor_1.prefab";
+            public const string Harbor2 = PrefabPrefix + "harbor/harbor_2.prefab";
+            public const string GasStation = PrefabPrefix + "small/gas_station_1.prefab";
+            public const string Junkyard = PrefabPrefix + "large/junkyard_1.prefab";
+            public const string LaunchSite = PrefabPrefix + "large/launch_site_1.prefab";
+            public const string Lighthouse = PrefabPrefix + "lighthouse/lighthouse.prefab";
+            public const string MilitaryTunnel = PrefabPrefix + "large/military_tunnel_1.prefab";
+            public const string MiningOutpost = PrefabPrefix + "small/warehouse.prefab";
+            public const string QuarryStone = PrefabPrefix + "small/mining_quarry_a.prefab";
+            public const string QuarrySulfur = PrefabPrefix + "small/mining_quarry_b.prefab";
+            public const string QuaryHqm = PrefabPrefix + "small/mining_quarry_c.prefab";
+            public const string PowerPlant = PrefabPrefix + "large/powerplant_1.prefab";
+            public const string Trainyard = PrefabPrefix + "large/trainyard_1.prefab";
+            public const string SatelliteDish = PrefabPrefix + "small/satellite_dish.prefab";
+            public const string SewerBranch = PrefabPrefix + "medium/radtown_small_3.prefab";
+            public const string Supermarket = PrefabPrefix + "small/supermarket_1.prefab";
+            public const string WaterTreatmentPlant = PrefabPrefix + "large/water_treatment_plant_1.prefab";
+            public const string WaterWellA = PrefabPrefix + "tiny/water_well_a.prefab";
+            public const string WaterWellB = PrefabPrefix + "tiny/water_well_b.prefab";
+            public const string WaterWellC = PrefabPrefix + "tiny/water_well_c.prefab";
+            public const string WaterWellD = PrefabPrefix + "tiny/water_well_d.prefab";
+            public const string WaterWellE = PrefabPrefix + "tiny/water_well_e.prefab";
+        }
+    }
+}
+#endregion
+
+#region UserMap.cs
+﻿namespace Oxide.Plugins
 {
     using System;
     using Oxide.Game.Rust.Cui;
@@ -12232,8 +9641,4519 @@ namespace Oxide.Plugins
 }
 #endregion
 
-#region > DEPRECATED
+#region Messages.cs
+﻿namespace Oxide.Plugins
+{
+    using System.Linq;
+    using System.Reflection;
+    using System.Collections.Generic;
+
+    public partial class Imperium : RustPlugin
+    {
+        private static class Messages
+        {
+            public const string AreaClaimsDisabled = "Area claims are currently disabled.";
+            public const string TaxationDisabled = "Taxation is currently disabled.";
+            public const string RecruitingDisabled = "Recruiting is currently disabled.";
+            public const string BadlandsDisabled = "Badlands are currently disabled.";
+            public const string UpkeepDisabled = "Upkeep is currently disabled.";
+            public const string WarDisabled = "War is currently disabled.";
+            public const string PinsDisabled = "Map pins are currently disabled.";
+            public const string PvpModeDisabled = "PVP Mode is currently not available.";
+            public const string UpgradingDisabled = "Area upgrading is currently disabled.";
+
+            public const string AreaIsBadlands = "<color=#ffd479>{0}</color> is a part of the badlands.";
+
+            public const string AreaIsClaimed =
+                "<color=#ffd479>{0}</color> has been claimed by <color=#ffd479>[{1}]</color>.";
+
+            public const string AreaIsHeadquarters =
+                "<color=#ffd479>{0}</color> is the headquarters of <color=#ffd479>[{1}]</color>.";
+
+            public const string AreaIsWilderness = "<color=#ffd479>{0}</color> has not been claimed by a faction.";
+            public const string AreaNotBadlands = "<color=#ffd479>{0}</color> is not a part of the badlands.";
+            public const string AreaNotOwnedByYourFaction = "<color=#ffd479>{0}</color> is not owned by your faction.";
+            public const string AreaNotWilderness = "<color=#ffd479>{0}</color> is not currently wilderness.";
+
+            public const string AreaNotContiguous =
+                "<color=#ffd479>{0}</color> is not connected to territory owned by <color=#ffd479>[{1}]</color>.";
+
+            public const string YouAreInTheGreatUnknown = "You are currently in the great unknown!";
+
+            public const string InteractionCanceled = "Command canceled.";
+            public const string NoInteractionInProgress = "You aren't currently executing any commands.";
+            public const string NoAreasClaimed = "Your faction has not claimed any areas.";
+
+            public const string FactionChatMessage = "<color=#a1ff46>(FACTION)</color> {0}: {1}";
+
+            public const string NotMemberOfFaction = "You are not a member of a faction.";
+            public const string AlreadyMemberOfFaction = "You are already a member of a faction.";
+            public const string NotLeaderOfFaction = "You must be an owner or a manager of a faction.";
+            public const string FactionTooSmallToOwnLand = "To own land, a faction must have least {0} members.";
+
+            public const string FactionOwnsTooMuchLand =
+                "<color=#ffd479>[{0}]</color> already owns the maximum number of areas (<color=#ffd479>{1}</color>).";
+
+            public const string FactionHasTooManyMembers =
+                "<color=#ffd479>[{0}]</color> already has the maximum number of members (<color=#ffd479>{1}</color>).";
+            public const string AreaIsMaximumLevel =
+                "This land is already at maximum level";
+
+            public const string FactionIsBadlands = "Your faction territory is now badlands";
+            public const string FactionIsNotBadlands = "Your faction territory is no longer badlands";
+            public const string NoFactionBadlandsAllowed = "Faction enforced badlands is disabled in this server";
+            public const string FactionDoesNotOwnLand = "Your faction must own at least one area.";
+            public const string FactionAlreadyExists = "There is already a faction named <color=#ffd479>[{0}]</color>.";
+            public const string FactionDoesNotExist = "There is no faction named <color=#ffd479>[{0}]</color>.";
+            public const string InvalidUser = "Couldn't find a user whose name matches \"{0}\".";
+
+            public const string InvalidFactionName =
+                "Faction names must be between {0} and {1} alphanumeric characters.";
+
+            public const string NotAtWar = "You are not currently at war with <color=#ffd479>[{0}]</color>!";
+
+            public const string Usage = "Usage: <color=#ffd479>{0}</color>";
+            public const string CommandIsOnCooldown = "You can't do that again so quickly. Try again in {0} seconds.";
+            public const string NoPermission = "You don't have permission to do that.";
+
+            public const string MemberAdded =
+                "You have added <color=#ffd479>{0}</color> as a member of <color=#ffd479>[{1}]</color>.";
+
+            public const string MemberRemoved =
+                "You have removed <color=#ffd479>{0}</color> as a member of <color=#ffd479>[{1}]</color>.";
+
+            public const string ManagerAdded =
+                "You have added <color=#ffd479>{0}</color> as a manager of <color=#ffd479>[{1}]</color>.";
+
+            public const string ManagerRemoved =
+                "You have removed <color=#ffd479>{0}</color> as a manager of <color=#ffd479>[{1}]</color>.";
+
+            public const string UserIsAlreadyMemberOfFaction =
+                "<color=#ffd479>{0}</color> is already a member of <color=#ffd479>[{1}]</color>.";
+
+            public const string UserIsNotMemberOfFaction =
+                "<color=#ffd479>{0}</color> is not a member of <color=#ffd479>[{1}]</color>.";
+
+            public const string UserIsAlreadyManagerOfFaction =
+                "<color=#ffd479>{0}</color> is already a manager of <color=#ffd479>[{1}]</color>.";
+
+            public const string UserIsNotManagerOfFaction =
+                "<color=#ffd479>{0}</color> is not a manager of <color=#ffd479>[{1}]</color>.";
+
+            public const string UserIsNotSleepingBagOwner =
+                "You are not the owner of this sleeping bag.";
+
+            public const string CannotPromoteOrDemoteOwnerOfFaction =
+                "<color=#ffd479>{0}</color> cannot be promoted or demoted, since they are the owner of <color=#ffd479>[{1}]</color>.";
+
+            public const string CannotKickLeaderOfFaction =
+                "<color=#ffd479>{0}</color> cannot be kicked, since they are an owner or manager of <color=#ffd479>[{1}]</color>.";
+
+            public const string InviteAdded =
+                "You have invited <color=#ffd479>{0}</color> to join <color=#ffd479>[{1}]</color>.";
+
+            public const string InviteReceived =
+                "<color=#ffd479>{0}</color> has invited you to join <color=#ffd479>[{1}]</color>. Say <color=#ffd479>/faction join {1}</color> to accept.";
+
+            public const string CannotJoinFactionNotInvited =
+                "You cannot join <color=#ffd479>[{0}]</color>, because you have not been invited.";
+
+            public const string CannotManageFactionUseClansInstead =
+                "This server uses the Clans plugin. Manage your faction through the Clans system instead. Say /clanhelp for more info";
+
+            public const string YouJoinedFaction = "You are now a member of <color=#ffd479>[{0}]</color>.";
+            public const string YouLeftFaction = "You are no longer a member of <color=#ffd479>[{0}]</color>.";
+
+            public const string SelectingCupboardFailedInvalidTarget = "You must select a tool cupboard.";
+            public const string SelectingCupboardFailedNotAuthorized = "You must be authorized on the tool cupboard.";
+            public const string SelectingCupboardFailedCantUnclaimHeadquarters = "You must move your headquarters to another land first. Say <color=#ffd479>/claim hq</color> in another land";
+
+            public const string SelectingCupboardFailedNotClaimCupboard =
+                "That tool cupboard doesn't represent an area claim made by your faction.";
+
+            public const string CannotClaimAreaAlreadyClaimed =
+                "<color=#ffd479>{0}</color> has already been claimed by <color=#ffd479>[{1}]</color>.";
+
+            public const string CannotClaimAreaCannotAfford =
+                "Claiming this area costs <color=#ffd479>{0}</color> scrap. Add this amount to your inventory and try again.";
+
+            public const string CannotUpgradeAreaCannotAfford =
+                "Upgrading this area costs <color=#ffd479>{0}</color> scrap. Add this amount to your inventory and try again.";
+
+            public const string CannotClaimAreaAlreadyOwned =
+                "The area <color=#ffd479>{0}</color> is already owned by your faction, and this cupboard represents the claim.";
+
+            public const string SelectClaimCupboardToAdd =
+                "Use the hammer to select a tool cupboard to represent the claim. Say <color=#ffd479>/cancel</color> to cancel.";
+
+            public const string SelectClaimCupboardToRemove =
+                "Use the hammer to select the tool cupboard representing the claim you want to remove. Say <color=#ffd479>/cancel</color> to cancel.";
+
+            public const string SelectClaimCupboardForHeadquarters =
+                "Use the hammer to select the tool cupboard to represent your faction's headquarters. Say <color=#ffd479>/cancel</color> to cancel.";
+
+            public const string SelectClaimCupboardToAssign =
+                "Use the hammer to select a tool cupboard to represent the claim to assign to <color=#ffd479>[{0}]</color>. Say <color=#ffd479>/cancel</color> to cancel.";
+
+            public const string SelectClaimCupboardToTransfer =
+                "Use the hammer to select the tool cupboard representing the claim to give to <color=#ffd479>[{0}]</color>. Say <color=#ffd479>/cancel</color> to cancel.";
+
+            public const string ClaimCupboardMoved =
+                "You have moved the claim <color=#ffd479>{0}</color> to a new tool cupboard.";
+
+            public const string ClaimCaptured =
+                "You have captured <color=#ffd479>{0}</color> from <color=#ffd479>[{1}]</color>!";
+
+            public const string ClaimAdded = "You have claimed <color=#ffd479>{0}</color> for your faction.";
+            public const string ClaimRemoved = "You have removed your faction's claim on <color=#ffd479>{0}</color>.";
+
+            public const string ClaimTransferred =
+                "You have transferred ownership of <color=#ffd479>{0}</color> to <color=#ffd479>[{1}]</color>.";
+
+            public const string InvalidAreaName =
+                "Area names must be between <color=#ffd479>{0}</color> and <color=#ffd479>{1}</color> characters long.";
+
+            public const string UnknownArea = "Unknown area <color=#ffd479>{0}</color>.";
+            public const string AreaRenamed = "<color=#ffd479>{0}</color> is now known as <color=#ffd479>{1}</color>.";
+
+            public const string ClaimsList = "<color=#ffd479>[{0}]</color> has claimed: <color=#ffd479>{1}</color>";
+
+            public const string ClaimCost =
+                "<color=#ffd479>{0}</color> can be claimed by <color=#ffd479>[{1}]</color> for <color=#ffd479>{2}</color> scrap.";
+
+            public const string UpkeepCost =
+                "It will cost <color=#ffd479>{0}</color> scrap per day to maintain the <color=#ffd479>{1}</color> areas claimed by <color=#ffd479>[{2}]</color>. Upkeep is due <color=#ffd479>{3}</color> hours from now.";
+
+            public const string UpkeepCostOverdue =
+                "It will cost <color=#ffd479>{0}</color> scrap per day to maintain the <color=#ffd479>{1}</color> areas claimed by <color=#ffd479>[{2}]</color>. Your upkeep is <color=#ffd479>{3}</color> hours overdue! Fill your Headquarters Cupboard with scrap immediately, before your claims begin to fall into ruin.";
+            public const string SelectArmoryLocker =
+                "Use the hammer to select the locker to set as this land's armory. Say <color=#ffd479>/cancel</color> to cancel.";
+
+            public const string SelectRecruitSleepingBag =
+                "Use the hammer to select the sleeping bag to set as this land's recruit spawn point. Say <color=#ffd479>/cancel</color> to cancel.";
+
+            public const string SelectTaxChest =
+                "Use the hammer to select the container to receive your faction's tribute. Say <color=#ffd479>/cancel</color> to cancel.";
+
+            public const string SelectingTaxChestFailedInvalidTarget = "That can't be used as a tax chest.";
+
+            public const string SelectingTaxChestSucceeded =
+                "You have selected a new tax chest that will receive <color=#ffd479>{0}%</color> of the materials harvested within land owned by <color=#ffd479>[{1}]</color>. To change the tax rate, say <color=#ffd479>/tax rate PERCENT</color>.";
+            public const string SelectingArmoryLockerFailedInvalidTarget =
+                "That can't be used as an armory. Hit a locker within your claimed area.";
+
+            public const string SelectingSleepingBagFailedInvalidTarget =
+                "That can't be used as your recruit spawn point. Hit a sleeping bag within your claimed area.";
+
+            public const string SelectingArmoryLockerSucceeded =
+                "You have selected a new armory locker that will be used to recruit bots in {0}";
+
+            public const string SelectingRecruitSpawnPointSucceeded =
+                "You have selected a new spawn point for your recruit from land {0}. The recruit will spawn in 30 seconds.";
+
+            public const string CannotSetTaxRateInvalidValue =
+                "You must specify a valid percentage between <color=#ffd479>0-{0}%</color> as a tax rate.";
+
+            public const string SetTaxRateSuccessful =
+                "You have set the tax rate on the land holdings of <color=#ffd479>[{0}]</color> to <color=#ffd479>{1}%</color>.";
+
+            public const string BadlandsSet = "Badlands areas are now: <color=#ffd479>{0}</color>";
+
+            public const string BadlandsList =
+                "Badlands areas are: <color=#ffd479>{0}</color>. Gather bonus is <color=#ffd479>{1}%</color>.";
+
+            public const string CannotDeclareWarAgainstYourself = "You cannot declare war against yourself!";
+
+            public const string CannotDeclareWarAlreadyAtWar =
+                "You area already at war with <color=#ffd479>[{0}]</color>!";
+
+            public const string CannotDeclareWarNoobAttacker =
+                "You cannot declare war yet because your faction is not old enough. Try again in <color=#ffd479>[{0}]</color> {1}!";
+
+
+            public const string CannotDeclareWarDefenderProtected =
+                "You cannot declare war against <color=#ffd479>[{0}]</color> because this faction is not old enough. Try again in <color=#ffd479>[{1}]</color> {2}!";
+
+            public const string CannotDeclareWarInvalidCassusBelli =
+                "You cannot declare war against <color=#ffd479>[{0}]</color>, because your reason doesn't meet the minimum length.";
+
+            public const string CannotDeclareWarCannotAfford =
+                "Declaring war costs <color=#ffd479>{0}</color> scrap. Add this amount to your inventory and try again.";
+
+            public const string CannotDeclareWarDefendersNotOnline =
+                "Declaring war requires at least <color=#ffd479>{0}</color> defending member online. Try again when your enemies are online";
+            public const string CannotOfferPeaceAlreadyOfferedPeace =
+                "You have already offered peace to <color=#ffd479>[{0}]</color>.";
+
+            public const string PeaceOffered =
+                "You have offered peace to <color=#ffd479>[{0}]</color>. They must accept it before the war will end.";
+
+            public const string EnteredBadlands =
+                "<color=#ff0000>BORDER:</color> You have entered the badlands! Player violence is allowed here.";
+
+            public const string EnteredWilderness = "<color=#ffd479>BORDER:</color> You have entered the wilderness.";
+
+            public const string EnteredClaimedArea =
+                "<color=#ffd479>BORDER:</color> You have entered land claimed by <color=#ffd479>[{0}]</color>.";
+
+            public const string EnteredPvpMode =
+                "<color=#ff0000>PVP ENABLED:</color> You are now in PVP mode. You can now hurt, and be hurt by, other players who are also in PVP mode.";
+
+            public const string ExitedPvpMode =
+                "<color=#00ff00>PVP DISABLED:</color> You are no longer in PVP mode. You can't be harmed by other players except inside of normal PVP areas.";
+
+            public const string PvpModeOnCooldown = "You must wait at least {0} seconds to exit or re-enter PVP mode.";
+
+            public const string InvalidPinType =
+                "Unknown map pin type <color=#ffd479>{0}</color>. Say <color=#ffd479>/pin types</color> to see a list of available types.";
+
+            public const string InvalidPinName =
+                "Map pin names must be between <color=#ffd479>{0}</color> and <color=#ffd479>{1}</color> characters long.";
+
+            public const string CannotCreatePinCannotAfford =
+                "Creating a new map pin costs <color=#ffd479>{0}</color> scrap. Add this amount to your inventory and try again.";
+
+            public const string CannotCreatePinAlreadyExists =
+                "Cannot create a new map pin named <color=#ffd479>{0}</color>, since one already exists with the same name in <color=#ffd479>{1}</color>.";
+
+            public const string UnknownPin = "Unknown map pin <color=#ffd479>{0}</color>.";
+
+            public const string CannotRemovePinAreaNotOwnedByYourFaction =
+                "Cannot remove the map pin named <color=#ffd479>{0}</color>, because the area <color=#ffd479>{1} is not owned by your faction.";
+
+            public const string PinRemoved = "Removed map pin <color=#ffd479>{0}</color>.";
+
+            public const string FactionCreatedAnnouncement =
+                "<color=#00ff00>FACTION CREATED:</color> A new faction <color=#ffd479>[{0}]</color> has been created!";
+
+            public const string FactionDisbandedAnnouncement =
+                "<color=#00ff00>FACTION DISBANDED:</color> <color=#ffd479>[{0}]</color> has been disbanded!";
+
+            public const string FactionMemberJoinedAnnouncement =
+                "<color=#00ff00>MEMBER JOINED:</color> <color=#ffd479>{0}</color> has joined <color=#ffd479>[{1}]</color>!";
+
+            public const string FactionMemberLeftAnnouncement =
+                "<color=#00ff00>MEMBER LEFT:</color> <color=#ffd479>{0}</color> has left <color=#ffd479>[{1}]</color>!";
+
+            public const string AreaClaimedAnnouncement =
+                "<color=#00ff00>AREA CLAIMED:</color> <color=#ffd479>[{0}]</color> claims <color=#ffd479>{1}</color>!";
+
+            public const string AreaClaimedAsHeadquartersAnnouncement =
+                "<color=#00ff00>AREA CLAIMED:</color> <color=#ffd479>[{0}]</color> claims <color=#ffd479>{1}</color> as their headquarters!";
+
+            public const string AreaLevelUpgraded =
+                "Land upgraded to level {0}";
+
+            public const string AreaCapturedAnnouncement =
+                "<color=#ff0000>AREA CAPTURED:</color> <color=#ffd479>[{0}]</color> has captured <color=#ffd479>{1}</color> from <color=#ffd479>[{2}]</color>!";
+
+            public const string AreaClaimRemovedAnnouncement =
+                "<color=#ff0000>CLAIM REMOVED:</color> <color=#ffd479>[{0}]</color> has relinquished their claim on <color=#ffd479>{1}</color>!";
+
+            public const string AreaClaimTransferredAnnouncement =
+                "<color=#ff0000>CLAIM TRANSFERRED:</color> <color=#ffd479>[{0}]</color> has transferred their claim on <color=#ffd479>{1}</color> to <color=#ffd479>[{2}]</color>!";
+
+            public const string AreaClaimAssignedAnnouncement =
+                "<color=#ff0000>AREA CLAIM ASSIGNED:</color> <color=#ffd479>{0}</color> has been assigned to <color=#ffd479>[{1}]</color> by an admin.";
+
+            public const string AreaClaimDeletedAnnouncement =
+                "<color=#ff0000>AREA CLAIM REMOVED:</color> <color=#ffd479>[{0}]</color>'s claim on <color=#ffd479>{1}</color> has been removed by an admin.";
+
+            public const string AreaClaimLostCupboardDestroyedAnnouncement =
+                "<color=#ff0000>AREA CLAIM LOST:</color> <color=#ffd479>[{0}]</color> has lost its claim on <color=#ffd479>{1}</color>, because the tool cupboard was destroyed!";
+
+            public const string AreaClaimLostArmoryDestroyedAnnouncement =
+                "<color=#ff0000>AREA ARMORY LOST:</color> <color=#ffd479>[{0}]</color> has lost its armory on <color=#ffd479>{1}</color>, because the locker was destroyed!";
+
+            public const string AreaClaimLostFactionDisbandedAnnouncement =
+                "<color=#ff0000>AREA CLAIM LOST:</color> <color=#ffd479>[{0}]</color> has been disbanded, losing its claim on <color=#ffd479>{1}</color>!";
+
+            public const string AreaClaimLostUpkeepNotPaidAnnouncement =
+                "<color=#ff0000>AREA CLAIM LOST:</color>: <color=#ffd479>[{0}]</color> has lost their claim on <color=#ffd479>{1}</color> after it fell into ruin! Tool Cupboard destroyed!";
+
+            public const string HeadquartersChangedAnnouncement =
+                "<color=#00ff00>HQ CHANGED:</color> The headquarters of <color=#ffd479>[{0}]</color> is now <color=#ffd479>{1}</color>.";
+
+            public const string NoWarBetweenFactions =
+                "There are no war declarations between <color=#ffd479>[{0}]</color> and <color=#ffd479>[{1}]</color> ";
+
+            public const string WarDeclaredAnnouncement =
+                "<color=#ff0000>WAR DECLARED:</color> <color=#ffd479>[{0}]</color> has declared war on <color=#ffd479>[{1}]</color>! Their reason: <color=#ffd479>{2}</color>";
+
+            public const string WarDeclaredAdminApproved =
+                "<color=#ff0000>WAR APPROVED BY AN ADMIN:</color> An admin approved the war between <color=#ffd479>[{0}]</color> and <color=#ffd479>[{1}]</color>!";
+
+            public const string WarDeclaredAdminDenied =
+                "<color=#ff0000>WAR DENIED BY AN ADMIN:</color> An admin denied the war between <color=#ffd479>[{0}]</color> and <color=#ffd479>[{1}]</color>!";
+
+            public const string WarDeclaredDefenderApproved =
+                "<color=#ff0000>WAR APPROVED BY DEFENDERS:</color> <color=#ffd479>[{1}]</color> accepted the war declaration from <color=#ffd479>[{0}]</color>";
+
+            public const string WarDeclaredDefenderDenied =
+                "<color=#ff0000>WAR DENIED BY DEFENDERS:</color>  <color=#ffd479>[{1}]</color> rejected the war declaration from <color=#ffd479>[{0}]</color>";
+
+            public const string WarEndedTreatyAcceptedAnnouncement =
+                "<color=#00ff00>WAR ENDED:</color> The war between <color=#ffd479>[{0}]</color> and <color=#ffd479>[{1}]</color> has ended after both sides have agreed to a treaty.";
+
+            public const string WarEndedFactionEliminatedAnnouncement =
+                "<color=#00ff00>WAR ENDED:</color> The war between <color=#ffd479>[{0}]</color> and <color=#ffd479>[{1}]</color> has ended, since <color=#ffd479>[{2}]</color> no longer holds any land.";
+
+            public const string PinAddedAnnouncement =
+                "<color=#00ff00>POINT OF INTEREST:</color> <color=#ffd479>[{0}]</color> announces the creation of <color=#ffd479>{1}</color>, a new {2} located in <color=#ffd479>{3}</color>!";
+
+
+            public static string Get(string key, string userId = null)
+            {
+                return Instance.lang.GetMessage(key, Instance, userId);
+            }
+
+            public static Dictionary<string, string> AsDictionary(BindingFlags bindingAttr = BindingFlags.Public | BindingFlags.DeclaredOnly)
+            {
+                var dict = typeof(Messages).GetFields().Select(f => new { Key = f.Name, Value = (string)f.GetValue(null) }).ToDictionary
+                (
+                    item => item.Key,
+                    item => item.Value
+                );
+                return dict;
+
+            }
+        }
+
+        private void InitLang()
+        {
+            Dictionary<string, string> messages = Messages.AsDictionary();
+            lang.RegisterMessages(messages, this);
+
+        }
+    }
+}
+#endregion
+
+#region BadlandsOptions.cs
+﻿namespace Oxide.Plugins
+{
+    using Newtonsoft.Json;
+
+    public partial class Imperium : RustPlugin
+    {
+        private class BadlandsOptions
+        {
+            [JsonProperty("enabled")] public bool Enabled;
+
+            public static BadlandsOptions Default = new BadlandsOptions
+            {
+                Enabled = true
+            };
+        }
+    }
+}
+#endregion
+
+#region ClaimOptions.cs
+﻿namespace Oxide.Plugins
+{
+    using Newtonsoft.Json;
+    using System.Collections.Generic;
+
+    public partial class Imperium : RustPlugin
+    {
+        private class ClaimOptions
+        {
+            [JsonProperty("enabled")] public bool Enabled;
+
+            [JsonProperty("costs")] public List<int> Costs = new List<int>();
+
+            [JsonProperty("maxClaims")] public int? MaxClaims;
+
+            [JsonProperty("minAreaNameLength")] public int MinAreaNameLength;
+
+            [JsonProperty("maxAreaNameLength")] public int MaxAreaNameLength;
+
+            [JsonProperty("minFactionMembers")] public int MinFactionMembers;
+
+            [JsonProperty("requireContiguousClaims")]
+            public bool RequireContiguousClaims;
+
+            public static ClaimOptions Default = new ClaimOptions
+            {
+                Enabled = true,
+                Costs = new List<int> { 50, 100, 200, 300, 400, 500 },
+                MaxClaims = null,
+                MinAreaNameLength = 3,
+                MaxAreaNameLength = 20,
+                MinFactionMembers = 1,
+                RequireContiguousClaims = true
+            };
+        }
+    }
+}
+#endregion
+
+#region DecayOptions.cs
+﻿namespace Oxide.Plugins
+{
+    using Newtonsoft.Json;
+
+    public partial class Imperium : RustPlugin
+    {
+        private class DecayOptions
+        {
+            [JsonProperty("enabled")] public bool Enabled;
+
+            [JsonProperty("claimedLandDecayReduction")]
+            public float ClaimedLandDecayReduction;
+
+            public static DecayOptions Default = new DecayOptions
+            {
+                Enabled = false,
+                ClaimedLandDecayReduction = 0.5f
+            };
+        }
+    }
+}
+#endregion
+
+#region FactionOptions.cs
+﻿namespace Oxide.Plugins
+{
+    using Newtonsoft.Json;
+
+    public partial class Imperium : RustPlugin
+    {
+        private class FactionOptions
+        {
+            [JsonProperty("minFactionNameLength")] public int MinFactionNameLength = 1;
+
+            [JsonProperty("maxFactionNameLength")] public int MaxFactionNameLength = 8;
+
+            [JsonProperty("maxMembers")] public int? MaxMembers;
+
+            [JsonProperty("allowFactionBadlands")] public bool AllowFactionBadlands = false;
+
+            [JsonProperty("factionBadlandsCommandCooldownSeconds")] public int CommandCooldownSeconds = 300;
+
+            [JsonProperty("overrideInGameTeamSystem")] public bool OverrideInGameTeamSystem = false;
+
+            [JsonProperty("memberOwnLandEcoRaidingDamageScale")] public float MemberOwnLandEcoRaidingDamageScale = 1f;
+
+            [JsonProperty("memberOwnLandExplosiveRaidingDamageScale")] public float MemberOwnLandExplosiveRaidingDamageScale = 1f;
+
+            [JsonProperty("useClansPlugin")] private bool _UseClansPlugin = false;
+
+            [JsonIgnore]
+            public bool UseClansPlugin { get { return (_UseClansPlugin && Instance.Clans != null); } }
+
+            public static FactionOptions Default = new FactionOptions
+            {
+                MinFactionNameLength = 1,
+                MaxFactionNameLength = 8,
+                MaxMembers = null,
+                AllowFactionBadlands = false,
+                CommandCooldownSeconds = 600,
+                OverrideInGameTeamSystem = true,
+                MemberOwnLandEcoRaidingDamageScale = 1f,
+                MemberOwnLandExplosiveRaidingDamageScale = 1f,
+                _UseClansPlugin = false
+            };
+
+
+        }
+    }
+}
+#endregion
+
+#region HudOptions.cs
+﻿namespace Oxide.Plugins
+{
+    using Newtonsoft.Json;
+
+    public partial class Imperium : RustPlugin
+    {
+        private class HudOptions
+        {
+            [JsonProperty("showEventsHud")] public bool ShowEventsHUD;
+            [JsonProperty("leftPanelXOffset")] public float LeftPanelXOffset = 0f;
+            [JsonProperty("leftPanelYOffset")] public float LeftPanelYOffset = 0f;
+            [JsonProperty("rightPanelXOffset")] public float RightPanelXOffset = 0f;
+            [JsonProperty("rightPanelYOffset")] public float RightPanelYOffset = 0f;
+
+            public static HudOptions Default = new HudOptions
+            {
+                ShowEventsHUD = true,
+                LeftPanelXOffset = 0f,
+                LeftPanelYOffset = 0f,
+                RightPanelXOffset = 0f,
+                RightPanelYOffset = 0f
+            };
+        }
+    }
+}
+#endregion
+
+#region ImperiumOptions.cs
+﻿namespace Oxide.Plugins
+{
+    using Newtonsoft.Json;
+
+    public partial class Imperium : RustPlugin
+    {
+        private class ImperiumOptions
+        {
+            [JsonProperty("badlands")] public BadlandsOptions Badlands = new BadlandsOptions();
+
+            [JsonProperty("claims")] public ClaimOptions Claims = new ClaimOptions();
+
+            [JsonProperty("decay")] public DecayOptions Decay = new DecayOptions();
+
+            [JsonProperty("factions")] public FactionOptions Factions = new FactionOptions();
+
+            [JsonProperty("hud")] public HudOptions Hud = new HudOptions();
+
+            [JsonProperty("map")] public MapOptions Map = new MapOptions();
+
+            [JsonProperty("pvp")] public PvpOptions Pvp = new PvpOptions();
+
+            [JsonProperty("raiding")] public RaidingOptions Raiding = new RaidingOptions();
+
+            [JsonProperty("taxes")] public TaxOptions Taxes = new TaxOptions();
+
+            [JsonProperty("upkeep")] public UpkeepOptions Upkeep = new UpkeepOptions();
+
+            [JsonProperty("war")] public WarOptions War = new WarOptions();
+
+            [JsonProperty("zones")] public ZoneOptions Zones = new ZoneOptions();
+
+            [JsonProperty("recruiting")] public RecruitingOptions Recruiting = new RecruitingOptions();
+
+            [JsonProperty("upgrading")] public UpgradingOptions Upgrading = new UpgradingOptions();
+
+            public static ImperiumOptions Default = new ImperiumOptions
+            {
+                Badlands = BadlandsOptions.Default,
+                Claims = ClaimOptions.Default,
+                Decay = DecayOptions.Default,
+                Factions = FactionOptions.Default,
+                Hud = HudOptions.Default,
+                Map = MapOptions.Default,
+                Pvp = PvpOptions.Default,
+                Raiding = RaidingOptions.Default,
+                Taxes = TaxOptions.Default,
+                Upkeep = UpkeepOptions.Default,
+                War = WarOptions.Default,
+                Zones = ZoneOptions.Default,
+                Recruiting = RecruitingOptions.Default,
+                Upgrading = UpgradingOptions.Default
+            };
+        }
+
+        protected override void LoadDefaultConfig()
+        {
+            PrintWarning("Loading default configuration.");
+            Config.WriteObject(ImperiumOptions.Default, true);
+        }
+    }
+}
+#endregion
+
+#region MapOptions.cs
+﻿namespace Oxide.Plugins
+{
+    using Newtonsoft.Json;
+
+    public partial class Imperium : RustPlugin
+    {
+        private class MapOptions
+        {
+
+            [JsonProperty("mapGridYOffset")] public int MapGridYOffset;
+
+            [JsonProperty("pinsEnabled")] public bool PinsEnabled;
+
+            [JsonProperty("minPinNameLength")] public int MinPinNameLength;
+
+            [JsonProperty("maxPinNameLength")] public int MaxPinNameLength;
+
+            [JsonProperty("pinCost")] public int PinCost;
+
+            [JsonProperty("commandCooldownSeconds")]
+            public int CommandCooldownSeconds;
+
+            [JsonProperty("imageUrl")] public string ImageUrl;
+
+            [JsonProperty("imageSize")] public int ImageSize;
+
+            [JsonProperty("serverLogoUrl")] public string ServerLogoUrl;
+
+            public static MapOptions Default = new MapOptions
+            {
+                MapGridYOffset = 0,
+                PinsEnabled = true,
+                MinPinNameLength = 2,
+                MaxPinNameLength = 20,
+                PinCost = 100,
+                CommandCooldownSeconds = 10,
+                ImageUrl = "",
+                ImageSize = 1440,
+                ServerLogoUrl = ""
+            };
+        }
+    }
+}
+#endregion
+
+#region PvpOptions.cs
+﻿namespace Oxide.Plugins
+{
+    using Newtonsoft.Json;
+
+    public partial class Imperium : RustPlugin
+    {
+        private class PvpOptions
+        {
+            [JsonProperty("restrictPvp")] public bool RestrictPvp;
+
+            [JsonProperty("allowedInBadlands")] public bool AllowedInBadlands;
+
+            [JsonProperty("allowedInClaimedLand")] public bool AllowedInClaimedLand;
+
+            [JsonProperty("allowedInWilderness")] public bool AllowedInWilderness;
+
+            [JsonProperty("allowedInEventZones")] public bool AllowedInEventZones;
+
+            [JsonProperty("allowedInMonumentZones")]
+            public bool AllowedInMonumentZones;
+
+            [JsonProperty("allowedInRaidZones")] public bool AllowedInRaidZones;
+
+            [JsonProperty("allowedInDeepWater")] public bool AllowedInDeepWater;
+
+            [JsonProperty("allowedUnderground")] public bool AllowedUnderground;
+
+            [JsonProperty("enablePvpCommand")] public bool EnablePvpCommand;
+
+
+            [JsonProperty("commandCooldownSeconds")]
+            public int CommandCooldownSeconds;
+
+            public static PvpOptions Default = new PvpOptions
+            {
+                RestrictPvp = false,
+                AllowedInBadlands = true,
+                AllowedInClaimedLand = true,
+                AllowedInEventZones = true,
+                AllowedInMonumentZones = true,
+                AllowedInRaidZones = true,
+                AllowedInWilderness = true,
+                AllowedInDeepWater = true,
+                AllowedUnderground = true,
+                EnablePvpCommand = false,
+                CommandCooldownSeconds = 60
+            };
+        }
+    }
+}
+#endregion
+
+#region RaidingOptions.cs
+﻿namespace Oxide.Plugins
+{
+    using Newtonsoft.Json;
+
+    public partial class Imperium : RustPlugin
+    {
+        private class RaidingOptions
+        {
+            [JsonProperty("restrictRaiding")] public bool RestrictRaiding;
+
+            [JsonProperty("allowedInBadlands")] public bool AllowedInBadlands;
+
+            [JsonProperty("allowedInClaimedLand")] public bool AllowedInClaimedLand;
+
+            [JsonProperty("allowedInWilderness")] public bool AllowedInWilderness;
+
+            public static RaidingOptions Default = new RaidingOptions
+            {
+                RestrictRaiding = false,
+                AllowedInBadlands = true,
+                AllowedInClaimedLand = true,
+                AllowedInWilderness = true
+            };
+        }
+    }
+}
+#endregion
+
+#region RecruitingOptions.cs
+﻿namespace Oxide.Plugins
+{
+    using Newtonsoft.Json;
+    public partial class Imperium : RustPlugin
+    {
+        private class RecruitingOptions
+        {
+            [JsonProperty("enabled [THIS IS NOT AVAILABLE YET]")] public bool Enabled;
+
+            public static RecruitingOptions Default = new RecruitingOptions
+            {
+                Enabled = false
+            };
+        }
+    }
+}
+#endregion
+
+#region TaxOptions.cs
+﻿namespace Oxide.Plugins
+{
+    using Newtonsoft.Json;
+
+    public partial class Imperium : RustPlugin
+    {
+        private class TaxOptions
+        {
+            [JsonProperty("enabled")] public bool Enabled;
+
+            [JsonProperty("defaultTaxRate")] public float DefaultTaxRate;
+
+            [JsonProperty("maxTaxRate")] public float MaxTaxRate;
+
+            [JsonProperty("claimedLandGatherBonus")]
+            public float ClaimedLandGatherBonus;
+
+            [JsonProperty("badlandsGatherBonus")] public float BadlandsGatherBonus;
+
+            public static TaxOptions Default = new TaxOptions
+            {
+                Enabled = true,
+                DefaultTaxRate = 0.1f,
+                MaxTaxRate = 0.2f,
+                ClaimedLandGatherBonus = 0.1f,
+                BadlandsGatherBonus = 0.1f
+            };
+        }
+    }
+}
+#endregion
+
+#region UpgradingOptions.cs
+﻿namespace Oxide.Plugins
+{
+    using Newtonsoft.Json;
+    using System.Collections.Generic;
+    public partial class Imperium : RustPlugin
+    {
+        private class UpgradingOptions
+        {
+            [JsonProperty("enabled [THIS IS NOT AVAILABLE YET]")] public bool Enabled = false;
+            [JsonProperty("maxUpgradeLevel")] public int MaxUpgradeLevel = 10;
+            [JsonProperty("maxProduceBonus")] public float MaxProduceBonus = 0.5f;
+            [JsonProperty("maxTaxChestBonus")] public float MaxTaxChestBonus = 1f;
+            [JsonProperty("maxRaidDefenseBonus")] public float MaxRaidDefenseBonus = 0.2f;
+            [JsonProperty("maxDecayExtraReduction")] public float MaxDecayExtraReduction = 1f;
+            [JsonProperty("maxRecruitBotBuffs")] public float MaxRecruitBotsBuffs = 0.2f;
+            [JsonProperty("costs")] public List<int> Costs = new List<int>();
+
+            public static UpgradingOptions Default = new UpgradingOptions
+            {
+                Enabled = false,
+                MaxUpgradeLevel = 10,
+                MaxProduceBonus = 0.5f,
+                MaxTaxChestBonus = 1f,
+                MaxRaidDefenseBonus = 0.2f,
+                MaxDecayExtraReduction = 1f,
+                MaxRecruitBotsBuffs = 0.2f,
+                Costs = new List<int> { 0, 100, 200, 300, 400, 500 }
+            };
+        }
+    }
+}
+#endregion
+
+#region UpkeepOptions.cs
+﻿namespace Oxide.Plugins
+{
+    using Newtonsoft.Json;
+    using System.Collections.Generic;
+
+    public partial class Imperium : RustPlugin
+    {
+        private class UpkeepOptions
+        {
+            [JsonProperty("enabled")] public bool Enabled;
+
+            [JsonProperty("costs")] public List<int> Costs = new List<int>();
+
+            [JsonProperty("checkIntervalMinutes")] public int CheckIntervalMinutes;
+
+            [JsonProperty("collectionPeriodHours")]
+            public int CollectionPeriodHours;
+
+            [JsonProperty("gracePeriodHours")] public int GracePeriodHours;
+
+            public static UpkeepOptions Default = new UpkeepOptions
+            {
+                Enabled = false,
+                Costs = new List<int> { 10, 10, 20, 30, 40, 50, 60, 70, 80, 90, 100 },
+                CheckIntervalMinutes = 15,
+                CollectionPeriodHours = 24,
+                GracePeriodHours = 12
+            };
+
+        }
+    }
+}
+#endregion
+
+#region WarOptions.cs
+﻿namespace Oxide.Plugins
+{
+    using Newtonsoft.Json;
+    using System.Collections.Generic;
+
+    public partial class Imperium : RustPlugin
+    {
+        private class WarOptions
+        {
+            [JsonProperty("enabled")] public bool Enabled;
+
+            [JsonProperty("noobFactionProtectionInSeconds")] public int NoobFactionProtectionInSeconds;
+
+            [JsonProperty("declarationCost")] public int DeclarationCost;
+
+            [JsonProperty("onlineDefendersRequired")] public int OnlineDefendersRequired;
+
+            [JsonProperty("adminApprovalRequired")] public bool AdminApprovalRequired;
+
+            [JsonProperty("defenderApprovalRequired")] public bool DefenderApprovalRequired;
+
+            [JsonProperty("enableShopfrontPeace")] public bool EnableShopfrontPeace;
+
+            [JsonProperty("priorAggressionRequired")] public bool PriorAggressionRequired;
+
+            [JsonProperty("spamPreventionSeconds")] public int SpamPreventionSeconds;
+
+            [JsonProperty("minCassusBelliLength")] public int MinCassusBelliLength;
+
+            [JsonProperty("defensiveBonuses")] public List<float> DefensiveBonuses = new List<float>();
+
+            public static WarOptions Default = new WarOptions
+            {
+                Enabled = true,
+                NoobFactionProtectionInSeconds = 0,
+                DeclarationCost = 0,
+                OnlineDefendersRequired = 0,
+                AdminApprovalRequired = false,
+                DefenderApprovalRequired = false,
+                PriorAggressionRequired = false,
+                EnableShopfrontPeace = true,
+                SpamPreventionSeconds = 0,
+                MinCassusBelliLength = 50,
+                DefensiveBonuses = new List<float> { 0, 0.5f, 1f }
+            };
+
+
+        }
+    }
+}
+#endregion
+
+#region ZoneOptions.cs
+﻿namespace Oxide.Plugins
+{
+    using Newtonsoft.Json;
+    using System.Collections.Generic;
+
+    public partial class Imperium : RustPlugin
+    {
+        private class ZoneOptions
+        {
+            [JsonProperty("enabled")] public bool Enabled;
+
+            [JsonProperty("domeDarkness")] public int DomeDarkness;
+
+            [JsonProperty("eventZoneRadius")] public float EventZoneRadius;
+
+            [JsonProperty("eventZoneLifespanSeconds")]
+            public float EventZoneLifespanSeconds;
+
+            [JsonProperty("monumentZones")]
+            public Dictionary<string, float> MonumentZones = new Dictionary<string, float>();
+
+            public static ZoneOptions Default = new ZoneOptions
+            {
+                Enabled = true,
+                DomeDarkness = 3,
+                EventZoneRadius = 150f,
+                EventZoneLifespanSeconds = 600f,
+                MonumentZones = new Dictionary<string, float>
+                {
+                    {"airfield", 200},
+                    {"sphere_tank", 120},
+                    {"junkyard", 150},
+                    {"launch_site", 300},
+                    {"military_tunnel", 150},
+                    {"powerplant", 175},
+                    {"satellite_dish", 130},
+                    {"trainyard", 180},
+                    {"water_treatment_plant", 180 },
+                    {"oilrig_1",200},
+                    {"oilrig_2",200},
+                    {"military_base",150},
+                    {"research_base",150}
+                }
+            };
+        }
+    }
+}
+#endregion
+
+#region Permissions.cs
+﻿namespace Oxide.Plugins
+{
+    using System.Reflection;
+
+    public partial class Imperium : RustPlugin
+    {
+        public static class Permission
+        {
+            public const string AdminFactions = "imperium.factions.admin";
+            public const string AdminClaims = "imperium.claims.admin";
+            public const string AdminBadlands = "imperium.badlands.admin";
+            public const string AdminWars = "imperium.wars.admin";
+            public const string AdminPins = "imperium.pins.admin";
+            public const string ManageFactions = "imperium.factions";
+
+            public static void RegisterAll(Imperium instance)
+            {
+                foreach (FieldInfo field in typeof(Permission).GetFields(BindingFlags.Public | BindingFlags.Static))
+                    instance.permission.RegisterPermission((string)field.GetRawConstantValue(), instance);
+            }
+        }
+    }
+}
+#endregion
+
+#region Pin.cs
+﻿namespace Oxide.Plugins
+{
+    using UnityEngine;
+
+    public partial class Imperium
+    {
+        private class Pin
+        {
+            public Vector3 Position { get; }
+            public string AreaId { get; }
+            public string CreatorId { get; set; }
+            public PinType Type { get; set; }
+            public string Name { get; set; }
+
+            public Pin(Vector3 position, Area area, User creator, PinType type, string name)
+            {
+                Position = position;
+                AreaId = area.Id;
+                CreatorId = creator.Id;
+                Type = type;
+                Name = name;
+            }
+
+            public Pin(PinInfo info)
+            {
+                Position = info.Position;
+                AreaId = info.AreaId;
+                CreatorId = info.CreatorId;
+                Type = info.Type;
+                Name = info.Name;
+            }
+
+            public float GetDistanceFrom(BaseEntity entity)
+            {
+                return GetDistanceFrom(entity.transform.position);
+            }
+
+            public float GetDistanceFrom(Vector3 position)
+            {
+                return Vector3.Distance(position, Position);
+            }
+
+            public PinInfo Serialize()
+            {
+                return new PinInfo
+                {
+                    Position = Position,
+                    AreaId = AreaId,
+                    CreatorId = CreatorId,
+                    Type = Type,
+                    Name = Name
+                };
+            }
+        }
+    }
+}
+#endregion
+
+#region PinInfo.cs
+﻿namespace Oxide.Plugins
+{
+    using Newtonsoft.Json;
+    using Newtonsoft.Json.Converters;
+    using UnityEngine;
+
+    public partial class Imperium : RustPlugin
+    {
+        private class PinInfo
+        {
+            [JsonProperty("name")] public string Name;
+
+            [JsonProperty("type"), JsonConverter(typeof(StringEnumConverter))]
+            public PinType Type;
+
+            [JsonProperty("position"), JsonConverter(typeof(UnityVector3Converter))]
+            public Vector3 Position;
+
+            [JsonProperty("areaId")] public string AreaId;
+
+            [JsonProperty("creatorId")] public string CreatorId;
+        }
+    }
+}
+#endregion
+
+#region PinManager.cs
+﻿namespace Oxide.Plugins
+{
+    using System;
+    using System.Collections.Generic;
+    using System.Linq;
+    using System.Runtime;
+
+    public partial class Imperium
+    {
+        private class PinManager
+        {
+            private Dictionary<string, Pin> Pins;
+
+            public PinManager()
+            {
+                Pins = new Dictionary<string, Pin>(StringComparer.OrdinalIgnoreCase);
+            }
+
+            public Pin Get(string name)
+            {
+                Pin pin;
+
+                if (!Pins.TryGetValue(name, out pin))
+                    return null;
+
+                return pin;
+            }
+
+            public Pin[] GetAll()
+            {
+                return Pins.Values.ToArray();
+            }
+
+            public void Add(Pin pin)
+            {
+                Pins.Add(pin.Name, pin);
+                Events.OnPinCreated(pin);
+            }
+
+            public void Remove(Pin pin)
+            {
+                Pins.Remove(pin.Name);
+                Events.OnPinRemoved(pin);
+            }
+
+            public void RemoveAllPinsInUnclaimedAreas()
+            {
+                foreach (Pin pin in GetAll())
+                {
+                    Area area = Instance.Areas.Get(pin.AreaId);
+                    if (!area.IsClaimed) Remove(pin);
+                }
+            }
+
+            public void Init(IEnumerable<PinInfo> pinInfos)
+            {
+                Instance.Puts($"Creating pins for {pinInfos.Count()} pins...");
+
+                foreach (PinInfo info in pinInfos)
+                {
+                    var pin = new Pin(info);
+                    Pins.Add(pin.Name, pin);
+                }
+
+                Instance.Puts("Pins created.");
+            }
+
+            public void Destroy()
+            {
+                Pins.Clear();
+            }
+
+            public PinInfo[] Serialize()
+            {
+                return Pins.Values.Select(pin => pin.Serialize()).ToArray();
+            }
+        }
+    }
+}
+#endregion
+
+#region PinType.cs
+﻿namespace Oxide.Plugins
+{
+    public partial class Imperium
+    {
+        private enum PinType
+        {
+            Arena,
+            Hotel,
+            Marina,
+            Shop,
+            Town
+        }
+    }
+}
+#endregion
+
+#region Recruit.cs
+﻿namespace Oxide.Plugins
+{
+    using System;
+    using System.Collections.Generic;
+    using System.Text;
+    using UnityEngine;
+    using System.Linq;
+    using Newtonsoft.Json.Linq;
+    using UnityEngine.Events;
+    using System.Runtime.CompilerServices;
+    using Oxide.Core;
+    using System.Diagnostics;
+    using Rust.Ai;
+    using static ConsoleSystem;
+
+    //Should refactor to transfer management-like methods to RecruitManager
+    public partial class Imperium
+    {
+
+        private class Recruit : MonoBehaviour
+        {
+            public User leader = null;
+            public bool hasLeader = false;
+            public bool isFollowingLeader = false;
+            public ScientistNPC npc;
+            public ScientistBrain brain;
+            public Faction faction;
+            public Area area;
+            public HashSet<string> hostileFactions = new();
+            public HashSet<ulong?> hostilePlayers = new();
+
+            public UnityEvent<User> onDamagedByUser;
+
+            private float originalSpeed = 0f;
+            private Vector3? currentAimPoint;
+            private float originalAimCone = 0f;
+
+            public void Start()
+            {
+                npc = GetComponent<ScientistNPC>();
+                npc.faction = BaseCombatEntity.Faction.Horror;
+                brain = GetComponent<ScientistBrain>();
+                originalSpeed = brain.Navigator.Speed;
+                originalAimCone = npc.aimConeScale;
+                npc.displayName = npc._name;
+                InvokeRepeating("CheckForgetAggressors", 60f, 60f);
+                brain.InvokeRandomized(MirrorLeaderState, 5f, 0.05f, 0.02f);
+                brain.InvokeRandomized(FollowLeaderTick, 5f, 1f, 0.5f);
+                brain.InvokeRandomized(CheckMountLeaderVehicle, 5f, 2f, 0.5f);
+            }
+
+            public void MirrorLeaderState()
+            {
+                if (npc.IsDucked())
+                {
+                    brain.Navigator.Speed = originalSpeed * 0.5f;
+                }
+                else
+                {
+                    brain.Navigator.Speed = originalSpeed;
+                }
+                if (!hasLeader)
+                    return;
+                bool shouldDuck = leader.Player.IsDucked();
+                if (leader.Player.modelState.aiming && !brain.CurrentState.AgrresiveState)
+                {
+                    npc.modelState.aiming = true;
+                    Ray ray = leader.Player.eyes.HeadRay();
+                    RaycastHit hit = new();
+                    Physics.Raycast(ray, out hit, 100f);
+                    float dist = 30f;
+                    if (hit.collider != null)
+                    {
+                        brain.Navigator.SetFacingDirectionOverride((hit.point - npc.eyes.position).normalized);
+                        currentAimPoint = hit.point;
+                        dist = hit.distance;
+                    }
+                    else
+                    {
+                        brain.Navigator.SetFacingDirectionOverride(leader.Player.eyes.HeadForward());
+                        currentAimPoint = null;
+                    }
+                    if (leader.Player.IsAttacking())
+                    {
+                        BaseProjectile attack = npc.GetAttackEntity() as BaseProjectile;
+                        if (attack != null)
+                        {
+                            if (currentAimPoint == null || npc.CanSee(npc.eyes.position, currentAimPoint ?? Vector3.zero))
+                            {
+                                npc.aimConeScale = 0f;
+                                if ((attack).primaryMagazine.contents <= 0)
+                                {
+                                    attack.ServerReload();
+                                    return;
+                                }
+                                else
+                                {
+                                    attack.ServerUse(npc.damageScale);
+                                }
+                            }
+                        }
+                    }
+                }
+                else
+                {
+                    npc.aimConeScale = originalAimCone;
+                    if (!brain.CurrentState.AgrresiveState)
+                    {
+                        npc.modelState.aiming = false;
+                        brain.Navigator.ClearFacingDirectionOverride();
+                    }
+                }
+                if (shouldDuck && Vector3.Distance(transform.position, leader.transform.position) > 10f)
+                    return;
+                npc.SetDucked(shouldDuck);
+
+            }
+
+            public void NotifyHitToLeader(HitInfo info)
+            {
+                if (leader == null)
+                    return;
+                Util.RunEffect(leader.transform.position, "assets/bundled/prefabs/fx/hit_notify.prefab", leader.Player);
+
+                bool arg = leader.Player.net.connection == info.Predicted;
+                info.HitEntity.ClientRPC(RpcTarget.PlayerAndSpectators("HitNotify", leader.Player), true);
+            }
+
+            public void CheckMountLeaderVehicle()
+            {
+                if (leader == null)
+                    return;
+                if (!isFollowingLeader)
+                    return;
+                if (leader.Player.isMounted)
+                {
+                    BaseVehicle vehicle = leader.Player.GetMountedVehicle();
+                    if (vehicle == null) return;
+                    if (vehicle.PlayerIsMounted(npc)) return;
+                    if (vehicle.IsDriver(leader.Player))
+                    {
+                        foreach (BaseVehicle.MountPointInfo mountPoint in vehicle.allMountPoints)
+                        {
+                            BaseMountable mountable = mountPoint.mountable;
+                            if (mountable == null) continue;
+                            if (mountPoint.isDriver) continue;
+                            if (mountable.IsMounted()) continue;
+                            if (Vector3.Distance(npc.transform.position, mountable.transform.position) < 2f)
+                            {
+                                mountable.AttemptMount(npc, false);
+                            }
+                            else
+                            {
+                                brain.Navigator.SetDestination(mountable.transform.position, BaseNavigator.NavigationSpeed.Fast);
+                            }
+                        }
+                    }
+                }
+                else
+                {
+                    if (npc.IsMounted())
+                    {
+                        BaseMountable current = npc.GetMounted();
+                        if (current == null) return;
+                        bool dismounted = current.AttemptDismount(npc);
+                        if (dismounted)
+                        {
+                            Vector3 pos;
+                            bool foundPos = brain.Navigator.GetNearestNavmeshPosition(npc.transform.position, out pos, 2f);
+                            if (foundPos)
+                            {
+                                npc.playerRigidbody.MovePosition(pos);
+                            }
+                            brain.Navigator.ForceToGround();
+                            brain.Navigator.Stop();
+                            Interface.CallHook("SetHomePosition", npc, npc.transform.position);
+                        }
+                    }
+                }
+            }
+
+            public void FollowLeaderTick()
+            {
+                if (!isFollowingLeader)
+                    return;
+                if (leader == null)
+                {
+                    isFollowingLeader = false;
+                    return;
+                }
+                Interface.CallHook("SetHomePosition", npc, leader.transform.position);
+            }
+
+            public void SetLeader(User user)
+            {
+                if (user == null && leader != null)
+                {
+                    leader.recruits.Remove(this);
+                    leader.onDamagedByUser -= OnLeaderDamagedByUser;
+                    leader.onDamagedUser -= OnLeaderDamagedUser;
+                    RelationshipManager.ServerInstance.SetRelationship(leader.Player, npc, RelationshipManager.RelationshipType.NONE, 1, true);
+                    RelationshipManager.ServerInstance.SetRelationship(npc, leader.Player, RelationshipManager.RelationshipType.NONE, 1, true);
+                    hasLeader = false;
+                    isFollowingLeader = false;
+                    leader = null;
+                    return;
+                }
+                if (leader != user)
+                {
+                    leader = user;
+                    isFollowingLeader = true;
+                    user.recruits.Add(this);
+                    user.onDamagedByUser += OnLeaderDamagedByUser;
+                    user.onDamagedUser += OnLeaderDamagedUser;
+                    hasLeader = true;
+                    RelationshipManager.ServerInstance.SetRelationship(leader.Player, npc, RelationshipManager.RelationshipType.Friend, 1, true);
+                    RelationshipManager.ServerInstance.SetRelationship(npc, leader.Player, RelationshipManager.RelationshipType.NONE, 1, true);
+
+                }
+
+            }
+
+            public void KillImmediately()
+            {
+                npc.AdminKill();
+            }
+
+            public void DamagedByUser(User user)
+            {
+                SetUserHostile(user);
+                onDamagedByUser?.Invoke(user);
+            }
+
+            public void OnLeaderDamagedByUser(User user)
+            {
+                SetUserHostile(user);
+            }
+
+            public void OnLeaderDamagedUser(User user)
+            {
+                SetUserHostile(user);
+            }
+
+            internal void SetKnown(BaseEntity entity)
+            {
+                for (int i = 0; i < brain.Senses.Memory.All.Count; i++)
+                {
+                    SimpleAIMemory.SeenInfo info = brain.Senses.Memory.All[i];
+                    if (info.Entity != entity) continue;
+                    info.Position = entity.transform.position;
+                    info.Timestamp = Time.realtimeSinceStartup;
+                    return;
+                }
+                brain.Senses.Memory.All.Add(new SimpleAIMemory.SeenInfo { Entity = entity, Position = entity.transform.position, Timestamp = Time.realtimeSinceStartup });
+            }
+
+            public void SetUserHostile(User user)
+            {
+                if (user.Faction != null && user.Faction.Id == faction.Id)
+                    return;
+                if (!hostilePlayers.Contains(user.Player.net.ID.Value))
+                {
+                    hostilePlayers.Add(user.Player.net.ID.Value);
+                }
+                if (user.Faction != null)
+                {
+                    SetFactionHostile(user.Faction);
+                }
+                SetKnown(user.Player);
+            }
+
+            public void SetFactionHostile(Faction faction)
+            {
+                if (faction == null)
+                    return;
+                if (faction == this.faction)
+                    return;
+                if (!hostileFactions.Contains(faction.Id))
+                {
+                    hostileFactions.Add(faction.Id);
+                }
+            }
+
+            public bool? ShouldAttackOnSight(BasePlayer player)
+            {
+                Recruit recruit;
+                Instance.recruitInstances.TryGetValue(player, out recruit);
+                ulong? id = player.net?.ID.Value;
+                Faction faction = null;
+
+                if (recruit == null && Instance.IsNpcSpawn(player))
+                    return true;
+
+                if (recruit)
+                {
+                    if (recruit.faction != null)
+                    {
+                        faction = recruit.faction;
+                    }
+                    return IsEnemy(id, faction);
+                }
+
+                User user = Instance.Users.Get(player);
+                if (user)
+                {
+                    if (user.Faction != null)
+                    {
+                        faction = user.Faction;
+                    }
+                    return IsEnemy(id, faction);
+                }
+
+                return null;
+            }
+
+            private bool IsEnemy(ulong? id, Faction faction)
+            {
+                bool hostile = false;
+                if (this.faction != null && faction != null)
+                {
+                    hostile = Instance.Wars.AreFactionsAtWar(this.faction, faction);
+                    if (hostile) return true;
+                }
+                if (faction != null)
+                {
+                    hostile = hostileFactions.Contains(faction.Id);
+                    if (hostile) return true;
+                }
+
+                hostile = hostilePlayers.Contains(id);
+                return hostile;
+
+            }
+
+            private void CheckForgetAggressors()
+            {
+                if (hostileFactions.Count == 0 && hostilePlayers.Count == 0)
+                    return;
+                if (faction == null)
+                {
+                    ForgetAggressors();
+                    return;
+                }
+                Area recruitLocation = Instance.Areas.GetByEntityPosition(npc);
+                bool isDangerZone = true;
+                bool leaderInDanger = false;
+                if (recruitLocation != null && !recruitLocation.IsHostile && !recruitLocation.IsWarZone)
+                    isDangerZone = false;
+                if (leader != null)
+                    leaderInDanger = Pvp.IsUserInDanger(leader);
+                if (!leaderInDanger && !isDangerZone)
+                {
+                    ForgetAggressors();
+                    return;
+                }
+            }
+
+            private void ForgetAggressors()
+            {
+                hostileFactions.Clear();
+                hostilePlayers.Clear();
+            }
+        }
+
+
+    }
+}
+#endregion
+
+#region RecruitManager.cs
+﻿namespace Oxide.Plugins
+{
+    using System.Collections.Generic;
+    using System;
+    using System.Linq;
+    using UnityEngine;
+    using WebSocketSharp;
+    using Newtonsoft.Json;
+    using Oxide.Core;
+    using Facepunch.Extend;
+    using Newtonsoft.Json.Linq;
+    using VLB;
+
+    public partial class Imperium
+    {
+        private List<Recruit> recruitInstancesList = new();
+        private Dictionary<ulong?, Recruit> recruitInstancesIds = new();
+        private Dictionary<BasePlayer, Recruit> recruitInstances = new();
+
+        private void RegisterRecruitInstance(BasePlayer player, Recruit recruit)
+        {
+            if (recruitInstancesIds.ContainsKey(player.net?.ID.Value))
+                return;
+            recruitInstancesList.Add(recruit);
+            recruitInstancesIds.Add(player.net?.ID.Value, recruit);
+            recruitInstances.Add(player, recruit);
+        }
+
+        private void UnregisterRecruitInstance(BasePlayer recruitBasePlayer)
+        {
+            if (recruitBasePlayer == null)
+                return;
+            if (!recruitInstancesIds.ContainsKey(recruitBasePlayer.net?.ID.Value))
+                return;
+            Recruit recruit = recruitInstances[recruitBasePlayer];
+            recruitInstancesList.Remove(recruit);
+            recruitInstancesIds.Remove(recruitBasePlayer.net?.ID.Value);
+            recruitInstances.Remove(recruitBasePlayer);
+        }
+
+        private void ClearRecruitRegister()
+        {
+            recruitInstancesList.Clear();
+            recruitInstancesIds.Clear();
+            recruitInstances.Clear();
+        }
+
+        internal class NpcBelt
+        {
+            public string ShortName { get; set; }
+            public int Amount { get; set; }
+            public ulong SkinID { get; set; }
+            public HashSet<string> Mods { get; set; }
+            public string Ammo { get; set; }
+        }
+
+        internal class NpcWear
+        {
+            public string ShortName { get; set; }
+            public ulong SkinID { get; set; }
+        }
+
+        internal class NpcConfig
+        {
+            public string Name { get; set; }
+            public HashSet<NpcWear> WearItems { get; set; }
+            public HashSet<NpcBelt> BeltItems { get; set; }
+            public string Kit { get; set; }
+            public float Health { get; set; }
+            public float RoamRange { get; set; }
+            public float ChaseRange { get; set; }
+            public float SenseRange { get; set; }
+            public float ListenRange { get; set; }
+            public float AttackRangeMultiplier { get; set; }
+            public bool CheckVisionCone { get; set; }
+            public float VisionCone { get; set; }
+            public bool HostileTargetsOnly { get; set; }
+            public float DamageScale { get; set; }
+            public float TurretDamageScale { get; set; }
+            public float AimConeScale { get; set; }
+            public bool DisableRadio { get; set; }
+            public bool CanRunAwayWater { get; set; }
+            public bool CanSleep { get; set; }
+            public float SleepDistance { get; set; }
+            public float Speed { get; set; }
+            public int AreaMask { get; set; }
+            public int AgentTypeID { get; set; }
+            public string HomePosition { get; set; }
+            public float MemoryDuration { get; set; }
+            public HashSet<string> States { get; set; }
+
+            public NpcConfig()
+            {
+                Health = 100f;
+                RoamRange = 10f;
+                ChaseRange = 150f;
+                SenseRange = 80f;
+                ListenRange = 20f;
+                AttackRangeMultiplier = 1f;
+                CheckVisionCone = true;
+                VisionCone = 90f;
+                HostileTargetsOnly = false;
+                DamageScale = 0.5f;
+                TurretDamageScale = 1f;
+                AimConeScale = 1f;
+                DisableRadio = true;
+                CanRunAwayWater = true;
+                CanSleep = false;
+                SleepDistance = 150f;
+                Speed = 5f;
+                AreaMask = 1;
+                AgentTypeID = -1372625422;
+                HomePosition = "0,0,0";
+                MemoryDuration = 600f;
+                States = new HashSet<string>()
+                {
+                    "RoamState", "ChaseState", "CombatState"
+                };
+
+            }
+        }
+
+        private HashSet<NpcBelt> GetNpcBelt(Area area)
+        {
+            HashSet<NpcBelt> result = new();
+            Locker locker = area.ArmoryLocker;
+            if (locker == null)
+                return result;
+
+            Locker.RowType rowType;
+            for (int i = 0; i < 14; i++)
+            {
+                Item item = locker.inventory.GetSlot(i);
+                if (item == null)
+                    continue;
+                rowType = locker.GetRowType(i);
+                if (rowType == Locker.RowType.Belt)
+                {
+                    NpcBelt belt = new();
+                    belt.ShortName = item.info.shortname;
+                    belt.SkinID = item.skin;
+                    belt.Amount = item.amount;
+                    belt.Mods = new();
+                    if (item.GetHeldEntity() is BaseProjectile projectile && projectile?.primaryMagazine != null && projectile.primaryMagazine.ammoType != null)
+                        belt.Ammo = projectile.primaryMagazine.ammoType.shortname;
+
+                    if (item?.contents?.itemList != null)
+                    {
+                        foreach (Item itemContent in item.contents.itemList)
+                            belt.Mods.Add(itemContent.info.shortname);
+                    }
+                    result.Add(belt);
+
+                }
+            }
+            return result;
+        }
+
+        private HashSet<NpcWear> GetNpcWear(Area area)
+        {
+            HashSet<NpcWear> result = new();
+            Locker locker = area.ArmoryLocker;
+            List<ItemModWearable> wearables = new();
+
+            if (locker == null)
+                return result;
+
+            Locker.RowType rowType;
+            for (int i = 0; i < 14; i++)
+            {
+                Item item = locker.inventory.GetSlot(i);
+                if (item == null)
+                    continue;
+                rowType = locker.GetRowType(i);
+                if (rowType == Locker.RowType.Belt)
+                    continue;
+
+                ItemModWearable wearable = item.info.ItemModWearable;
+
+                if (wearable == null)
+                    continue;
+
+                if (WearableConflictsWithOthers(wearable, wearables))
+                    continue;
+
+                wearables.Add(wearable);
+
+                result.Add(new NpcWear()
+                {
+                    ShortName = item.info.shortname,
+                    SkinID = item.skin
+                }
+
+                );
+            }
+            return result;
+        }
+
+        private bool WearableConflictsWithOthers(ItemModWearable wearable, List<ItemModWearable> others)
+        {
+            foreach (ItemModWearable other in others)
+            {
+                if (!wearable.CanExistWith(other))
+                    return true;
+            }
+            return false;
+        }
+
+        private NpcConfig GetAreaNpcConfig(Area area)
+        {
+            NpcConfig result = new NpcConfig();
+
+            if (area.FactionId.IsNullOrEmpty())
+            {
+                result.Name = "Rogue Recruit " + area.Id;
+            }
+            else
+            {
+                result.Name = "[" + area.FactionId + "] Recruit " + area.Id;
+            }
+            if (area.RecruitSleepingBag)
+                result.HomePosition = StringFromVector3(area.RecruitSleepingBag.transform.position);
+            else
+                result.HomePosition = "0,0,0";
+            result.WearItems = GetNpcWear(area);
+            result.BeltItems = GetNpcBelt(area);
+
+            return result;
+        }
+
+        private JObject GetNpcConfigAsJson(NpcConfig config)
+        {
+            return JObject.FromObject(config);
+        }
+
+        private bool SpawnRecruit(Area area, Vector3 position, NpcConfig config, bool removeOldInstance = true, bool rogue = false)
+        {
+            config.HomePosition = StringFromVector3(position);
+            JObject configAsJson = GetNpcConfigAsJson(config);
+            object callResult = Interface.CallHook("SpawnNpc", position, configAsJson);
+            BasePlayer npc = (BasePlayer)callResult;
+            npc.faction = BaseCombatEntity.Faction.Horror;
+            if (npc == null)
+                return false;
+
+            if (rogue)
+            {
+                npc.displayName = "[ROGUE]";
+                return true;
+            }
+
+
+            Recruit recruit = npc.gameObject.AddComponent<Recruit>();
+
+            recruit.faction = Factions.Get(area.FactionId);
+            recruit.area = area;
+            recruit.brain = npc.gameObject.GetComponent<ScientistBrain>();
+
+            if (area.recruitInstance != null && removeOldInstance)
+            {
+                area.recruitInfo = null;
+                area.recruitInstance.AdminKill();
+            }
+            area.recruitInstance = npc;
+
+            area.recruitInfo = recruit;
+            RegisterRecruitInstance(npc, recruit);
+            return true;
+        }
+
+
+
+        public bool IsRecruit(BasePlayer basePlayer)
+        {
+            return recruitInstances.ContainsKey(basePlayer);
+        }
+
+        public bool IsRecruit(ulong? id)
+        {
+            if (id == null)
+                return false;
+            return recruitInstancesIds.ContainsKey(id);
+        }
+
+        public bool IsNpcSpawn(BaseEntity entity)
+        {
+            return entity != null && entity.skinID == 11162132011012;
+        }
+
+        private Vector3 Vector3FromString(string posString)
+        {
+            return posString.ToVector3();
+        }
+
+        private string StringFromVector3(Vector3 vector)
+        {
+            return vector.x + "," + vector.y + "," + vector.z;
+        }
+
+        private object CanNpcSpawnTargetBasePlayer(BasePlayer npcSpawn, BasePlayer player)
+        {
+            bool attackerIsRecruit = IsRecruit(npcSpawn);
+            bool defenderIsRecruit = IsRecruit(player);
+            User user = Users.Get(player);
+            bool defenderIsUser = user != null;
+
+            if (!attackerIsRecruit && defenderIsUser)
+                return true;
+
+            if (!attackerIsRecruit && defenderIsRecruit)
+                return true;
+
+            if (attackerIsRecruit)
+            {
+                Recruit recruit = null;
+                recruitInstances.TryGetValue(npcSpawn, out recruit);
+                return recruit.ShouldAttackOnSight(player);
+            }
+            return null;
+        }
+
+        private void OnPlayerInput(BasePlayer player, InputState input)
+        {
+            if (!Instance.Options.Recruiting.Enabled)
+                return;
+            if (!input.WasJustPressed(BUTTON.USE))
+                return;
+            User user = Users.Get(player);
+            if (user == null)
+                return;
+            Faction faction = Factions.GetByMember(user);
+            if (faction == null)
+                return;
+            if (!faction.HasLeader(user))
+                return;
+            OnTryRecruitFollow(user);
+
+        }
+    }
+}
+#endregion
+
+#region UserPanel.Commands.cs
+﻿namespace Oxide.Plugins
+{
+    using System;
+    using System.Collections.Generic;
+    using System.Linq;
+    using System.Text;
+    using System.Threading.Tasks;
+    public partial class Imperium
+    {
+        [ConsoleCommand("imperium.panel.close")]
+        private void ccmdImperiumPanelClose(ConsoleSystem.Arg arg)
+        {
+            BasePlayer player = arg.Connection.player as BasePlayer;
+            if (player == null)
+                return;
+            User user = player.GetComponent<User>();
+            if (user == null)
+                return;
+            user.Panel.Close();
+        }
+    }
+}
+
 namespace Oxide.Plugins
+{
+    public partial class Imperium
+    {
+        [ConsoleCommand("imperium.panel.opentab")]
+        private void ccmdImperiumPanelOpenTab(ConsoleSystem.Arg arg)
+        {
+            BasePlayer player = arg.Connection.player as BasePlayer;
+            if (player == null)
+                return;
+            User user = player.GetComponent<User>();
+            if (user == null)
+                return;
+            user.Panel.OpenCategory(arg.Args[0]);
+        }
+    }
+}
+
+namespace Oxide.Plugins
+{
+    public partial class Imperium
+    {
+        [ConsoleCommand("imperium.panel.opencmd")]
+        private void ccmdImperiumPanelOpenCmd(ConsoleSystem.Arg arg)
+        {
+            BasePlayer player = arg.Connection.player as BasePlayer;
+            if (player == null)
+                return;
+            User user = player.GetComponent<User>();
+            if (user == null)
+                return;
+            user.Panel.OpenCommand(arg.Args[0]);
+        }
+    }
+}
+
+namespace Oxide.Plugins
+{
+    using System;
+    using System.Text.RegularExpressions;
+    public partial class Imperium
+    {
+        [ConsoleCommand("imperium.panel.run")]
+        private void ccmdImperiumPanelRun(ConsoleSystem.Arg arg)
+        {
+            BasePlayer player = arg.Connection.player as BasePlayer;
+            if (player == null)
+                return;
+            User user = player.GetComponent<User>();
+            if (user == null)
+                return;
+            string chatCommand = user.Panel.GetFullConsoleCommand();
+            Regex.Replace(chatCommand, @"[\""]", "\\\"", RegexOptions.None);
+            player.SendConsoleCommand("chat.say " + chatCommand);
+            if (Convert.ToBoolean(arg.Args[0]))
+            {
+                user.Panel.Close();
+            }
+            else
+            {
+                user.Panel.ClearCurrentCommand();
+                user.Panel.Refresh();
+            }
+
+        }
+    }
+}
+namespace Oxide.Plugins
+{
+    using System;
+    public partial class Imperium
+    {
+        [ConsoleCommand("imperium.panel.setarg")]
+        private void ccmdImperiumPanelSetArg(ConsoleSystem.Arg arg)
+        {
+            BasePlayer player = arg.Connection.player as BasePlayer;
+            if (!player)
+                return;
+            User user = player.GetComponent<User>();
+            if (!user)
+                return;
+            if (arg.Args.Length < 3)
+                return;
+            string fullArg = "";
+            for (int i = 2; i < arg.Args.Length; i++)
+            {
+                fullArg = fullArg + arg.Args[i];
+                if (i != arg.Args.Length - 1)
+                    fullArg = fullArg + " ";
+            }
+            user.Panel.SetArg(Convert.ToInt32(arg.Args[0]), fullArg, Convert.ToBoolean(arg.Args[1]));
+        }
+    }
+}
+
+#endregion
+
+#region UserPanel.cs
+﻿namespace Oxide.Plugins
+{
+    using Oxide.Game.Rust.Cui;
+    using System.Collections.Generic;
+    using System;
+    using System.Linq;
+    using UnityEngine;
+
+    public partial class Imperium
+    {
+        private class UserPanel
+        {
+            public static List<UIChatCommandDef> UiCommands = new List<UIChatCommandDef>();
+            public static void InitializeUserPanelCommandDefs()
+            {
+                UiCommands =
+                new List<UIChatCommandDef>()
+                {
+                    //FACTION__________________________________________________________________________________
+                    //faction create
+                    new UIChatCommandDef()
+                    {
+                        category = "faction",
+                        displayName = "CREATE",
+                        shortDescription = "Create a new faction with the given name (Max 8 name length)",
+                        command = "faction create",
+                        auth = UIChatCommandDef.FactionAuth.NotFactionMember,
+                        authExclusive = true,
+                        args =
+                        {
+                            new UIChatCommandArg()
+                            {
+                                label = "Faction Name",
+                                description = "The name of your new faction",
+                                isSubstring = false,
+                            }
+                        }
+                    },
+                    //faction join
+                    new UIChatCommandDef()
+                    {
+                        category = "faction",
+                        displayName = "JOIN",
+                        shortDescription = "Accept a faction invite, as long as you have been invited",
+                        command = "faction join",
+                        auth = UIChatCommandDef.FactionAuth.NotFactionMember,
+                        authExclusive = true,
+                        args =
+                        {
+                            new UIChatCommandArg()
+                            {
+                                label = "Faction Name",
+                                description = "The name of the faction you want to join",
+                                isSubstring = false,
+                            }
+                        }
+                    },
+                    //faction show
+                    new UIChatCommandDef()
+                    {
+                        category = "faction",
+                        displayName = "INFO",
+                        shortDescription = "Show information about your faction in the chat",
+                        command = "faction",
+                        auth = UIChatCommandDef.FactionAuth.Member,
+                        authExclusive = false
+                    },
+
+                    //faction invite
+                    new UIChatCommandDef()
+                    {
+                        category = "faction",
+                        displayName = "INVITE MEMBER",
+                        shortDescription = "Invite a player to your faction. \nThe player must then accept with FACTION JOIN",
+                        command = "faction invite",
+                        auth = UIChatCommandDef.FactionAuth.Leader,
+                        authExclusive = true,
+                        args =
+                        {
+                            new UIChatCommandArg()
+                            {
+                                label = "Player name",
+                                description = "The player to invite to your faction",
+                                isSubstring = true,
+                            }
+                        }
+                    },
+                    //faction promote
+                    new UIChatCommandDef()
+                    {
+                        category = "faction",
+                        displayName = "PROMOTE MEMBER",
+                        shortDescription = "Promote a member to manager role",
+                        command = "faction promote",
+                        auth = UIChatCommandDef.FactionAuth.Leader,
+                        authExclusive = true,
+                        args =
+                        {
+                            new UIChatCommandArg()
+                            {
+                                label = "Player name",
+                                description = "The player to promote to manager role",
+                                isSubstring = true,
+                            }
+                        }
+                    },
+                    //faction demote
+                    new UIChatCommandDef()
+                    {
+                        category = "faction",
+                        displayName = "DEMOTE MEMBER",
+                        shortDescription = "Demote a manager to member role",
+                        command = "faction demote",
+                        auth = UIChatCommandDef.FactionAuth.Leader,
+                        authExclusive = true,
+                        args =
+                        {
+                            new UIChatCommandArg()
+                            {
+                                label = "Player name",
+                                description = "The player to demote to member role",
+                                isSubstring = true,
+                            }
+                        }
+                    },
+                    //faction kick
+                    new UIChatCommandDef()
+                    {
+                        category = "faction",
+                        displayName = "KICK MEMBER",
+                        shortDescription = "Kick a player from your faction",
+                        command = "faction kick",
+                        auth = UIChatCommandDef.FactionAuth.Leader,
+                        authExclusive = true,
+                        args =
+                        {
+                            new UIChatCommandArg()
+                            {
+                                label = "Player name",
+                                description = "The player to kick from your faction",
+                                isSubstring = true,
+                            }
+                        }
+                    },
+
+                    //faction badlands confirm
+                    new UIChatCommandDef()
+                    {
+                        category = "faction",
+                        displayName = "TOGGLE BADLANDS",
+                        shortDescription = "Allows/Deny PVP in all of your faction's lands.",
+                        command = "faction badlands confirm",
+                        auth = UIChatCommandDef.FactionAuth.Leader,
+                        authExclusive = true
+                    },
+                    //faction leave
+                    new UIChatCommandDef()
+                    {
+                        category = "faction",
+                        displayName = "LEAVE",
+                        shortDescription = "Leave your current faction",
+                        command = "faction leave",
+                        auth = UIChatCommandDef.FactionAuth.Member,
+                        authExclusive = false
+                    },
+
+                    //faction disband forever
+                    new UIChatCommandDef()
+                    {
+                        category = "faction",
+                        displayName = "DISBAND",
+                        shortDescription = "Disband your entire faction. \nThis action cannot be undone",
+                        command = "faction disband forever",
+                        auth = UIChatCommandDef.FactionAuth.Leader,
+                        authExclusive = true
+                    },
+
+                    //CLAIM__________________________________________________________________________________
+                    //claim add
+                    new UIChatCommandDef()
+                    {
+                        category = "claim",
+                        displayName = "CLAIM LAND",
+                        shortDescription = "Starts claim interaction. \nHit a tool cupboard with a hammer to complete the interaction",
+                        command = "claim add",
+                        auth = UIChatCommandDef.FactionAuth.Leader,
+                        authExclusive = true,
+                        closesUI = true
+                    },
+                    //claim remove
+                    new UIChatCommandDef()
+                    {
+                        category = "claim",
+                        displayName = "UNCLAIM LAND",
+                        shortDescription = "Starts unclaim interaction. \nHit a tool cupboard with a hammer to complete the interaction",
+                        command = "claim remove",
+                        auth = UIChatCommandDef.FactionAuth.Leader,
+                        authExclusive = true,
+                        closesUI = true
+                    },
+                    //claim hq
+                    new UIChatCommandDef()
+                    {
+                        category = "claim",
+                        displayName = "SET HEADQUARTERS",
+                        shortDescription = "Starts set headquarters interaction. \nHit a tool cupboard with a hammer to complete the interaction",
+                        command = "claim hq",
+                        auth = UIChatCommandDef.FactionAuth.Leader,
+                        authExclusive = true,
+                        closesUI = true
+                    },
+                    
+                    //claim give
+                    new UIChatCommandDef()
+                    {
+                        category = "claim",
+                        displayName = "GIVE LAND",
+                        shortDescription = "Gives the selected land to a target faction. \nHit a tool cupboard with a hammer to complete the interaction",
+                        command = "claim give",
+                        auth = UIChatCommandDef.FactionAuth.Leader,
+                        authExclusive = true,
+                        args =
+                        {
+                            new UIChatCommandArg()
+                            {
+                                label = "Faction Name",
+                                description = "The faction to receive the land",
+                                isSubstring = false,
+                            }
+                        },
+                        closesUI = true
+                    },
+                    //claim rename
+                    new UIChatCommandDef()
+                    {
+                        category = "claim",
+                        displayName = "RENAME LAND",
+                        shortDescription = "Rename the target land with the specified name",
+                        command = "claim rename",
+                        auth = UIChatCommandDef.FactionAuth.Leader,
+                        authExclusive = true,
+                        args =
+                        {
+                            new UIChatCommandArg()
+                            {
+                                label = "Land coordinates [XY]",
+                                description = "The land to rename (Example usage: C6)",
+                                isSubstring = false,
+                            },
+                            new UIChatCommandArg()
+                            {
+                                label = "Name",
+                                description = "The new name for the land",
+                                isSubstring = true,
+                            },
+                        }
+                    },
+                    //claim cost
+                    new UIChatCommandDef()
+                    {
+                        category = "claim",
+                        displayName = "CHECK CLAIM COST",
+                        shortDescription = "Shows the scrap claim cost for a given land in the chat",
+                        command = "claim cost",
+                        auth = UIChatCommandDef.FactionAuth.Leader,
+                        authExclusive = true,
+                        args =
+                        {
+                            new UIChatCommandArg()
+                            {
+                                label = "Land coordinates [XY]",
+                                description = "The land to check the claim cost (Example usage: C6)",
+                                isSubstring = false,
+                            }
+                        }
+                    },
+                    //claim list
+                    new UIChatCommandDef()
+                    {
+                        category = "claim",
+                        displayName = "CLAIM LIST",
+                        shortDescription = "Shows a list of areas claimed by a faction",
+                        command = "claim list",
+                        auth = UIChatCommandDef.FactionAuth.Member,
+                        authExclusive = false,
+                        args =
+                        {
+                            new UIChatCommandArg()
+                            {
+                                label = "Faction Name",
+                                description = "Target faction to check for claimed areas",
+                                isSubstring = false,
+                            }
+                        }
+                    },
+                    //claim upkeep
+                    new UIChatCommandDef()
+                    {
+                        category = "claim",
+                        displayName = "CHECK LAND UPKEEP",
+                        shortDescription = "Show current land upkeep status",
+                        command = "claim upkeep",
+                        auth = UIChatCommandDef.FactionAuth.Member,
+                        authExclusive = false
+                    },
+
+                    //claim assign
+                    new UIChatCommandDef()
+                    {
+                        category = "claim",
+                        displayName = "CLAIM ASSIGN (ADMIN)",
+                        shortDescription = "Assigns a land to a target faction. \nHit a tool cupboard with a hammer to complete the interaction",
+                        command = "claim assign",
+                        auth = UIChatCommandDef.FactionAuth.ServerAdmin,
+                        authExclusive = true,
+                        closesUI = true,
+                        args =
+                        {
+                            new UIChatCommandArg()
+                            {
+                                label = "Faction Name",
+                                description = "Target faction to assign the land to",
+                                isSubstring = false,
+                            }
+                        }
+                    },
+
+                    //claim delete
+                    new UIChatCommandDef()
+                    {
+                        category = "claim",
+                        displayName = "CLAIM DELETE (ADMIN)",
+                        shortDescription = "Deletes an existing land claim",
+                        command = "claim delete",
+                        auth = UIChatCommandDef.FactionAuth.ServerAdmin,
+                        authExclusive = true,
+                        args =
+                        {
+                            new UIChatCommandArg()
+                            {
+                                label = "Land coordinates [XY]",
+                                description = "The land to remove the current claim. (Example usage: C6)",
+                                isSubstring = false,
+                            }
+                        }
+                    },
+
+
+                    //TAX__________________________________________________________________________________
+                    //tax chest
+                    new UIChatCommandDef()
+                    {
+                        category = "tax",
+                        displayName = "SELECT TAX CHEST",
+                        shortDescription = "Select a tax chest for your faction. \nHit a chest with a hammer to complete the interaction",
+                        command = "tax chest",
+                        auth = UIChatCommandDef.FactionAuth.Leader,
+                        authExclusive = true,
+                        closesUI = true
+                    },
+
+                    //tax rate XX
+                    new UIChatCommandDef()
+                    {
+                        category = "tax",
+                        displayName = "SET TAX PERCENTAGE",
+                        shortDescription = "Select your faction's tax percentage. \nThis percentage will be taken from any resources gathered \nand automatically appear in your faction's Tax Chest",
+                        command = "tax rate",
+                        auth = UIChatCommandDef.FactionAuth.Leader,
+                        authExclusive = true,
+                        args =
+                        {
+                            new UIChatCommandArg()
+                            {
+                                label = "Tax Percentage [XX]",
+                                description = "The farming percentage to charge in your land (Example usage: 10)",
+                                isSubstring = false,
+                            }
+                        }
+                    },
+
+                    //WAR
+                    //war status
+                    new UIChatCommandDef()
+                    {
+                        category = "war",
+                        displayName = "WAR STATUS",
+                        shortDescription = "Shows in the chat all wars your faction is involved",
+                        command = "war status",
+                        auth = UIChatCommandDef.FactionAuth.Member,
+                        authExclusive = false
+                    },
+                    //war declare
+                    new UIChatCommandDef()
+                    {
+                        category = "war",
+                        displayName = "DECLARE WAR",
+                        shortDescription = "Declare war against an enemy faction \nwith a given reason.\nCost to declare war is " +
+                            Instance.Options.War.DeclarationCost + " scrap",
+                        command = "war declare",
+                        auth = UIChatCommandDef.FactionAuth.Leader,
+                        authExclusive = true,
+                        args =
+                        {
+                            new UIChatCommandArg()
+                            {
+                                label = "Target Faction",
+                                description = "The enemy faction's name to declare war against",
+                                isSubstring = false,
+                            },
+                            new UIChatCommandArg()
+                            {
+                                label = "Reason",
+                                description = "The reason behind the war declaration",
+                                isSubstring = true,
+                            }
+                        }
+                    },
+
+                    //war end
+                    new UIChatCommandDef()
+                    {
+                        category = "war",
+                        displayName = "END WAR",
+                        shortDescription = "Ask for peace or accept a peace offer from an enemy faction.\nFaction leaders can also end war by trading in a shopfront",
+                        command = "war end",
+                        auth = UIChatCommandDef.FactionAuth.Leader,
+                        authExclusive = true,
+                        args =
+                        {
+                            new UIChatCommandArg()
+                            {
+                                label = "Enemy Faction",
+                                description = "The enemy faction's name to end war",
+                                isSubstring = false,
+                            }
+                        }
+                    },
+
+                    //war pending
+                    new UIChatCommandDef()
+                    {
+                        category = "war",
+                        displayName = "LIST PENDING WAR REQUESTS",
+                        shortDescription = "Check for pending war requests against your faction that can be approved or denied",
+                        command = "war pending",
+                        auth = UIChatCommandDef.FactionAuth.Leader,
+                        authExclusive = true
+                    },
+
+                    //war approve
+                    new UIChatCommandDef()
+                    {
+                        category = "war",
+                        displayName = "APPROVE PENDING WAR REQUEST",
+                        shortDescription = "Approve a war request from an enemy faction. \nThis will officialy start war between your factions",
+                        command = "war approve",
+                        auth = UIChatCommandDef.FactionAuth.Leader,
+                        authExclusive = true,
+                        args =
+                        {
+                            new UIChatCommandArg()
+                            {
+                                label = "Enemy Faction",
+                                description = "The enemy faction's name to approve a pending war request",
+                                isSubstring = false,
+                            }
+                        }
+                    },
+
+                    //war deny
+                    new UIChatCommandDef()
+                    {
+                        category = "war",
+                        displayName = "DENY PENDING WAR REQUEST",
+                        shortDescription = "Deny pending war request against your faction. \nThis will cancel the war request",
+                        command = "war deny",
+                        auth = UIChatCommandDef.FactionAuth.Leader,
+                        authExclusive = true,
+                        args =
+                        {
+                            new UIChatCommandArg()
+                            {
+                                label = "Enemy Faction",
+                                description = "The enemy faction's name to deny a pending war request",
+                                isSubstring = false,
+                            }
+                        }
+                    },
+
+                    //war admin pending
+                    new UIChatCommandDef()
+                    {
+                        category = "war",
+                        displayName = "LIST PENDING WAR REQUESTS (ADMIN)",
+                        shortDescription = "List all pending war requests waiting for admin approval",
+                        command = "war admin pending",
+                        auth = UIChatCommandDef.FactionAuth.ServerAdmin,
+                        authExclusive = true
+                    },
+
+                    //war approve
+                    new UIChatCommandDef()
+                    {
+                        category = "war",
+                        displayName = "APPROVE PENDING WAR REQUEST (ADMIN)",
+                        shortDescription = "Approve a war request waiting for admin approval. \nThis will officialy start the war between the two factions",
+                        command = "war admin approve",
+                        auth = UIChatCommandDef.FactionAuth.ServerAdmin,
+                        authExclusive = true,
+                        args =
+                        {
+                            new UIChatCommandArg()
+                            {
+                                label = "Faction 1",
+                                description = "The first faction involved in the war declaration",
+                                isSubstring = false,
+                            },
+                            new UIChatCommandArg()
+                            {
+                                label = "Faction 2",
+                                description = "The second faction involved in the war declaration",
+                                isSubstring = false,
+                            }
+                        }
+                    },
+
+                    //war deny
+                    new UIChatCommandDef()
+                    {
+                        category = "war",
+                        displayName = "DENY PENDING WAR REQUEST (ADMIN)",
+                        shortDescription = "Deny a war request waiting for admin approval. \nThis will cancel the war request from the attackers",
+                        command = "war admin deny",
+                        auth = UIChatCommandDef.FactionAuth.ServerAdmin,
+                        authExclusive = true,
+                        args =
+                        {
+                            new UIChatCommandArg()
+                            {
+                                label = "Faction 1",
+                                description = "The first faction involved in the war declaration",
+                                isSubstring = false,
+                            },
+                            new UIChatCommandArg()
+                            {
+                                label = "Faction 2",
+                                description = "The second faction involved in the war declaration",
+                                isSubstring = false,
+                            }
+                        }
+                    },
+
+                    //recruit armory
+                    new UIChatCommandDef()
+                    {
+                        category = "recruits",
+                        displayName = "SET RECRUITING ARMORY LOCKER",
+                        shortDescription = "Set a locker to allow recruiting bots in a given land.",
+                        command = "recruit armory",
+                        auth = UIChatCommandDef.FactionAuth.Leader,
+                        authExclusive = true,
+                        closesUI = true,
+                        args =
+                        {}
+                    },
+
+                    new UIChatCommandDef()
+                    {
+                        category = "recruits",
+                        displayName = "SET RECRUITING SPAWN POINT",
+                        shortDescription = "Set a sleeping bag to allow recruits to spawn.\nThe recruit armory land can be different than the sleeping bag's land,\nas long as your faction owns both lands.",
+                        command = "recruit setspawn",
+                        auth = UIChatCommandDef.FactionAuth.Leader,
+                        authExclusive = true,
+                        closesUI = true,
+                        args =
+                        {
+                            new UIChatCommandArg()
+                            {
+                                label = "Land coordinates [XY]",
+                                description = "The land with an armory already set up.",
+                                isSubstring = false,
+                            },
+                        }
+                    },
+                };
+
+            }
+
+            public User User { get; }
+            public bool IsDisabled = true;
+            public string currentCategory = "";
+            public UIChatCommandDef selectedCommand;
+            public string currentCommand = "";
+            public Dictionary<int, string> indexedArgs = new Dictionary<int, string>();
+            public int currentRequiredArgs = 0;
+
+            public const float SPACING = 0.015f;
+
+
+            public class UIChatCommandDef
+            {
+                public string displayName;
+                public string shortDescription;
+                public string category;
+                public string command;
+                public string uid;
+                public List<UIChatCommandArg> args = new List<UIChatCommandArg>();
+                public FactionAuth auth = FactionAuth.NotFactionMember;
+                public bool authExclusive = true;
+                public bool closesUI = false;
+
+                public UIChatCommandDef()
+                {
+                    uid = Guid.NewGuid().ToString();
+                }
+
+
+                public enum FactionAuth
+                {
+                    NotFactionMember,
+                    Member,
+                    Manager,
+                    Leader,
+                    ServerAdmin
+                }
+            }
+
+            public class UIChatCommandArg
+            {
+                public string label;
+                public string description;
+                public bool isSubstring = false;
+            }
+
+            public UserPanel(User user)
+            {
+                User = user;
+            }
+
+            public void ClearCurrentCommand()
+            {
+                selectedCommand = null;
+                currentCommand = "";
+                indexedArgs.Clear();
+            }
+
+            public void OpenCategory(string category)
+            {
+                ClearCurrentCommand();
+                currentCategory = category;
+                Refresh();
+            }
+
+            public void OpenCommand(string uid)
+            {
+                ClearCurrentCommand();
+                currentCategory = null;
+                selectedCommand = UiCommands.Find(c => c.uid == uid);
+                Refresh();
+            }
+
+            private List<CuiElementContainer> Build()
+            {
+                List<CuiElementContainer> result = new List<CuiElementContainer>();
+
+                CuiElementContainer container = UI.Container(
+                    UI.Element.PanelWindow,
+                    UI.Color(UI.Colors.Secondary, 0.8f),
+                    new UI4(0.62f, 0.05f, 1f, 0.85f), true);
+
+                CuiElementContainer header = CreatePanelHeader(container);
+                CuiElementContainer sidebar = CreatePanelSidebar(container);
+                CuiElementContainer dialog = UI.Container(
+                    UI.Element.PanelDialog,
+                    UI.Color(UI.Colors.Highlight, 0f),
+                    new UI4(0.05f, 0.15f, 0.75f, 0.95f),
+                    false,
+                    UI.Element.PanelWindow);
+                if (selectedCommand != null)
+                {
+                    CreateSelectedCommandDialog(dialog);
+                }
+                else if (currentCategory != null && currentCategory != "")
+                {
+                    CreateSelectedCategoryButtons(dialog);
+                }
+                else
+                {
+                    CreateHomeDialog(dialog);
+                }
+
+
+                result = new List<CuiElementContainer>() { container, header, sidebar, dialog };
+                return result;
+            }
+
+            private CuiElementContainer CreatePanelHeader(CuiElementContainer container)
+            {
+                CuiElementContainer header = UI.Container(
+                    UI.Element.PanelHeader,
+                    UI.Color(UI.Colors.Primary, 1f),
+                    new UI4(0f, 0f, 1f, 0.1f),
+                    false,
+                    UI.Element.PanelWindow
+                );
+                UI.Label(
+                    header, 
+                    UI.Element.PanelHeader,
+                    "IMPERIUM",
+                    36,
+                    UI4.Full
+                );
+                UI.Button(
+                    header, 
+                    UI.Element.PanelHeader,
+                    UI.Color(UI.Colors.Secondary, 1f),
+                    "X",
+                    12,
+                    new UI4(0.93f, 0.3f, 0.97f, 0.7f),
+                    "imperium.panel.close"
+                );
+
+                return header;
+            }
+
+            private CuiElementContainer CreatePanelSidebar(CuiElementContainer container)
+            {
+                List<string> categories = new List<string>() { "faction", "claim", "tax", "war" };
+                CuiElementContainer sidebar = UI.Container(
+                    UI.Element.PanelSidebar,
+                    UI.Color(UI.Colors.Primary, 1f),
+                    new UI4(0.8f, 0.1f, 1f, 1f),
+                    false,
+                    UI.Element.PanelWindow
+                );
+                float sy = SPACING;
+                for (int i = 0; i < categories.Count; i++)
+                {
+                    UI.Button(
+                        sidebar, 
+                        UI.Element.PanelSidebar,
+                        UI.Color(UI.Colors.Primary, 1f),
+                        categories[i].ToUpper(),
+                        20,
+                        new UI4(0f, sy, 1f, sy + 0.1f),
+                        "imperium.panel.opentab " + categories[i].ToString()
+                    );
+                    sy += 0.1f + SPACING;
+                }
+                return sidebar;
+            }
+
+            private void CreateSelectedCommandDialog(CuiElementContainer container)
+            {
+                if (selectedCommand == null)
+                    return;
+                float sy = SPACING;
+
+                UI.Label(
+                    container, 
+                    UI.Element.PanelDialog,
+                    selectedCommand.displayName, 26,
+                    new UI4(0f, sy, 1f, sy + 0.1f),
+                    TextAnchor.MiddleLeft);
+                sy += SPACING + 0.1f;
+
+                UI.Label(
+                    container, 
+                    UI.Element.PanelDialog,
+                    selectedCommand.shortDescription, 12,
+                    new UI4(0f, sy, 1f, sy + 0.1f),
+                    TextAnchor.UpperLeft);
+                sy += SPACING + 0.1f;
+
+                if (selectedCommand.args.Count > 0)
+                {
+                    for (int i = 0; i < selectedCommand.args.Count; i++)
+                    {
+                        UIChatCommandArg arg = selectedCommand.args[i];
+                        UI.Label(
+                            container, 
+                            UI.Element.PanelDialog,
+                            arg.label, 18,
+                            new UI4(0f, sy, 1f, sy + 0.05f),
+                            TextAnchor.MiddleLeft);
+                        sy += SPACING + 0.05f;
+
+                        UI.Label(
+                            container, 
+                            UI.Element.PanelDialog,
+                            arg.description, 12,
+                            new UI4(0f, sy, 1f, sy + 0.05f),
+                            TextAnchor.MiddleLeft);
+                        sy += SPACING + 0.05f;
+
+                        UI.Input(
+                            container, 
+                            UI.Element.PanelDialog, 
+                            UI.Color(UI.Colors.Info, 0.75f),
+                            "", 16, "imperium.panel.setarg " + i + " " + arg.isSubstring.ToString().ToLower(),
+                            new UI4(0f, sy, 1f, sy + 0.05f)
+                            );
+                        sy += SPACING + 0.05f;
+                    }
+                }
+
+                UI.Button(
+                    container, 
+                    UI.Element.PanelDialog,
+                    UI.Color(UI.Colors.Success, 1f),
+                    "CONFIRM",
+                    16,
+                    new UI4(0.7f, 0.9f, 1f, 1f),
+                    "imperium.panel.run " + selectedCommand.closesUI.ToString().ToLower(),
+                    TextAnchor.MiddleCenter
+                    );
+            }
+
+            private void CreateSelectedCategoryButtons(CuiElementContainer container)
+            {
+                if (currentCategory == null || currentCategory == "")
+                    return;
+                float sy = SPACING;
+
+                string title = currentCategory.ToUpper();
+
+                if (currentCategory == "faction" && User.Faction != null)
+                {
+                    title = title + " [" + User.Faction.Id.ToUpper() + "]";
+                }
+
+                UI.Label(container, UI.Element.PanelDialog,
+                    title, 26,
+                    new UI4(0f, sy, 1f, 0.1f),
+                    TextAnchor.MiddleLeft);
+                sy += SPACING + 0.1f;
+
+                List<UIChatCommandDef> categoryCmds = UiCommands.FindAll(c => c.category == currentCategory);
+
+                if (categoryCmds.Count > 0)
+                {
+                    int buttonsAdded = 0;
+                    for (int i = 0; i < categoryCmds.Count; i++)
+                    {
+                        UIChatCommandDef cmd = categoryCmds[i];
+                        bool skip = false;
+                        if (cmd.authExclusive)
+                        {
+                            if (cmd.auth == UIChatCommandDef.FactionAuth.NotFactionMember && User.Faction != null)
+                                continue;
+                            if (cmd.auth == UIChatCommandDef.FactionAuth.Leader && User.Faction == null)
+                                continue;
+                            if (cmd.auth == UIChatCommandDef.FactionAuth.Leader && User.Faction != null && !User.Faction.HasLeader(User))
+                                continue;
+                            if (cmd.auth == UIChatCommandDef.FactionAuth.ServerAdmin && (User.Player.Connection.authLevel == 0))
+                                continue;
+                        }
+                        else
+                        {
+                            if (cmd.auth == UIChatCommandDef.FactionAuth.Leader && User.Faction != null && !User.Faction.HasLeader(User))
+                                continue;
+                            if (cmd.auth > UIChatCommandDef.FactionAuth.NotFactionMember && User.Faction == null)
+                                continue;
+                            if (cmd.auth == UIChatCommandDef.FactionAuth.ServerAdmin && (User.Player.Connection.authLevel == 0))
+                                continue;
+                        }
+                        string color = UI.Color(UI.Colors.Info, 1f);
+                        if (cmd.auth == UIChatCommandDef.FactionAuth.ServerAdmin)
+                            color = UI.Color(UI.Colors.Primary, 1f);
+                        if (!skip)
+                        {
+                            UI.Button(container, UI.Element.PanelDialog,
+                                color,
+                                cmd.displayName,
+                                14,
+                                new UI4(0f, sy, 1f, sy + 0.05f),
+                                "imperium.panel.opencmd " + cmd.uid,
+                                TextAnchor.MiddleCenter);
+                            sy += SPACING + 0.05f;
+                            buttonsAdded++;
+                        }
+
+                    }
+                    if (buttonsAdded == 0)
+                    {
+                        UI.Label(container, UI.Element.PanelDialog,
+                            UI.Color(UI.Colors.Disabled, 1f),
+                            "No options available yet.\n\nTry creating or joining a faction first", 18,
+                            new UI4(0f, sy, 1f, sy + 0.5f),
+                            TextAnchor.MiddleCenter);
+                        sy += SPACING + 0.1f;
+                    }
+                }
+            }
+
+            private void CreateHomeDialog(CuiElementContainer container)
+            {
+                float sy = SPACING;
+                string description = "At its heart, Imperium adds the idea of territory to Rust. \n\n" +
+                    "The game is divided into a grid of tiles matching those displayed on the in-game map. \n\n" +
+                    "Players can create factions, and these factions can claim these tiles of land and levy taxes on resources harvested therein. \n\n" +
+                    "Factions can declare war on one another and battle for control of the territory.";
+                string credits = "Original creator: ChuckleNugget\nImperium 2.0 developer: evict";
+                UI.Label(container, UI.Element.PanelDialog,
+                    UI.Color(UI.Colors.Disabled, 1f),
+                    "IMPERIUM", 26,
+                    new UI4(0f, sy, 1f, 0.1f),
+                    TextAnchor.MiddleCenter);
+                sy += SPACING + 0.12f;
+
+                UI.Label(container, UI.Element.PanelDialog,
+                    UI.Color(UI.Colors.Disabled, 1f),
+                    description, 18,
+                    new UI4(0f, sy, 1f, 0.9f),
+                    TextAnchor.UpperCenter);
+
+                UI.Label(container, UI.Element.PanelDialog,
+                    UI.Color(UI.Colors.Success, 1f),
+                    credits, 12,
+                    new UI4(0f, 0.90f, 1f, 1f),
+                    TextAnchor.LowerLeft);
+            }
+
+            public void Close()
+            {
+                ClearCurrentCommand();
+                Hide();
+            }
+
+            public void SetCommand(string command)
+            {
+                ClearCurrentCommand();
+                currentCommand = command;
+            }
+
+            public string GetFullConsoleCommand()
+            {
+                string s = "";
+                s = s + "\"/";
+                s = s + selectedCommand.command;
+                if (indexedArgs.Count > 0)
+                {
+                    for (int i = 0; i < indexedArgs.Count; i++)
+                    {
+                        s = s + " ";
+                        s = s + indexedArgs[i];
+                    }
+                }
+                s = s + "\"";
+                return s;
+            }
+            public void SetArg(int index, string arg, bool isSubstring = false)
+            {
+                if (!indexedArgs.ContainsKey(index))
+                {
+                    indexedArgs.Add(index, arg);
+                }
+                else
+                {
+                    indexedArgs[index] = arg;
+                }
+                if (isSubstring)
+                {
+                    indexedArgs[index] = "\\\"" + indexedArgs[index] + "\\\"";
+                }
+            }
+
+            public void RemoveArg(int index)
+            {
+                if (indexedArgs.ContainsKey(index))
+                {
+                    indexedArgs.Remove(index);
+                }
+            }
+
+            public bool HasArg(int index)
+            {
+                return indexedArgs.ContainsKey(index);
+            }
+
+            public void Show()
+            {
+                List<CuiElementContainer> containers = Build();
+                foreach (CuiElementContainer container in containers)
+                {
+                    CuiHelper.AddUi(User.Player, container);
+                }
+                IsDisabled = false;
+            }
+
+            public void Hide()
+            {
+                CuiHelper.DestroyUi(User.Player, UI.Element.PanelWindow);
+                CuiHelper.DestroyUi(User.Player, UI.Element.PanelHeader);
+                CuiHelper.DestroyUi(User.Player, UI.Element.PanelSidebar);
+                CuiHelper.DestroyUi(User.Player, UI.Element.PanelDialog);
+                IsDisabled = true;
+
+            }
+
+            public void Toggle()
+            {
+                if (IsDisabled)
+                {
+                    IsDisabled = false;
+                    Show();
+                }
+                else
+                {
+                    IsDisabled = true;
+                    Hide();
+                }
+            }
+
+            public void Refresh()
+            {
+                if (IsDisabled)
+                    return;
+
+                Hide();
+                Show();
+
+            }
+        }
+    }
+}
+#endregion
+
+#region User.cs
+﻿namespace Oxide.Plugins
+{
+    using System;
+    using System.Collections.Generic;
+    using System.Text;
+    using UnityEngine;
+    using System.Linq;
+    using Newtonsoft.Json.Linq;
+    using UnityEngine.Events;
+    using Oxide.Core;
+    using Facepunch.Utility;
+
+    public partial class Imperium
+    {
+        private class User : MonoBehaviour
+        {
+            private static Dictionary<uint, string> recruitGestures = new Dictionary<uint, string>()
+            {
+                { 1952501751, "follow" },
+                { 2137792714, "go" },
+                { 2376928657, "disband" }
+
+            };
+
+            private string OriginalName;
+            private Dictionary<string, DateTime> CommandCooldownExpirations;
+            public BasePlayer Player { get; private set; }
+            public UserMap Map { get; private set; }
+            public UserHud Hud { get; private set; }
+            public UserPanel Panel { get; set; }
+            public UserPreferences Preferences { get; set; }
+            public Area CurrentArea { get; set; }
+            public HashSet<Zone> CurrentZones { get; private set; }
+            public Faction Faction { get; private set; }
+            public Interaction CurrentInteraction { get; private set; }
+            public DateTime MapCommandCooldownExpiration { get; set; }
+            public DateTime PvpCommandCooldownExpiration { get; set; }
+            public bool IsInPvpMode { get; set; }
+            public bool IsInsideRaidableBase { get; set; }
+
+            public bool UpdatedMarkers = false;
+
+            public List<Recruit> recruits = new();
+
+            public DamageEvent onDamagedByUser;
+            public DamageEvent onDamagedUser;
+
+            public delegate void DamageEvent(User user);
+
+
+            public string Id
+            {
+                get { return Player.UserIDString; }
+            }
+
+            public string UserName
+            {
+                get { return OriginalName; }
+            }
+
+            public string UserNameWithFactionTag
+            {
+                get { return Player.displayName; }
+            }
+
+            public void Init(BasePlayer player)
+            {
+                Player = player;
+                OriginalName = player.displayName;
+                CurrentZones = new HashSet<Zone>();
+                CommandCooldownExpirations = new Dictionary<string, DateTime>();
+                Preferences = UserPreferences.Default;
+
+                Map = new UserMap(this);
+                Hud = new UserHud(this);
+                Panel = new UserPanel(this);
+
+                IsInsideRaidableBase = false;
+
+                InvokeRepeating(nameof(UpdateHud), 5f, 5f);
+                InvokeRepeating(nameof(CheckArea), 2f, 2f);
+            }
+
+            private void OnDestroy()
+            {
+                Map.Hide();
+                Hud.Hide();
+                Panel.Hide();
+                DisbandRecruitParty();
+                if (IsInvoking(nameof(UpdateHud))) CancelInvoke(nameof(UpdateHud));
+                if (IsInvoking(nameof(CheckArea))) CancelInvoke(nameof(CheckArea));
+
+                if (Player != null)
+                    Player.displayName = OriginalName;
+            }
+
+            public void SetFaction(Faction faction)
+            {
+                if (Faction == faction)
+                    return;
+                CurrentInteraction = null;
+                Faction = faction;
+
+                if (faction == null)
+                    Player.displayName = OriginalName;
+                else
+                    Player.displayName = $"[{faction.Id}] {Player.displayName}";
+                if (Instance.Options.Factions.OverrideInGameTeamSystem)
+                {
+                    CancelInvoke("EnsureIsInFactionTeam");
+                    Invoke("EnsureIsInFactionTeam", 3f);
+                }
+
+                Player.SendNetworkUpdate();
+            }
+
+            public bool HasPermission(string permission)
+            {
+                return Instance.permission.UserHasPermission(Player.UserIDString, permission);
+            }
+
+            public void BeginInteraction(Interaction interaction)
+            {
+                interaction.User = this;
+                CurrentInteraction = interaction;
+            }
+
+            public void CompleteInteraction(HitInfo hit)
+            {
+                if (CurrentInteraction.TryComplete(hit))
+                    CurrentInteraction = null;
+            }
+
+            public void CancelInteraction()
+            {
+                CurrentInteraction = null;
+            }
+
+            public void SendChatMessage(string message, params object[] args)
+            {
+                string format = Instance.lang.GetMessage(message, Instance, Player.UserIDString);
+                Instance.SendReply(Player, format, args);
+            }
+
+            public void SendChatMessage(StringBuilder sb)
+            {
+                Instance.SendReply(Player, sb.ToString().TrimEnd());
+            }
+
+            public void SendConsoleMessage(string message, params object[] args)
+            {
+                Player.ConsoleMessage(String.Format(message, args));
+            }
+
+            private void UpdateHud()
+            {
+                Hud.Refresh();
+            }
+
+            public int GetSecondsLeftOnCooldown(string command)
+            {
+                DateTime expiration;
+
+                if (!CommandCooldownExpirations.TryGetValue(command, out expiration))
+                    return 0;
+
+                return (int)Math.Max(0, expiration.Subtract(DateTime.UtcNow).TotalSeconds);
+            }
+
+            public void SetCooldownExpiration(string command, DateTime time)
+            {
+                CommandCooldownExpirations[command] = time;
+            }
+
+            private void CheckArea()
+            {
+                Area currentArea = CurrentArea;
+                Area correctArea = Instance.Areas.GetByEntityPosition(Player);
+
+                if (currentArea != null && (correctArea == null || currentArea.Id != correctArea.Id))
+                {
+                    Events.OnUserLeftArea(this, currentArea);
+                }
+                Events.OnUserEnteredArea(this, correctArea);
+
+            }
+
+            public void EnsureIsInFactionTeam()
+            {
+                if (Player.currentTeam != 0UL)
+                {
+                    if (Faction == null || Player.currentTeam != Faction.InGameTeamID)
+                    {
+                        Player.Team.RemovePlayer(Player.userID);
+                        if (Faction == null)
+                            return;
+                    }
+                    if (Player.currentTeam == Faction.InGameTeamID)
+                        return;
+                }
+                if (Player.currentTeam == 0UL && Faction == null)
+                    return;
+                RelationshipManager.PlayerTeam factionTeam;
+                factionTeam = RelationshipManager.ServerInstance.FindTeam(Faction.InGameTeamID);
+                if (factionTeam == null)
+                {
+                    Faction.CreateFactionTeam();
+                    return;
+                }
+                factionTeam.AddPlayer(Player);
+            }
+
+            public void SyncWithClan()
+            {
+                if (!Instance.Options.Factions.UseClansPlugin)
+                    return;
+
+                if (Player == null)
+                    return;
+                string clanId = (string)Instance.Clans.CallHook("GetClanOf", Player);
+                //is in correct faction already
+                if (Faction?.Id == clanId)
+                {
+                    return;
+                }
+                //user is not in a clan
+                if (clanId == null)
+                {
+                    //user is in a faction (Disband if owner, leave if not)
+                    if (Faction != null)
+                    {
+                        if (Faction.HasOwner(this))
+                        {
+                            Instance.Factions.Disband(this.Faction);
+                            SetFaction(null);
+                        }
+                        else
+                        {
+                            Faction.RemoveMember(this);
+                            SetFaction(null);
+                        }
+
+                    }
+                    return;
+                }
+                JObject jClan = (JObject)Instance.Clans.CallHook("GetClan", clanId);
+                Faction clanFaction = Instance.Factions.Get(clanId);
+
+                //corresponding clan for faction does not exist yet. If owner, create the correct faction
+                if (clanFaction == null)
+                {
+                    User owner = Instance.Users.Get(jClan.GetValue("owner").Value<string>());
+                    //clan owner is online
+                    if (owner != null)
+                    {
+                        clanFaction = Instance.Factions.Create(clanId, owner);
+                        if (owner.Faction != null)
+                        {
+                            Instance.Factions.Disband(owner.Faction);
+                        }
+                        owner.SetFaction(clanFaction);
+                        if (this == owner)
+                            return;
+                    }
+                }
+                //if user faction is in a faction and is not in the clanFaction (might be null). Leave the current faction
+                if (Faction != null && Faction != clanFaction)
+                {
+
+                    if (this.Faction.HasOwner(this))
+                    {
+                        Instance.Factions.Disband(this.Faction);
+                        SetFaction(null);
+                    }
+                    else
+                    {
+                        Faction.RemoveMember(this);
+                        SetFaction(null);
+                    }
+                }
+                //set own faction if not equal clan faction
+                if (Faction != clanFaction)
+                    SetFaction(clanFaction);
+
+            }
+
+            public bool AddRecruitToParty(Recruit recruit)
+            {
+                if (recruits.Contains(recruit))
+                    return false;
+                recruits.Add(recruit);
+                recruit.SetLeader(this);
+                return true;
+            }
+
+            public void BroadcastRecruitGesture(uint id)
+            {
+                if (recruits.Count == 0)
+                    return;
+                string name = null;
+                recruitGestures.TryGetValue(id, out name);
+                if (name == null)
+                    return;
+                if (name == "follow")
+                {
+                    foreach (Recruit recruit in recruits)
+                    {
+                        recruit.isFollowingLeader = true;
+                    }
+                    Util.RunEffect(transform.position, "assets/bundled/prefabs/fx/invite_notice.prefab", Player);
+                    return;
+                }
+
+                if (name == "go")
+                {
+                    Ray ray = Player.eyes.HeadRay();
+                    RaycastHit hit = new();
+                    Physics.Raycast(ray, out hit, 200f);
+                    if (hit.GetCollider() == null)
+                        return;
+                    Vector3 pos = hit.point;
+                    foreach (Recruit recruit in recruits)
+                    {
+                        recruit.isFollowingLeader = false;
+                        Interface.CallHook("SetHomePosition", recruit.npc, pos);
+                    }
+                    Util.RunEffect(transform.position, "assets/bundled/prefabs/fx/invite_notice.prefab", Player);
+                    return;
+                }
+                if (name == "disband")
+                {
+                    foreach (Recruit recruit in recruits)
+                    {
+                        recruit.npc.Server_StartGesture(id);
+                    }
+                    DisbandRecruitParty();
+                    Util.RunEffect(transform.position, "assets/bundled/prefabs/fx/invite_notice.prefab", Player);
+                    return;
+                }
+            }
+
+            public bool DisbandRecruitParty()
+            {
+                if (recruits.Count == 0)
+                    return false;
+                for (int i = recruits.Count - 1; i >= 0; i--)
+                {
+                    recruits[i].SetLeader(null);
+                }
+                recruits.Clear();
+                return true;
+            }
+
+            private void CheckZones()
+            {
+            }
+        }
+    }
+}
+#endregion
+
+#region UserManager.cs
+﻿namespace Oxide.Plugins
+{
+    using System.Collections.Generic;
+    using System.Linq;
+
+    public partial class Imperium
+    {
+        private class UserManager
+        {
+            private Dictionary<string, User> Users = new Dictionary<string, User>();
+            private Dictionary<string, string> OriginalNames = new Dictionary<string, string>();
+
+            public User[] GetAll()
+            {
+                return Users.Values.ToArray();
+            }
+
+            public User Get(BasePlayer player)
+            {
+                if (player == null) return null;
+                return Get(player.UserIDString);
+            }
+
+            public User Get(string userId)
+            {
+                User user;
+                if (Users.TryGetValue(userId, out user))
+                    return user;
+                else
+                    return null;
+            }
+
+            public User Find(string searchString)
+            {
+                User user = Get(searchString);
+
+                if (user != null)
+                    return user;
+
+                return Users.Values
+                    .Where(u => u.UserName.ToLowerInvariant().Contains(searchString.ToLowerInvariant()))
+                    .OrderBy(u =>
+                        Util.GetLevenshteinDistance(searchString.ToLowerInvariant(), u.UserName.ToLowerInvariant()))
+                    .FirstOrDefault();
+            }
+
+            public User Add(BasePlayer player)
+            {
+                Remove(player);
+
+                string originalName;
+                if (OriginalNames.TryGetValue(player.UserIDString, out originalName))
+                    player.displayName = originalName;
+                else
+                    OriginalNames[player.UserIDString] = player.displayName;
+
+                User user = player.gameObject.AddComponent<User>();
+                user.Init(player);
+
+                Faction faction = Instance.Factions.GetByMember(user);
+                if (faction != null)
+                    user.SetFaction(faction);
+                else
+                    user.SetFaction(null);
+
+                Users[user.Player.UserIDString] = user;
+
+                if (Instance.Options.Factions.UseClansPlugin)
+                {
+                    user.SyncWithClan();
+                }
+
+                return user;
+            }
+
+            public bool Remove(BasePlayer player)
+            {
+                User user = Get(player);
+                if (user == null) return false;
+
+                UnityEngine.Object.DestroyImmediate(user);
+                Users.Remove(player.UserIDString);
+
+                return true;
+            }
+
+            public void SetOriginalName(string userId, string name)
+            {
+                OriginalNames[userId] = name;
+            }
+
+            public void Init()
+            {
+                var players = BasePlayer.activePlayerList;
+
+                Instance.Puts($"Creating user objects for {players.Count} players...");
+
+                foreach (BasePlayer player in players)
+                    Add(player);
+
+                Instance.Puts($"Created {Users.Count} user objects.");
+            }
+
+            public void Destroy()
+            {
+                User[] users = UnityEngine.Object.FindObjectsOfType<User>();
+
+                if (users == null)
+                    return;
+
+                Instance.Puts($"Destroying {users.Length} user objects.");
+
+                foreach (var user in users)
+                    UnityEngine.Object.DestroyImmediate(user);
+
+                Users.Clear();
+
+                Instance.Puts("User objects destroyed.");
+            }
+        }
+    }
+}
+#endregion
+
+#region UserPreferences.cs
+﻿namespace Oxide.Plugins
+{
+    using System;
+
+    public partial class Imperium
+    {
+        private class UserPreferences
+        {
+            public UserMapLayer VisibleMapLayers { get; private set; }
+
+            public void ShowMapLayer(UserMapLayer layer)
+            {
+                VisibleMapLayers |= layer;
+            }
+
+            public void HideMapLayer(UserMapLayer layer)
+            {
+                VisibleMapLayers &= ~layer;
+            }
+
+            public void ToggleMapLayer(UserMapLayer layer)
+            {
+                if (IsMapLayerVisible(layer))
+                    HideMapLayer(layer);
+                else
+                    ShowMapLayer(layer);
+            }
+
+            public bool IsMapLayerVisible(UserMapLayer layer)
+            {
+                return (VisibleMapLayers & layer) == layer;
+            }
+
+            public static UserPreferences Default
+            {
+                get
+                {
+                    return new UserPreferences
+                    {
+                        VisibleMapLayers = UserMapLayer.Claims | UserMapLayer.Headquarters | UserMapLayer.Monuments |
+                                           UserMapLayer.Pins
+                    };
+                }
+            }
+        }
+
+        [Flags]
+        private enum UserMapLayer
+        {
+            Claims = 1,
+            Headquarters = 2,
+            Monuments = 4,
+            Pins = 8
+        }
+    }
+}
+#endregion
+
+#region UnityVector3Converter.cs
+﻿namespace Oxide.Plugins
+{
+    using System;
+    using Newtonsoft.Json;
+    using UnityEngine;
+
+    public partial class Imperium : RustPlugin
+    {
+        private class UnityVector3Converter : JsonConverter
+        {
+            public override void WriteJson(JsonWriter writer, object value, JsonSerializer serializer)
+            {
+                var vector = (Vector3)value;
+                writer.WriteValue($"{vector.x} {vector.y} {vector.z}");
+            }
+
+            public override object ReadJson(JsonReader reader, Type objectType, object existingValue,
+                JsonSerializer serializer)
+            {
+                string[] tokens = reader.Value.ToString().Trim().Split(' ');
+                float x = Convert.ToSingle(tokens[0]);
+                float y = Convert.ToSingle(tokens[1]);
+                float z = Convert.ToSingle(tokens[2]);
+                return new Vector3(x, y, z);
+            }
+
+            public override bool CanConvert(Type objectType)
+            {
+                return objectType == typeof(Vector3);
+            }
+        }
+    }
+}
+#endregion
+
+#region Util.cs
+﻿namespace Oxide.Plugins
+{
+    using System;
+    using System.Collections;
+    using System.Text;
+    using UnityEngine;
+
+    public partial class Imperium
+    {
+        private static class Util
+        {
+            private const string NullString = "(null)";
+
+            public static string Format(object obj)
+            {
+                if (obj == null) return NullString;
+
+                var user = obj as User;
+                if (user != null) return Format(user);
+
+                var area = obj as Area;
+                if (area != null) return Format(area);
+
+                var entity = obj as BaseEntity;
+                if (entity != null) return Format(entity);
+
+                var list = obj as IEnumerable;
+                if (list != null) return Format(list);
+
+                return obj.ToString();
+            }
+
+            public static string Format(User user)
+            {
+                if (user == null)
+                    return NullString;
+                else
+                    return $"{user.UserName} ({user.Id})";
+            }
+
+            public static string Format(Area area)
+            {
+                if (area == null)
+                    return NullString;
+                else if (!String.IsNullOrEmpty(area.Name))
+                    return $"{area.Id} ({area.Name})";
+                else
+                    return area.Id;
+            }
+
+            public static string Format(BaseEntity entity)
+            {
+                if (entity == null)
+                    return NullString;
+                else if (entity.net == null)
+                    return "(missing networkable)";
+                else
+                    return entity.net.ID.ToString();
+            }
+
+            public static string Format(IEnumerable items)
+            {
+                var sb = new StringBuilder();
+
+                foreach (object item in items)
+                    sb.Append($"{Format(item)}, ");
+
+                sb.Remove(sb.Length - 2, 2);
+
+                return sb.ToString();
+            }
+
+            public static string NormalizeAreaId(string input)
+            {
+                return input.ToUpper().Trim();
+            }
+
+            public static string NormalizeAreaName(string input)
+            {
+                return RemoveSpecialCharacters(input.Trim());
+            }
+
+            public static string NormalizePinName(string input)
+            {
+                return RemoveSpecialCharacters(input.Trim());
+            }
+
+            public static string NormalizeFactionId(string input)
+            {
+                string factionId = input.Trim();
+
+                if (factionId.StartsWith("[") && factionId.EndsWith("]"))
+                    factionId = factionId.Substring(1, factionId.Length - 2);
+
+                return factionId;
+            }
+
+            public static string RemoveSpecialCharacters(string str)
+            {
+                if (String.IsNullOrEmpty(str))
+                    return String.Empty;
+
+                StringBuilder sb = new StringBuilder(str.Length);
+                foreach (char c in str)
+                {
+                    if ((c >= '0' && c <= '9') || (c >= 'A' && c <= 'Z') || (c >= 'a' && c <= 'z') ||
+                        (c >= 'А' && c <= 'Я') || (c >= 'а' && c <= 'я') || c == ' ' || c == '.' || c == '_')
+                        sb.Append(c);
+                }
+
+                return sb.ToString();
+            }
+
+            public static int GetLevenshteinDistance(string source, string target)
+            {
+                if (string.IsNullOrEmpty(source) && string.IsNullOrEmpty(target))
+                    return 0;
+
+                if (source.Length == target.Length)
+                    return source.Length;
+
+                if (source.Length == 0)
+                    return target.Length;
+
+                if (target.Length == 0)
+                    return source.Length;
+
+                var distance = new int[source.Length + 1, target.Length + 1];
+
+                for (int idx = 0; idx <= source.Length; distance[idx, 0] = idx++) ;
+                for (int idx = 0; idx <= target.Length; distance[0, idx] = idx++) ;
+
+                for (int i = 1; i <= source.Length; i++)
+                {
+                    for (int j = 1; j <= target.Length; j++)
+                    {
+                        int cost = target[j - 1] == source[i - 1] ? 0 : 1;
+                        distance[i, j] = Math.Min(
+                            Math.Min(distance[i - 1, j] + 1, distance[i, j - 1] + 1),
+                            distance[i - 1, j - 1] + cost
+                        );
+                    }
+                }
+
+                return distance[source.Length, target.Length];
+            }
+
+            public static bool TryParseEnum<T>(string str, out T value) where T : struct
+            {
+                if (!typeof(T).IsEnum)
+                    throw new ArgumentException("Type parameter must be an enum");
+
+                foreach (var name in Enum.GetNames(typeof(T)))
+                {
+                    if (String.Equals(name, str, StringComparison.OrdinalIgnoreCase))
+                    {
+                        value = (T)Enum.Parse(typeof(T), name);
+                        return true;
+                    }
+                }
+
+                value = default(T);
+                return false;
+            }
+
+            public static void RunEffect(Vector3 position, string prefab, BasePlayer player = null)
+            {
+                /*
+                var effect = new Effect();
+                effect.Init(Effect.Type.Generic, position, Vector3.zero);
+                effect.pooledString = prefab;
+
+                if (player != null)
+                {
+                    EffectNetwork.Send(effect, player.net.connection);
+                }
+                else
+                {
+                    EffectNetwork.Send(effect);
+                }
+                */
+            }
+
+            public static void BroadcastEffect(string prefab)
+            {
+                /*
+                Vector3 position;
+                BasePlayer player;
+                foreach (User user in Instance.Users.GetAll())
+                {
+                    player = user.Player;
+                    position = user.transform.position;
+                    if (player)
+                    {
+                        var effect = new Effect();
+                        effect.Init(Effect.Type.Generic, position, Vector3.zero);
+                        effect.pooledString = prefab;
+                        EffectNetwork.Send(effect, player.net.connection);
+                    }
+                }
+                */
+            }
+
+            public static void PrintToChat(string format, params object[] args)
+            {
+                foreach (User user in Instance.Users.GetAll())
+                {
+                    if (user.Player)
+                    {
+                        string message = Instance.lang.GetMessage(format, Instance, user.Player.userID.ToString());
+                        user.SendChatMessage(message, args);
+                    }
+                }
+
+            }
+
+            public static int GetSecondsBetween(DateTime start, DateTime end)
+            {
+                return (int)(start - end).TotalSeconds;
+            }
+
+            public static Color ConvertSystemToUnityColor(System.Drawing.Color color)
+            {
+                Color result;
+                result.r = color.R;
+                result.g = color.G;
+                result.b = color.B;
+                result.a = 255f;
+                return result;
+            }
+        }
+    }
+}
+#endregion
+
+#region War.cs
+﻿namespace Oxide.Plugins
+{
+    using System;
+    using System.Collections.Generic;
+    public partial class Imperium
+    {
+        private class War
+        {
+
+            public string AttackerId { get; set; }
+            public string DefenderId { get; set; }
+            public string DeclarerId { get; set; }
+            public string CassusBelli { get; set; }
+
+            public DateTime? AttackerPeaceOfferingTime { get; set; }
+            public DateTime? DefenderPeaceOfferingTime { get; set; }
+
+            public DateTime StartTime { get; private set; }
+            public DateTime? EndTime { get; set; }
+            public WarEndReason? EndReason { get; set; }
+
+            public bool AdminApproved { get; set; }
+
+            public bool DefenderApproved { get; set; }
+
+            public bool IsActive
+            {
+                get { return EndTime == null && AdminApproved && DefenderApproved; }
+            }
+
+            public bool IsAttackerOfferingPeace
+            {
+                get { return AttackerPeaceOfferingTime != null; }
+            }
+
+            public bool IsDefenderOfferingPeace
+            {
+                get { return DefenderPeaceOfferingTime != null; }
+            }
+
+            public War(Faction attacker, Faction defender, User declarer, string cassusBelli)
+            {
+                AttackerId = attacker.Id;
+                DefenderId = defender.Id;
+                DeclarerId = declarer.Id;
+                AdminApproved = !Instance.Options.War.AdminApprovalRequired;
+                DefenderApproved = !Instance.Options.War.DefenderApprovalRequired;
+                CassusBelli = cassusBelli;
+                StartTime = DateTime.UtcNow;
+            }
+
+            public War(WarInfo info)
+            {
+                AttackerId = info.AttackerId;
+                DefenderId = info.DefenderId;
+                DeclarerId = info.DeclarerId;
+                CassusBelli = info.CassusBelli;
+                AdminApproved = info.AdminApproved;
+                DefenderApproved = info.DefenderApproved;
+                AttackerPeaceOfferingTime = info.AttackerPeaceOfferingTime;
+                DefenderPeaceOfferingTime = info.DefenderPeaceOfferingTime;
+                StartTime = info.StartTime;
+                EndTime = info.EndTime;
+            }
+
+            public void OfferPeace(Faction faction)
+            {
+                if (AttackerId == faction.Id)
+                    AttackerPeaceOfferingTime = DateTime.UtcNow;
+                else if (DefenderId == faction.Id)
+                    DefenderPeaceOfferingTime = DateTime.UtcNow;
+                else
+                    throw new InvalidOperationException(String.Format(
+                        "{0} tried to offer peace but the faction wasn't involved in the war!", faction.Id));
+            }
+
+            public bool IsOfferingPeace(Faction faction)
+            {
+                return IsOfferingPeace(faction.Id);
+
+                WarPhase state = WarPhase.Combat;
+                if(state == WarPhase.Combat)
+                {
+
+                }
+                else if((int)state == 999)
+                {
+
+                }
+            }
+
+            public bool IsOfferingPeace(string factionId)
+            {
+                return (factionId == AttackerId && IsAttackerOfferingPeace) ||
+                       (factionId == DefenderId && IsDefenderOfferingPeace);
+            }
+
+            public WarInfo Serialize()
+            {
+                return new WarInfo
+                {
+                    AttackerId = AttackerId,
+                    DefenderId = DefenderId,
+                    DeclarerId = DeclarerId,
+                    CassusBelli = CassusBelli,
+                    AdminApproved = AdminApproved,
+                    DefenderApproved = DefenderApproved,
+                    AttackerPeaceOfferingTime = AttackerPeaceOfferingTime,
+                    DefenderPeaceOfferingTime = DefenderPeaceOfferingTime,
+                    StartTime = StartTime,
+                    EndTime = EndTime,
+                    EndReason = EndReason
+                };
+            }
+        }
+        private enum WarEndReason
+        {
+            Treaty,
+            AttackerEliminatedDefender,
+            DefenderEliminatedAttacker,
+            AdminDenied,
+            DefenderDenied
+        }
+
+        private enum WarPhase
+        {
+            Preparation,
+            Combat,
+            Raiding
+        }
+    }
+
+}
+#endregion
+
+#region WarInfo.cs
+﻿namespace Oxide.Plugins
+{
+    using System;
+    using System.Collections.Generic;
+    using Newtonsoft.Json;
+    using Newtonsoft.Json.Converters;
+    using Newtonsoft.Json.Linq;
+
+    public partial class Imperium : RustPlugin
+    {
+        private class WarInfo
+        {
+            [JsonProperty("attackerId")] public string AttackerId;
+
+            [JsonProperty("defenderId")] public string DefenderId;
+
+            [JsonProperty("declarerId")] public string DeclarerId;
+
+            [JsonProperty("cassusBelli")] public string CassusBelli;
+
+            [JsonProperty("adminApproved")] public bool AdminApproved;
+
+            [JsonProperty("defenderApproved")] public bool DefenderApproved;
+
+            [JsonProperty("attackerPeaceOfferingTime"), JsonConverter(typeof(IsoDateTimeConverter))]
+            public DateTime? AttackerPeaceOfferingTime;
+
+            [JsonProperty("defenderPeaceOfferingTime"), JsonConverter(typeof(IsoDateTimeConverter))]
+            public DateTime? DefenderPeaceOfferingTime;
+
+            [JsonProperty("startTime"), JsonConverter(typeof(IsoDateTimeConverter))]
+            public DateTime StartTime;
+
+            [JsonProperty("endTime"), JsonConverter(typeof(IsoDateTimeConverter))]
+            public DateTime? EndTime;
+
+            [JsonProperty("endReason"), JsonConverter(typeof(StringEnumConverter))]
+            public WarEndReason? EndReason;
+        }
+    }
+}
+
+#endregion
+
+#region WarManager.cs
+﻿
+namespace Oxide.Plugins
+{
+    using System;
+    using System.Collections.Generic;
+    using System.Linq;
+
+    public partial class Imperium
+    {
+        private class WarManager
+        {
+            private List<War> Wars = new List<War>();
+
+            public War[] GetAllActiveWars()
+            {
+                return Wars.Where(war => war.IsActive).OrderBy(war => war.StartTime).ToArray();
+            }
+
+            public War[] GetAllInactiveWars()
+            {
+                return Wars.Where(war => !war.IsActive).OrderBy(war => war.StartTime).ToArray();
+            }
+
+            public War[] GetAllActiveWarsByFaction(Faction faction)
+            {
+                return GetAllActiveWarsByFaction(faction.Id);
+            }
+
+            public War[] GetAllAdminUnnaprovedWars()
+            {
+                return GetAllInactiveWars().Where(war => !war.AdminApproved && war.EndTime == null)
+                    .ToArray();
+            }
+
+            public War[] GetAllUnapprovedWarsByFaction(Faction faction)
+            {
+                return GetAllInactiveWars().Where(war => !war.IsActive && war.EndTime == null)
+                    .ToArray();
+            }
+
+            public War[] GetAllActiveWarsByFaction(string factionId)
+            {
+                return GetAllActiveWars().Where(war => war.AttackerId == factionId || war.DefenderId == factionId)
+                    .ToArray();
+            }
+
+            public War GetActiveWarBetween(Faction firstFaction, Faction secondFaction)
+            {
+                return GetActiveWarBetween(firstFaction.Id, secondFaction.Id);
+            }
+
+            public War GetActiveWarBetween(string firstFactionId, string secondFactionId)
+            {
+                return GetAllActiveWars().SingleOrDefault(war =>
+                    (war.AttackerId == firstFactionId && war.DefenderId == secondFactionId) ||
+                    (war.DefenderId == firstFactionId && war.AttackerId == secondFactionId)
+                );
+            }
+
+            public bool AreFactionsAtWar(Faction firstFaction, Faction secondFaction)
+            {
+                return AreFactionsAtWar(firstFaction.Id, secondFaction.Id);
+            }
+
+            public bool AreFactionsAtWar(string firstFactionId, string secondFactionId)
+            {
+                return GetActiveWarBetween(firstFactionId, secondFactionId) != null;
+            }
+
+            public War DeclareWar(Faction attacker, Faction defender, User user, string cassusBelli)
+            {
+                var war = new War(attacker, defender, user, cassusBelli);
+                Wars.Add(war);
+                Instance.OnDiplomacyChanged();
+                if (war.IsActive)
+                {
+                    Util.BroadcastEffect("assets/prefabs/missions/effects/mission_accept.prefab");
+                }
+                return war;
+            }
+
+            public bool TryShopfrontTreaty(BasePlayer player1, BasePlayer player2)
+            {
+                if (!Instance.Options.War.EnableShopfrontPeace)
+                    return false;
+
+                var user1 = Instance.Users.Get(player1);
+                var user2 = Instance.Users.Get(player2);
+
+                if (user1 == null || user2 == null)
+                    return false;
+                if (user1.Faction == null || user2.Faction == null)
+                    return false;
+                if (!Instance.Wars.AreFactionsAtWar(user1.Faction, user2.Faction))
+                    return false;
+                if (!user1.Faction.HasLeader(user1) || !user2.Faction.HasLeader(user2))
+                    return false;
+                EndWar(GetActiveWarBetween(user1.Faction, user2.Faction), WarEndReason.Treaty);
+                Util.PrintToChat(nameof(Messages.WarEndedTreatyAcceptedAnnouncement), user1.Faction.Id, user2.Faction.Id);
+                Instance.Log($"{Util.Format(user1)} and {Util.Format(user2)} accepted the peace by trading on a shop front");
+                return true;
+            }
+
+            public void AdminApproveWar(War war)
+            {
+                war.AdminApproved = true;
+                Instance.OnDiplomacyChanged();
+                if (war.IsActive)
+                {
+                    Util.BroadcastEffect("assets/prefabs/missions/effects/mission_accept.prefab");
+                }
+            }
+
+            public void AdminDenyeWar(War war)
+            {
+                war.AdminApproved = false;
+                EndWar(war, WarEndReason.AdminDenied);
+            }
+
+            public void DefenderApproveWar(War war)
+            {
+                war.DefenderApproved = true;
+                Instance.OnDiplomacyChanged();
+                if (war.IsActive)
+                {
+                    Util.BroadcastEffect("assets/prefabs/missions/effects/mission_accept.prefab");
+                }
+            }
+
+            public void DefenderDenyWar(War war)
+            {
+                war.DefenderApproved = false;
+                EndWar(war, WarEndReason.DefenderDenied);
+            }
+
+            public void EndWar(War war, WarEndReason reason)
+            {
+                war.EndTime = DateTime.UtcNow;
+                war.EndReason = reason;
+                Instance.OnDiplomacyChanged();
+            }
+
+            public void EndAllWarsForEliminatedFactions()
+            {
+                bool dirty = false;
+
+                foreach (War war in Wars)
+                {
+                    if (Instance.Areas.GetAllClaimedByFaction(war.AttackerId).Length == 0)
+                    {
+                        war.EndTime = DateTime.UtcNow;
+                        war.EndReason = WarEndReason.DefenderEliminatedAttacker;
+                        dirty = true;
+                    }
+
+                    if (Instance.Areas.GetAllClaimedByFaction(war.DefenderId).Length == 0)
+                    {
+                        war.EndTime = DateTime.UtcNow;
+                        war.EndReason = WarEndReason.AttackerEliminatedDefender;
+                        dirty = true;
+                    }
+                }
+
+                if (dirty)
+                    Instance.OnDiplomacyChanged();
+            }
+
+            public void Init(IEnumerable<WarInfo> warInfos)
+            {
+                Instance.Puts($"Loading {warInfos.Count()} wars...");
+
+                foreach (WarInfo info in warInfos)
+                {
+                    var war = new War(info);
+                    Wars.Add(war);
+                    Instance.Log($"[LOAD] War {war.AttackerId} vs {war.DefenderId}, isActive = {war.IsActive}");
+                }
+
+                Instance.Puts("Wars loaded.");
+            }
+            public void Destroy()
+            {
+                Wars.Clear();
+            }
+
+            public WarInfo[] Serialize()
+            {
+                return Wars.Select(war => war.Serialize()).ToArray();
+            }
+        }
+    }
+}
+#endregion
+
+#region Zone.cs
+﻿namespace Oxide.Plugins
+{
+    using Rust;
+    using System;
+    using System.Collections.Generic;
+    using UnityEngine;
+
+    public partial class Imperium
+    {
+        private class Zone : MonoBehaviour
+        {
+            private const string SpherePrefab = "assets/prefabs/visualization/sphere.prefab";
+            private List<BaseEntity> Spheres = new List<BaseEntity>();
+
+            public ZoneType Type { get; private set; }
+            public string Name { get; private set; }
+            public MonoBehaviour Owner { get; private set; }
+            public DateTime? EndTime { get; set; }
+
+            public void Init(ZoneType type, string name, MonoBehaviour owner, float radius, int darkness,
+                DateTime? endTime)
+            {
+                Type = type;
+                Name = name;
+                Owner = owner;
+                EndTime = endTime;
+
+                Vector3 position = GetGroundPosition(owner.transform.position);
+
+                gameObject.layer = (int)Layer.Reserved1;
+                gameObject.name = $"imperium_zone_{name.ToLowerInvariant()}";
+                transform.position = position;
+                transform.rotation = Quaternion.Euler(new Vector3(0, 0, 0));
+
+                for (var idx = 0; idx < darkness; idx++)
+                {
+                    var sphere = GameManager.server.CreateEntity(SpherePrefab, position);
+
+                    SphereEntity entity = sphere.GetComponent<SphereEntity>();
+                    entity.lerpRadius = radius * 2;
+                    entity.currentRadius = radius * 2;
+                    entity.lerpSpeed = 0f;
+
+                    sphere.Spawn();
+                    Spheres.Add(sphere);
+                }
+
+                var collider = gameObject.AddComponent<SphereCollider>();
+                collider.radius = radius;
+                collider.isTrigger = true;
+                collider.enabled = true;
+
+                //Pin this zone to cargo ship so it follows it
+                if (type == ZoneType.CargoShip)
+                {
+                    transform.SetParent(owner.transform, false);
+                }
+
+                if (endTime != null)
+                    InvokeRepeating("CheckIfShouldDestroy", 10f, 5f);
+            }
+
+            private void OnDestroy()
+            {
+                var collider = GetComponent<SphereCollider>();
+
+                if (collider != null)
+                    Destroy(collider);
+
+                foreach (BaseEntity sphere in Spheres)
+                    sphere.KillMessage();
+
+                if (IsInvoking("CheckIfShouldDestroy"))
+                    CancelInvoke("CheckIfShouldDestroy");
+            }
+
+            private void OnTriggerEnter(Collider collider)
+            {
+                if (collider.gameObject.layer != (int)Layer.Player_Server)
+                    return;
+
+                var user = collider.GetComponentInParent<User>();
+
+                if (user != null && !user.CurrentZones.Contains(this))
+                    Events.OnUserEnteredZone(user, this);
+            }
+
+            private void OnTriggerExit(Collider collider)
+            {
+                if (collider.gameObject.layer != (int)Layer.Player_Server)
+                    return;
+
+                var user = collider.GetComponentInParent<User>();
+
+                if (user != null && user.CurrentZones.Contains(this))
+                    Events.OnUserLeftZone(user, this);
+            }
+
+            private void CheckIfShouldDestroy()
+            {
+                if (DateTime.UtcNow >= EndTime)
+                    Instance.Zones.Remove(this);
+            }
+
+            private Vector3 GetGroundPosition(Vector3 pos)
+            {
+                return new Vector3(pos.x, TerrainMeta.HeightMap.GetHeight(pos), pos.z);
+            }
+        }
+    }
+
+    public partial class Imperium
+    {
+        public enum ZoneType
+        {
+            Monument,
+            Debris,
+            SupplyDrop,
+            Raid,
+            CargoShip
+        }
+    }
+
+}
+#endregion
+
+#region ZoneManager.cs
+﻿namespace Oxide.Plugins
+{
+    using System;
+    using System.Collections.Generic;
+    using System.Linq;
+    using UnityEngine;
+
+    public partial class Imperium
+    {
+        private class ZoneManager
+        {
+            private Dictionary<MonoBehaviour, Zone> Zones = new Dictionary<MonoBehaviour, Zone>();
+
+            public void Init()
+            {
+                if (!Instance.Options.Zones.Enabled || Instance.Options.Zones.MonumentZones == null)
+                    return;
+
+                MonumentInfo[] monuments = UnityEngine.Object.FindObjectsOfType<MonumentInfo>();
+                foreach (MonumentInfo monument in monuments)
+                {
+                    float? radius = GetMonumentZoneRadius(monument);
+                    if (radius != null)
+                    {
+                        Vector3 position = monument.transform.position;
+                        Vector3 size = monument.Bounds.size;
+                        Create(ZoneType.Monument, monument.displayPhrase.english, monument, (float)radius);
+                    }
+                }
+            }
+
+            public Zone GetByOwner(MonoBehaviour owner)
+            {
+                Zone zone;
+
+                if (Zones.TryGetValue(owner, out zone))
+                    return zone;
+
+                return null;
+            }
+
+            public void CreateForDebrisField(BaseHelicopter helicopter)
+            {
+                Vector3 position = helicopter.transform.position;
+                float radius = Instance.Options.Zones.EventZoneRadius;
+                Create(ZoneType.Debris, "Debris Field", helicopter, radius, GetEventEndTime());
+            }
+
+            public void CreateForSupplyDrop(SupplyDrop drop)
+            {
+                Vector3 position = drop.transform.position;
+                float radius = Instance.Options.Zones.EventZoneRadius;
+                float lifespan = Instance.Options.Zones.EventZoneLifespanSeconds;
+                Create(ZoneType.SupplyDrop, "Supply Drop", drop, radius, GetEventEndTime());
+            }
+
+            public void CreateForCargoShip(CargoShip cargoShip)
+            {
+                Vector3 position = cargoShip.transform.position;
+                float radius = Instance.Options.Zones.EventZoneRadius;
+                float lifespan = Instance.Options.Zones.EventZoneLifespanSeconds;
+                Create(ZoneType.CargoShip, "Cargo Ship", cargoShip, radius, GetEventEndTime());
+            }
+
+            public void CreateForRaid(BuildingPrivlidge cupboard)
+            {
+                // If the building was already being raided, just extend the lifespan of the existing zone.
+                Zone existingZone = GetByOwner(cupboard);
+                if (existingZone)
+                {
+                    existingZone.EndTime = GetEventEndTime();
+                    Instance.Puts(
+                        $"Extending raid zone end time to {existingZone.EndTime} ({existingZone.EndTime.Value.Subtract(DateTime.UtcNow).ToShortString()} from now)");
+                    return;
+                }
+
+                Vector3 position = cupboard.transform.position;
+                float radius = Instance.Options.Zones.EventZoneRadius;
+
+                Create(ZoneType.Raid, "Raid", cupboard, radius, GetEventEndTime());
+            }
+
+            public void Remove(Zone zone)
+            {
+                Instance.Puts($"Destroying zone {zone.name}");
+
+                foreach (User user in Instance.Users.GetAll())
+                    user.CurrentZones.Remove(zone);
+
+                Zones.Remove(zone.Owner);
+
+                UnityEngine.Object.Destroy(zone);
+            }
+
+            public void Destroy()
+            {
+                Zone[] zones = UnityEngine.Object.FindObjectsOfType<Zone>();
+
+                if (zones != null)
+                {
+                    Instance.Puts($"Destroying {zones.Length} zone objects...");
+                    foreach (Zone zone in zones)
+                        UnityEngine.Object.DestroyImmediate(zone);
+                }
+
+                Zones.Clear();
+
+                Instance.Puts("Zone objects destroyed.");
+            }
+
+            private void Create(ZoneType type, string name, MonoBehaviour owner, float radius, DateTime? endTime = null)
+            {
+                var zone = new GameObject().AddComponent<Zone>();
+                zone.Init(type, name, owner, radius, Instance.Options.Zones.DomeDarkness, endTime);
+
+                Instance.Puts($"Created zone {zone.Name} at {zone.transform.position} with radius {radius}");
+
+                if (endTime != null)
+                    Instance.Puts(
+                        $"Zone {zone.Name} will be destroyed at {endTime} ({endTime.Value.Subtract(DateTime.UtcNow).ToShortString()} from now)");
+
+                Zones.Add(owner, zone);
+            }
+
+            private float? GetMonumentZoneRadius(MonumentInfo monument)
+            {
+                if (monument.Type == MonumentType.Cave)
+                    return null;
+
+                foreach (var entry in Instance.Options.Zones.MonumentZones)
+                {
+                    if (monument.name.ToLowerInvariant().Contains(entry.Key))
+                        return entry.Value;
+                }
+
+                return null;
+            }
+
+            private DateTime GetEventEndTime()
+            {
+                return DateTime.UtcNow.AddSeconds(Instance.Options.Zones.EventZoneLifespanSeconds);
+            }
+        }
+    }
+}
+#endregion
+
+#region zzzDEPRECATED.cs
+﻿namespace Oxide.Plugins
 {
     using System.Collections.Generic;
 
@@ -12334,3 +14254,6 @@ namespace Oxide.Plugins
     }
 }
 #endregion
+
+
+

@@ -1,5 +1,5 @@
 #region _Main.cs
-namespace Oxide.Plugins
+﻿namespace Oxide.Plugins
 {
     using System;
     using System.IO;
@@ -13,15 +13,15 @@ namespace Oxide.Plugins
     using Network;
 
 
-    [Info("Imperium", "chucklenugget/evict", "2.3.0")]
+    [Info("Imperium", "chucklenugget/evict", "2.4.0")]
     [Description("Land Claims for Rust")]
     public partial class Imperium : RustPlugin
     {
         //Optional Dependencies
         [PluginReference]
-        private Plugin BetterChat, Clans, RaidableBases, NpcSpawn;
-
-
+        private Plugin BetterChat, Clans, RaidableBases, NpcSpawn ;
+ 
+ 
 
         //Hook Deferrals
 
@@ -384,7 +384,7 @@ namespace Oxide.Plugins
 #endregion
 
 #region API.Hooks.cs
-namespace Oxide.Plugins
+﻿namespace Oxide.Plugins
 {
     using Oxide.Core;
 
@@ -1032,7 +1032,26 @@ namespace Oxide.Plugins
         {
             private Dictionary<string, Area> Areas;
             private Area[,] Layout;
+            private float areaHeight = 0f;
+            private float topHeight = 500f;
+            private float bottomHeight = -500f;
+
             public MapGrid MapGrid { get; }
+
+            public float AreaHeight
+            {
+                get { return areaHeight; }
+            }
+
+            public float Topheight 
+            {
+                get { return topHeight; }
+            }
+
+            public float Bottomheight
+            {
+                get { return bottomHeight; }
+            }
 
             public int Count
             {
@@ -1154,7 +1173,9 @@ namespace Oxide.Plugins
 
                 int row = Mathf.FloorToInt((MapGrid.MapHeight / 2 - (position.z + (MapGrid.MapOffsetZ / 2))) / MapGrid.CellSize) + Instance.Options.Map.MapGridYOffset;
                 int col = Mathf.FloorToInt((MapGrid.MapWidth / 2 + (position.x + (MapGrid.MapOffsetX) / 2)) / MapGrid.CellSize);
-                if (Instance.Options.Pvp.AllowedUnderground && position.y < -20f)
+                if (position.y < bottomHeight)
+                    return null;
+                if(position.y > topHeight)
                     return null;
                 if (row < 0 || col < 0 || row >= MapGrid.NumberOfRows || col >= MapGrid.NumberOfColumns)
                     return null;
@@ -1364,6 +1385,9 @@ namespace Oxide.Plugins
             public void Init(IEnumerable<AreaInfo> areaInfos)
             {
                 Instance.Puts("Creating area objects...");
+                topHeight = Instance.Options.Claims.MaxAreaHeight;
+                bottomHeight = -500f;
+                areaHeight = topHeight - bottomHeight;
 
                 Dictionary<string, AreaInfo> lookup;
                 if (areaInfos != null)
@@ -1376,12 +1400,15 @@ namespace Oxide.Plugins
                     for (var col = 0; col < MapGrid.NumberOfColumns; col++)
                     {
                         string areaId = MapGrid.GetAreaId(row, col);
+
                         Vector3 position = MapGrid.GetPosition(row, col);
                         if (Instance.Options.Pvp.AllowedUnderground)
                         {
-                            position.y = position.y + 480f;
+                            bottomHeight = -18f;
+                            
                         }
-                        Vector3 size = new Vector3(MapGrid.CellSize / 2, 500, MapGrid.CellSize / 2);
+                        position.y = Mathf.Lerp(bottomHeight, topHeight, 0.5f);
+                        Vector3 size = new Vector3(MapGrid.CellSize / 2, areaHeight, MapGrid.CellSize / 2);
 
                         AreaInfo info = null;
                         lookup.TryGetValue(areaId, out info);
@@ -1581,7 +1608,7 @@ namespace Oxide.Plugins
             }
 
             Areas.AddBadlands(areas);
-            Util.RunEffect(user.transform.position, "assets/prefabs/missions/effects/mission_objective_complete.prefab");
+            Util.RunEffect(user.transform.position, Util.SUCCESS_FX);
             user.SendChatMessage(nameof(Messages.BadlandsSet), Util.Format(Areas.GetAllByType(AreaType.Badlands)));
             Log($"{Util.Format(user)} added {Util.Format(areas)} to badlands");
         }
@@ -1643,7 +1670,7 @@ namespace Oxide.Plugins
             }
 
             Areas.Unclaim(areas);
-            Util.RunEffect(user.transform.position, "assets/prefabs/missions/effects/mission_objective_complete.prefab");
+            Util.RunEffect(user.transform.position, Util.SUCCESS_FX);
             user.SendChatMessage(nameof(Messages.BadlandsSet), Util.Format(Areas.GetAllByType(AreaType.Badlands)));
             Log($"{Util.Format(user)} removed {Util.Format(areas)} from badlands");
         }
@@ -1682,7 +1709,7 @@ namespace Oxide.Plugins
 
             Areas.Unclaim(Areas.GetAllByType(AreaType.Badlands));
             Areas.AddBadlands(areas);
-            Util.RunEffect(user.transform.position, "assets/prefabs/missions/effects/mission_objective_complete.prefab");
+            Util.RunEffect(user.transform.position, Util.SUCCESS_FX);
             user.SendChatMessage(nameof(Messages.BadlandsSet), Util.Format(Areas.GetAllByType(AreaType.Badlands)));
             Log($"{Util.Format(user)} set badlands to {Util.Format(areas)}");
         }
@@ -2116,7 +2143,7 @@ namespace Oxide.Plugins
                 user.SendChatMessage(nameof(Messages.AreaNotOwnedByYourFaction), area.Id);
                 return;
             }
-            Util.RunEffect(user.transform.position, "assets/prefabs/missions/effects/mission_objective_complete.prefab");
+            Util.RunEffect(user.transform.position, Util.SUCCESS_FX);
             user.SendChatMessage(nameof(Messages.AreaRenamed), area.Id, name);
             Log($"{Util.Format(user)} renamed {area.Id} to {name}");
 
@@ -2434,7 +2461,7 @@ namespace Oxide.Plugins
             PrintToChat(Messages.FactionCreatedAnnouncement, id);
             Log($"{Util.Format(user)} created faction {id}");
 
-            Util.RunEffect(user.transform.position, "assets/prefabs/missions/effects/mission_victory.prefab");
+            Util.RunEffect(user.transform.position, Util.SUCCESS_FX);
             Faction faction = Factions.Create(id, user);
             user.SetFaction(faction);
         }
@@ -2489,7 +2516,7 @@ namespace Oxide.Plugins
 
             user.SendChatMessage(nameof(Messages.ManagerRemoved), member.UserName, faction.Id);
             Log($"{Util.Format(user)} demoted {Util.Format(member)} in faction {faction.Id}");
-            Util.RunEffect(user.transform.position, "assets/prefabs/missions/effects/mission_failed.prefab");
+            Util.RunEffect(user.transform.position, Util.FAIL_FX);
             faction.Demote(member);
         }
     }
@@ -2538,14 +2565,14 @@ namespace Oxide.Plugins
                 user.SendChatMessage(nameof(Messages.FactionIsNotBadlands));
                 faction.IsBadlands = false;
                 faction.BadlandsCommandUsedTime = DateTime.Now;
-                Util.RunEffect(user.transform.position, "assets/prefabs/missions/effects/mission_victory.prefab");
+                Util.RunEffect(user.transform.position, Util.SUCCESS_FX);
             }
             else
             {
                 user.SendChatMessage(nameof(Messages.FactionIsBadlands));
                 faction.IsBadlands = true;
                 faction.BadlandsCommandUsedTime = DateTime.Now;
-                Util.RunEffect(user.transform.position, "assets/prefabs/missions/effects/mission_accept.prefab");
+                Util.RunEffect(user.transform.position, Util.SUCCESS_FX);
             }
         }
     }
@@ -2577,7 +2604,7 @@ namespace Oxide.Plugins
 
             PrintToChat(Messages.FactionDisbandedAnnouncement, faction.Id);
             Log($"{Util.Format(user)} disbanded faction {faction.Id}");
-            Util.RunEffect(user.transform.position, "assets/prefabs/missions/effects/mission_failed.prefab");
+            Util.RunEffect(user.transform.position, Util.FAIL_FX);
             Factions.Disband(faction);
         }
     }
@@ -2664,8 +2691,7 @@ namespace Oxide.Plugins
 
             member.SendChatMessage(nameof(Messages.InviteReceived), user.UserName, faction.Id);
             user.SendChatMessage(nameof(Messages.InviteAdded), member.UserName, faction.Id);
-            Util.RunEffect(user.transform.position, "assets/prefabs/missions/effects/mission_objective_complete.prefab");
-            Util.RunEffect(user.transform.position, "assets/prefabs/missions/effects/mission_objective_complete.prefab", member.Player);
+            Util.RunEffect(user.transform.position, Util.SUCCESS_FX, member.Player);
 
             Log($"{Util.Format(user)} invited {Util.Format(member)} to faction {faction.Id}");
 
@@ -2713,7 +2739,7 @@ namespace Oxide.Plugins
             user.SendChatMessage(nameof(Messages.YouJoinedFaction), faction.Id);
             PrintToChat(Messages.FactionMemberJoinedAnnouncement, user.UserName, faction.Id);
             Log($"{Util.Format(user)} joined faction {faction.Id}");
-            Util.RunEffect(user.transform.position, "assets/prefabs/missions/effects/mission_objective_complete.prefab");
+            Util.RunEffect(user.transform.position, Util.SUCCESS_FX);
             faction.AddMember(user);
             user.SetFaction(faction);
         }
@@ -2768,7 +2794,7 @@ namespace Oxide.Plugins
             PrintToChat(Messages.FactionMemberLeftAnnouncement, member.UserName, faction.Id);
 
             Log($"{Util.Format(user)} kicked {Util.Format(member)} from faction {faction.Id}");
-            Util.RunEffect(user.transform.position, "assets/prefabs/missions/effects/mission_failed.prefab");
+            Util.RunEffect(user.transform.position, Util.FAIL_FX);
             faction.RemoveMember(member);
             member.SetFaction(null);
         }
@@ -2811,7 +2837,7 @@ namespace Oxide.Plugins
             PrintToChat(Messages.FactionMemberLeftAnnouncement, user.UserName, faction.Id);
 
             Log($"{Util.Format(user)} left faction {faction.Id}");
-            Util.RunEffect(user.transform.position, "assets/prefabs/missions/effects/mission_failed.prefab");
+            Util.RunEffect(user.transform.position, Util.FAIL_FX);
             faction.RemoveMember(user);
             user.SetFaction(null);
         }
@@ -2865,7 +2891,7 @@ namespace Oxide.Plugins
 
             user.SendChatMessage(nameof(Messages.ManagerAdded), member.UserName, faction.Id);
             Log($"{Util.Format(user)} promoted {Util.Format(member)} in faction {faction.Id}");
-            Util.RunEffect(user.transform.position, "assets/prefabs/missions/effects/mission_victory.prefab");
+            Util.RunEffect(user.transform.position, Util.SUCCESS_FX);
             faction.Promote(member);
         }
     }
@@ -3781,7 +3807,7 @@ namespace Oxide.Plugins
             }
             area.Level++;
             user.SendChatMessage(nameof(Messages.AreaLevelUpgraded), area.Level);
-            Util.RunEffect(user.transform.position, "assets/bundled/prefabs/fx/item_unlock.prefab");
+            Util.RunEffect(user.transform.position, Util.SUCCESS_FX);
         }
     }
 }
@@ -3993,7 +4019,7 @@ namespace Oxide.Plugins
             War war = Wars.DeclareWar(attacker, defender, user, cassusBelli);
             PrintToChat(Messages.WarDeclaredAnnouncement, war.AttackerId, war.DefenderId, war.CassusBelli);
             if (!war.IsActive)
-                Util.RunEffect(user.transform.position, "assets/prefabs/missions/effects/mission_accept.prefab");
+                Util.RunEffect(user.transform.position, Util.SUCCESS_FX);
             Log(
                 $"{Util.Format(user)} declared war on faction {war.DefenderId} on behalf of {war.AttackerId} for reason: {war.CassusBelli}");
 
@@ -4043,12 +4069,12 @@ namespace Oxide.Plugins
                 PrintToChat(Messages.WarEndedTreatyAcceptedAnnouncement, faction.Id, enemy.Id);
                 Log($"{Util.Format(user)} accepted the peace offering of {enemy.Id} on behalf of {faction.Id}");
                 Wars.EndWar(war, WarEndReason.Treaty);
-                Util.RunEffect(user.transform.position, "assets/prefabs/missions/effects/mission_victory.prefab");
+                Util.RunEffect(user.transform.position, Util.SUCCESS_FX);
                 OnDiplomacyChanged();
             }
             else
             {
-                Util.RunEffect(user.transform.position, "assets/prefabs/missions/effects/mission_failed.prefab");
+                Util.RunEffect(user.transform.position, Util.FAIL_FX);
                 user.SendChatMessage(nameof(Messages.PeaceOffered), enemy.Id);
                 Log($"{Util.Format(user)} offered peace to faction {enemy.Id} on behalf of {faction.Id}");
             }
@@ -6380,6 +6406,8 @@ namespace Oxide.Plugins
 
             if (area == null || previousArea == null)
                 return;
+            if (Instance.Options.Hud.EnableChatAnnouncements == false)
+                return;
             if (area.Type == AreaType.Badlands && previousArea.Type != AreaType.Badlands)
             {
                 // The player has entered the badlands.
@@ -8513,7 +8541,7 @@ namespace Oxide.Plugins
                     {
                         Util.PrintToChat(nameof(Messages.AreaClaimedAnnouncement), Faction.Id, area.Id);
                     }
-                    Util.RunEffect(User.transform.position, "assets/prefabs/missions/effects/mission_objective_complete.prefab");
+                    Util.RunEffect(User.transform.position, Util.SUCCESS_FX);
                     Instance.Log($"{Util.Format(User)} claimed {area.Id} on behalf of {Faction.Id}");
                     Instance.Areas.Claim(area, type, Faction, User, cupboard);
 
@@ -8535,7 +8563,7 @@ namespace Oxide.Plugins
                             $"{Util.Format(User)} moved {area.FactionId}'s claim on {area.Id} from cupboard {Util.Format(area.ClaimCupboard)} to cupboard {Util.Format(cupboard)}");
                         area.ClaimantId = User.Id;
                         area.ClaimCupboard = cupboard;
-                        Util.RunEffect(User.transform.position, "assets/prefabs/missions/effects/mission_objective_complete.prefab");
+                        Util.RunEffect(User.transform.position, Util.SUCCESS_FX);
                         return true;
                     }
                 }
@@ -8558,7 +8586,7 @@ namespace Oxide.Plugins
                         $"{Util.Format(User)} captured the claim on {area.Id} from {area.FactionId} on behalf of {Faction.Id}");
 
                     Instance.Areas.Claim(area, type, Faction, User, cupboard);
-                    Util.RunEffect(User.transform.position, "assets/prefabs/missions/effects/mission_objective_complete.prefab");
+                    Util.RunEffect(User.transform.position, Util.SUCCESS_FX);
                     return true;
                 }
 
@@ -8610,7 +8638,7 @@ namespace Oxide.Plugins
                 Instance.Log($"{Util.Format(User)} assigned {area.Id} to {Faction.Id}");
 
                 Instance.Areas.Claim(area, type, Faction, User, cupboard);
-                Util.RunEffect(User.transform.position, "assets/prefabs/missions/effects/mission_objective_complete.prefab");
+                Util.RunEffect(User.transform.position, Util.SUCCESS_FX);
                 return true;
             }
         }
@@ -8670,12 +8698,11 @@ namespace Oxide.Plugins
                     User.SendChatMessage(nameof(Messages.SelectingCupboardFailedCantUnclaimHeadquarters));
                     return false;
                 }
-
                 Util.PrintToChat(nameof(Messages.AreaClaimRemovedAnnouncement), Faction.Id, area.Id);
                 Instance.Log($"{Util.Format(User)} removed {Faction.Id}'s claim on {area.Id}");
 
                 Instance.Areas.Unclaim(area);
-                Util.RunEffect(User.transform.position, "assets/prefabs/missions/effects/mission_objective_complete.prefab");
+                Util.RunEffect(User.transform.position, Util.SUCCESS_FX);
                 return true;
             }
         }
@@ -8752,7 +8779,7 @@ namespace Oxide.Plugins
                 Instance.Log($"{Util.Format(User)} set {Faction.Id}'s headquarters to {area.Id}");
 
                 Instance.Areas.SetHeadquarters(area, Faction);
-                Util.RunEffect(User.transform.position, "assets/prefabs/missions/effects/mission_objective_complete.prefab");
+                Util.RunEffect(User.transform.position, Util.SUCCESS_FX);
                 return true;
             }
         }
@@ -8890,12 +8917,11 @@ namespace Oxide.Plugins
 
                 Area[] claimedAreas = Instance.Areas.GetAllClaimedByFaction(TargetFaction);
                 AreaType type = (claimedAreas.Length == 0) ? AreaType.Headquarters : AreaType.Claimed;
-
                 Util.PrintToChat(nameof(Messages.AreaClaimTransferredAnnouncement), SourceFaction.Id, area.Id,
                     TargetFaction.Id);
                 Instance.Log(
                     $"{Util.Format(User)} transferred {SourceFaction.Id}'s claim on {area.Id} to {TargetFaction.Id}");
-                Util.RunEffect(User.transform.position, "assets/prefabs/missions/effects/mission_objective_complete.prefab");
+                Util.RunEffect(User.transform.position, Util.SUCCESS_FX);
                 Instance.Areas.Claim(area, type, TargetFaction, User, cupboard);
 
                 return true;
@@ -10071,6 +10097,8 @@ namespace Oxide.Plugins
 
             [JsonProperty("minFactionMembers")] public int MinFactionMembers;
 
+            [JsonProperty("maxAreaHeight")] public float MaxAreaHeight;
+
             [JsonProperty("requireContiguousClaims")]
             public bool RequireContiguousClaims;
 
@@ -10082,7 +10110,8 @@ namespace Oxide.Plugins
                 MinAreaNameLength = 3,
                 MaxAreaNameLength = 20,
                 MinFactionMembers = 1,
-                RequireContiguousClaims = true
+                RequireContiguousClaims = true,
+                MaxAreaHeight = 500f
             };
         }
     }
@@ -10138,7 +10167,11 @@ namespace Oxide.Plugins
 
             [JsonProperty("memberOwnLandExplosiveRaidingDamageScale")] public float MemberOwnLandExplosiveRaidingDamageScale = 1f;
 
+            [JsonProperty("addFactionTagToPlayerNames")] public bool AddFactionTagToPlayerNames = true;
+
             [JsonProperty("useClansPlugin")] private bool _UseClansPlugin = false;
+
+
 
             [JsonIgnore]
             public bool UseClansPlugin { get { return (_UseClansPlugin && Instance.Clans != null); } }
@@ -10153,6 +10186,7 @@ namespace Oxide.Plugins
                 OverrideInGameTeamSystem = true,
                 MemberOwnLandEcoRaidingDamageScale = 1f,
                 MemberOwnLandExplosiveRaidingDamageScale = 1f,
+                AddFactionTagToPlayerNames = true,
                 _UseClansPlugin = false
             };
 
@@ -10172,18 +10206,22 @@ namespace Oxide.Plugins
         private class HudOptions
         {
             [JsonProperty("showEventsHud")] public bool ShowEventsHUD;
+            [JsonProperty("eventsHudVisibleByDefault")] public bool EventsHudVisibleByDefault;
             [JsonProperty("leftPanelXOffset")] public float LeftPanelXOffset = 0f;
             [JsonProperty("leftPanelYOffset")] public float LeftPanelYOffset = 0f;
             [JsonProperty("rightPanelXOffset")] public float RightPanelXOffset = 0f;
             [JsonProperty("rightPanelYOffset")] public float RightPanelYOffset = 0f;
+            [JsonProperty("enableChatAnnouncements")] public bool EnableChatAnnouncements = true;
 
             public static HudOptions Default = new HudOptions
             {
                 ShowEventsHUD = true,
+                EventsHudVisibleByDefault = true,
                 LeftPanelXOffset = 0f,
                 LeftPanelYOffset = 0f,
                 RightPanelXOffset = 0f,
-                RightPanelYOffset = 0f
+                RightPanelYOffset = 0f,
+                EnableChatAnnouncements = true
             };
         }
     }
@@ -10328,6 +10366,8 @@ namespace Oxide.Plugins
             [JsonProperty("allowedInDeepWater")] public bool AllowedInDeepWater;
 
             [JsonProperty("allowedUnderground")] public bool AllowedUnderground;
+
+            
 
             [JsonProperty("enablePvpCommand")] public bool EnablePvpCommand;
 
@@ -12787,7 +12827,7 @@ namespace Oxide.Plugins
                 CurrentInteraction = null;
                 Faction = faction;
 
-                if (faction == null)
+                if (faction == null || !Instance.Options.Factions.AddFactionTagToPlayerNames)
                     Player.displayName = OriginalName;
                 else
                     Player.displayName = $"[{faction.Id}] {Player.displayName}";
@@ -12993,7 +13033,7 @@ namespace Oxide.Plugins
                     {
                         recruit.isFollowingLeader = true;
                     }
-                    Util.RunEffect(transform.position, "assets/bundled/prefabs/fx/invite_notice.prefab", Player);
+                    Util.RunEffect(transform.position, Util.RECRUIT_FX, Player);
                     return;
                 }
 
@@ -13010,7 +13050,7 @@ namespace Oxide.Plugins
                         recruit.isFollowingLeader = false;
                         Interface.CallHook("SetHomePosition", recruit.npc, pos);
                     }
-                    Util.RunEffect(transform.position, "assets/bundled/prefabs/fx/invite_notice.prefab", Player);
+                    Util.RunEffect(transform.position, Util.RECRUIT_FX, Player);
                     return;
                 }
                 if (name == "disband")
@@ -13020,7 +13060,7 @@ namespace Oxide.Plugins
                         recruit.npc.Server_StartGesture(id);
                     }
                     DisbandRecruitParty();
-                    Util.RunEffect(transform.position, "assets/bundled/prefabs/fx/invite_notice.prefab", Player);
+                    Util.RunEffect(transform.position, Util.RECRUIT_FX, Player);
                     return;
                 }
             }
@@ -13268,6 +13308,7 @@ namespace Oxide.Plugins
 #region Util.cs
 ﻿namespace Oxide.Plugins
 {
+    using Epic.OnlineServices.IntegratedPlatform;
     using System;
     using System.Collections;
     using System.Text;
@@ -13277,6 +13318,9 @@ namespace Oxide.Plugins
     {
         private static class Util
         {
+            public const string SUCCESS_FX = "assets/prefabs/missions/effects/mission_victory.prefab";
+            public const string FAIL_FX = "assets/prefabs/missions/effects/mission_failed.prefab";
+            public const string RECRUIT_FX = "assets/bundled/prefabs/fx/invite_notice.prefab";
             private const string NullString = "(null)";
 
             public static string Format(object obj)
@@ -13433,11 +13477,10 @@ namespace Oxide.Plugins
 
             public static void RunEffect(Vector3 position, string prefab, BasePlayer player = null)
             {
-                /*
+                
                 var effect = new Effect();
                 effect.Init(Effect.Type.Generic, position, Vector3.zero);
                 effect.pooledString = prefab;
-
                 if (player != null)
                 {
                     EffectNetwork.Send(effect, player.net.connection);
@@ -13446,12 +13489,12 @@ namespace Oxide.Plugins
                 {
                     EffectNetwork.Send(effect);
                 }
-                */
+                
             }
 
             public static void BroadcastEffect(string prefab)
             {
-                /*
+                
                 Vector3 position;
                 BasePlayer player;
                 foreach (User user in Instance.Users.GetAll())
@@ -13466,11 +13509,14 @@ namespace Oxide.Plugins
                         EffectNetwork.Send(effect, player.net.connection);
                     }
                 }
-                */
+                
             }
 
             public static void PrintToChat(string format, params object[] args)
             {
+                if(!Instance.Options.Hud.EnableChatAnnouncements)
+                    return;
+
                 foreach (User user in Instance.Users.GetAll())
                 {
                     if (user.Player)
@@ -13759,7 +13805,7 @@ namespace Oxide.Plugins
                 Instance.OnDiplomacyChanged();
                 if (war.IsActive)
                 {
-                    Util.BroadcastEffect("assets/prefabs/missions/effects/mission_accept.prefab");
+                    Util.BroadcastEffect(Util.SUCCESS_FX);
                 }
                 return war;
             }
@@ -13792,7 +13838,7 @@ namespace Oxide.Plugins
                 Instance.OnDiplomacyChanged();
                 if (war.IsActive)
                 {
-                    Util.BroadcastEffect("assets/prefabs/missions/effects/mission_accept.prefab");
+                    Util.BroadcastEffect(Util.SUCCESS_FX);
                 }
             }
 
@@ -13808,7 +13854,7 @@ namespace Oxide.Plugins
                 Instance.OnDiplomacyChanged();
                 if (war.IsActive)
                 {
-                    Util.BroadcastEffect("assets/prefabs/missions/effects/mission_accept.prefab");
+                    Util.BroadcastEffect(Util.SUCCESS_FX);
                 }
             }
 
@@ -14254,6 +14300,4 @@ namespace Oxide.Plugins
     }
 }
 #endregion
-
-
 
